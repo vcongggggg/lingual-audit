@@ -47,7 +47,7 @@ graph TD
     end
 
     subgraph "Infrastructure & Data Services"
-        Postgres[("🐘 PostgreSQL 16\n(8 Modules · 45 Tables · Append-only XP Ledger)")]
+        Postgres[("🐘 PostgreSQL 16\n(9 Modules · 22 Tables Core MVP · Append-only XP Ledger)")]
         RedisCache[("⚡ Redis 7\n(Sliding Rate Limiter, Game State, Token Cache)")]
         GeminiAI["🧠 Google Gemini API\n(Grammar Correction & Multi-turn Roleplay)"]
         
@@ -66,17 +66,17 @@ graph TD
 * **Bối cảnh:** Mezon Platform cho phép Bot hoạt động trong các Clan cộng đồng. Ban đầu nhóm cân nhắc kiến trúc đa Clan (Multi-tenant).
 * **Quyết định:** Chuyển sang mô hình **Single-Clan Dedicated Bot**:
   - Bot được cấu hình gắn chặt với **1 Clan trường học / cộng đồng cụ thể** thông qua bản ghi singleton `bot_configuration` (ràng buộc `CHECK (id = 1)`).
-  - Thành viên Clan được quản lý qua `configured_clan_members` và quyền quản trị viên nội bộ qua `configured_clan_role_grants` (`clan_moderator`).
+  - Thành viên Clan được quản lý trực tiếp qua `users` (Simple RBAC) và phân quyền quản trị viên nội bộ Clan qua `clan_moderator_grants`.
 * **Lợi ích:**
   - Loại bỏ hoàn toàn sự phức tạp của việc phân vùng dữ liệu đa Clan (Tenant Isolation, Tenant Migration).
-  - Tối ưu hiệu năng truy vấn: Mọi thống kê (`configured_clan_daily_analytics`, `configured_clan_weekly_stats`) đều tập trung cho một cộng đồng duy nhất.
+  - Tối ưu hiệu năng truy vấn: Mọi thống kê (`weekly_leaderboards`, `clan_quiz_sessions`) đều tập trung cho một cộng đồng duy nhất.
   - Phù hợp hoàn hảo với tiêu chí và phạm vi cuộc thi Mezon Campus Studio 2026.
 
 ### ADR-02: Cơ chế Điểm thưởng Sổ cái Bất biến (`xp_ledger` Append-Only Ledger)
 * **Bối cảnh:** Trong game học tập, người dùng thường bấm nút nhanh hoặc gặp sự cố mạng chập chờn gửi request liên tiếp (race condition), dẫn đến nguy cơ cộng trùng điểm hoặc sai lệch thứ hạng.
 * **Quyết định:** Áp dụng mô hình **Append-Only Ledger**:
   - Không bao giờ cập nhật trực tiếp biến động điểm vào bảng User.
-  - Mọi điểm thưởng (+5 từ mới, +3 ôn tập, +10 quiz, +25 bài học, +30 duel) đều được ghi nhận vào bảng `xp_ledger` kèm trường `idempotency_key UNIQUE`.
+  - Mọi điểm thưởng (+5 từ mới, +3 ôn tập, +10 quiz, +25 bài học, +30 duel) đều được ghi nhận vào bảng `xp_ledger` kèm trường `idempotency_key UNIQUE` và index `uq_xp_ledger_source`.
   - Tổng điểm có thể tổng hợp trực tiếp từ sổ cái, đảm bảo tính toàn vẹn kiểm toán (Audit Trail) 100%.
 
 ### ADR-03: Luồng Trải nghiệm Đấu trường Word Duel 3 Bước
@@ -96,17 +96,18 @@ Hệ thống backend được tổ chức thành 7 project sạch sẽ trong Sol
 src/
 ├── Lingual.Domain/                     # Core Domain Entities, Value Objects, Domain Events
 │   ├── Common/ (AggregateRoot, Entity, IIdempotentCommand)
-│   ├── Identity/ (User, Role, LearnerProfile)
+│   ├── Identity/ (User, LearnerProfile, PlacementTest)
 │   ├── Curriculum/ (Course, Unit, Lesson, VocabularyItem)
-│   ├── Learning/ (LessonProgress, SrsCard, SrsReview, XpLedger, UserStreak)
-│   ├── Quiz/ (Quiz, QuizQuestion, QuizOption, QuizAttempt)
-│   ├── Community/ (BotConfiguration, ConfiguredClanMember, ClanQuizSession)
-│   ├── Competition/ (DuelMatch, DuelAnswer, DuelResult, LeaderboardWeek)
-│   └── Assistant/ (AiScenario, AiConversation, AiMessage)
+│   ├── Learning/ (LessonProgress, SrsCard, XpLedger, UserStreak)
+│   ├── Quiz/ (Quiz, QuizQuestion, QuizAttempt)
+│   ├── Community/ (BotConfiguration, ClanQuizSession, ClanModeratorGrant)
+│   ├── Competition/ (DuelMatch, WeeklyLeaderboard)
+│   ├── Assistant/ (AiScenario, AiConversation)
+│   └── Audit/ (AuditLog)
 │
 ├── Lingual.Infrastructure/             # Data Access & External Integrations
 │   ├── Persistence/
-│   │   ├── LingualDbContext.cs         # EF Core 8 DbContext (cấu hình 45 bảng snake_case)
+│   │   ├── LingualDbContext.cs         # EF Core 8 DbContext (cấu hình 22 bảng Core MVP & JSON Columns)
 │   │   └── Migrations/                 # EF Core Code-First Migrations
 │   ├── Caching/
 │   │   └── RedisCacheService.cs        # Redis 7 (Sliding Window, Active Game Session)
@@ -115,6 +116,7 @@ src/
 │   │   └── MezonGatewayClient.cs       # Mezon Webhook & Bot API Client
 │   └── Security/
 │       └── MezonHmacValidator.cs       # Kiểm tra chữ ký HMAC SHA-256 (X-Mezon-Signature)
+
 │
 ├── Lingual.Application/                # Use Cases, CQRS Handlers (MediatR), DTOs
 │   ├── Identity/
@@ -184,12 +186,12 @@ sequenceDiagram
         Hub-->>P2: Vòng N: Câu hỏi + 4 đáp án (Không gửi correct_index)
         P1->>Hub: Gửi đáp án (selected_option_id, response_ms)
         P2->>Hub: Gửi đáp án (selected_option_id, response_ms)
-        Hub->>DB: Ghi nhận duel_answers
+        Hub->>DB: Cập nhật duel_matches (JSONB answers)
         Hub-->>P1: Kết quả vòng N: Điểm số tạm thời hai bên
         Hub-->>P2: Kết quả vòng N: Điểm số tạm thời hai bên
     end
 
-    Hub->>DB: UPDATE duel_matches (status='completed', winner_id), Ghi duel_results
+    Hub->>DB: UPDATE duel_matches (status='completed', winner_id, scores JSONB)
     Hub->>DB: Ghi sổ cái xp_ledger (+30 XP người thắng, +10 XP người thua)
     Hub-->>P1: Màn hình vinh danh chiến thắng
     Hub-->>P2: Màn hình kết quả khuyến khích
@@ -216,3 +218,7 @@ Tuân thủ nghiêm ngặt các tiêu chuẩn bảo mật cho dự án sinh viê
    - Tích hợp Redis Sliding Window giới hạn tối đa **5 requests/giây/user**. Nếu vượt quá ngưỡng, hệ thống trả về mã `HTTP 429 Too Many Requests` hoặc Bot im lặng bỏ qua tin nhắn rác.
 5. **Bảo vệ Bí mật (Zero Secret Leaks):**
    - Tuyệt đối không commit token hay database credential vào repository. Sử dụng biến môi trường chuẩn `.env` (mẫu `.env.example`).
+6. **Nhật ký Kiểm toán Bất biến (Append-Only Audit Logs - ADM-09/12):**
+   - Mọi thay đổi phân quyền Admin, cấp/thu hồi quyền `clan_moderator_grants`, hay thay đổi cấu hình Bot đều được lưu vào bảng `audit_logs` (Module 09).
+   - Quyền `UPDATE` và `DELETE` trên bảng `audit_logs` bị thu hồi hoàn toàn khỏi service account trong production nhằm đảm bảo tính không thể chối bỏ (non-repudiation).
+

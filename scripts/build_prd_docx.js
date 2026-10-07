@@ -426,13 +426,45 @@ function createCoverPage(totalWidth = 9026) {
                         width: { size: 2600, type: WidthType.DXA },
                         shading: { fill: 'EDF2F7', type: ShadingType.CLEAR },
                         margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Mentor hướng dẫn:', bold: true, size: 20, font: 'Calibri', color: '1A365D' })] })]
+                    }),
+                    new TableCell({
+                        width: { size: 4200, type: WidthType.DXA },
+                        shading: { fill: 'FFFFFF', type: ShadingType.CLEAR },
+                        margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Mai Hồng Mận (man.maihong)', bold: true, size: 20, font: 'Calibri', color: '2D3748' })] })]
+                    })
+                ]
+            }),
+            new TableRow({
+                children: [
+                    new TableCell({
+                        width: { size: 2600, type: WidthType.DXA },
+                        shading: { fill: 'EDF2F7', type: ShadingType.CLEAR },
+                        margins: { top: 120, bottom: 120, left: 160, right: 160 },
                         children: [new Paragraph({ children: [new TextRun({ text: 'Chủ nhiệm đề tài / PO:', bold: true, size: 20, font: 'Calibri', color: '1A365D' })] })]
                     }),
                     new TableCell({
                         width: { size: 4200, type: WidthType.DXA },
                         shading: { fill: 'FFFFFF', type: ShadingType.CLEAR },
                         margins: { top: 120, bottom: 120, left: 160, right: 160 },
-                        children: [new Paragraph({ children: [new TextRun({ text: 'Ngô Văn Công', bold: true, size: 20, font: 'Calibri', color: '2D3748' })] })]
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Ngô Văn Công (cong.ngovan)', bold: true, size: 20, font: 'Calibri', color: '2D3748' })] })]
+                    })
+                ]
+            }),
+            new TableRow({
+                children: [
+                    new TableCell({
+                        width: { size: 2600, type: WidthType.DXA },
+                        shading: { fill: 'EDF2F7', type: ShadingType.CLEAR },
+                        margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Đội ngũ thực hiện:', bold: true, size: 20, font: 'Calibri', color: '1A365D' })] })]
+                    }),
+                    new TableCell({
+                        width: { size: 4200, type: WidthType.DXA },
+                        shading: { fill: 'FFFFFF', type: ShadingType.CLEAR },
+                        margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Team 05 — Đụt Cận Trĩ (Công, Minh, Trí)', size: 20, font: 'Calibri', color: '2D3748' })] })]
                     })
                 ]
             }),
@@ -480,7 +512,7 @@ function createCoverPage(totalWidth = 9026) {
                         width: { size: 4200, type: WidthType.DXA },
                         shading: { fill: 'FFFFFF', type: ShadingType.CLEAR },
                         margins: { top: 120, bottom: 120, left: 160, right: 160 },
-                        children: [new Paragraph({ children: [new TextRun({ text: 'Bản chính thức v1.1 — Chuẩn hóa Single-Clan & CSDL 8 Module', size: 20, font: 'Calibri', bold: true, color: 'D97706' })] })]
+                        children: [new Paragraph({ children: [new TextRun({ text: 'Bản chính thức v1.1 — Chuẩn hóa Single-Clan & CSDL 22 Bảng Core MVP', size: 20, font: 'Calibri', bold: true, color: 'D97706' })] })]
                     })
                 ]
             }),

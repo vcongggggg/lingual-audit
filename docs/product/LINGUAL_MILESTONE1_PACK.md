@@ -2,26 +2,26 @@
 
 > Team 05 · Mezon Campus Studio 2026 · Soạn ngày 04/10/2026
 > Gồm: (0) Điểm lệch cần chốt · (1) User Stories & AC · (2) Đặc tả CSDL · (3) Kế hoạch Sprint 0 từng ngày + DoD
-> File đi kèm: `lingual_full_schema.dbml` (dán vào dbdiagram.io để có ERD 45 bảng 8 module ngay)
+> File đi kèm: `lingual_full_schema.dbml` (dán vào dbdiagram.io để có ERD 22 bảng Core MVP ngay)
 
 ---
 
 ## 0. ĐIỂM LỆCH GIỮA CÁC TÀI LIỆU — CẦN CHỐT TRƯỚC KHI NỘP
 
-Khi đối chiếu PRD, Sprint Plan, ARCHITECTURE_DESIGN.md và schema.prisma, mình thấy các điểm sau. Mỗi điểm có **quyết định đề xuất** (đã dùng làm cơ sở cho phần 1–3). Công xem nhanh 30 phút là chốt được.
+Khi đối chiếu PRD, Sprint Plan, ARCHITECTURE_DESIGN.md và schema, nhóm thống nhất các quyết định kiến trúc:
 
 | # | Điểm lệch | Đề xuất |
 |---|-----------|---------|
-| D1 | **Nút đánh giá SRS**: PRD là 4 nút (Again/Hard/Good/Easy), Sprint Plan SP1-06 là 5 nút (1–5) | Dùng **4 nút** (chuẩn UX Anki/Duolingo). Map sang quality SM-2: Again=1, Hard=3, Good=4, Easy=5. DB vẫn lưu quality 0–5 để unit test đủ kịch bản |
-| D2 | **Thời gian /quiz**: PRD 30 giây, Sprint Plan SP2-03 là 15 giây | **30 giây** (PRD là nguồn business rule), để thành config `ClanQuiz:DurationSeconds`. Sửa SP2-03 |
-| D3 | **Quy tắc Streak**: FR-07.3 nói "5 phút hoặc 1 quiz", mục 7.2 nói "≥ 20 XP/ngày" | Chỉ giữ **≥ 20 XP/ngày** (múi giờ Asia/Ho_Chi_Minh). Sửa FR-07.3 |
+| D1 | **Nút đánh giá SRS**: PRD là 4 nút (Again/Hard/Good/Easy), Sprint Plan SP1-06 là 5 nút (1–5) | Dùng **4 nút** (chuẩn UX Anki/Duolingo). Map sang quality SM-2: Again=1, Hard=3, Good=4, Easy=5. DB lưu review_history JSONB |
+| D2 | **Thời gian /quiz**: PRD 30 giây, Sprint Plan SP2-03 là 15 giây | **30 giây** (PRD là nguồn business rule), lưu config trong `bot_configuration.quiz_duration_seconds` |
+| D3 | **Quy tắc Streak**: FR-07.3 nói "5 phút hoặc 1 quiz", mục 7.2 nói "≥ 20 XP/ngày" | Chỉ giữ **≥ 20 XP/ngày** (múi giờ Asia/Ho_Chi_Minh). Ghi nhận vào `user_streaks.daily_activity` |
 | D4 | **Luồng UX Word Duel trên Mezon**: Chơi trên chat bot hay Webview | **Chuẩn Mezon UX 3 bước**: Thách đấu trên Chat Bot (`/duel @user`) ➔ Chấp nhận thì mở **Channel Mini-App (Webview nhúng Mezon)** đấu Realtime qua SignalR (không spam chat, đếm ngược 10s mượt mà, có âm thanh) ➔ Kết thúc trận Bot tự động bắn **Thẻ vinh danh kết quả (+XP)** ra kênh Chat Clan |
-| D5 | **Ma trận phạm vi PRD (mục 8)** xếp Interactive Buttons, đố vui realtime và Word Duel vào "Phase 2 (tuần 5–8)", còn Sprint Plan đã xếp /quiz vào Sprint 2 và Duel vào Sprint 3 | Sửa nhãn Phase trong PRD cho khớp Sprint Plan để Mentor không hỏi. ERD vẫn gồm bảng Duel và /quiz vì Milestone 1 chốt thiết kế, code theo Sprint |
-| D6 | **ARCHITECTURE_DESIGN.md mô tả stack khác thực tế**: FastAPI/Express, Prisma/SQLAlchemy, "Node.js or Python", không có SignalR, không có module map | Viết lại theo .NET 8 Modular Monolith (7 project), EF Core, SignalR GameHub, Adapter Mezon. Đã có khung ở Task Công ngày 06/10 |
-| D7 | **Đặc tả yếu tố AI cho đề tài**: Đề tài đăng ký là *"Web app học TA tích hợp AI"* nhưng bản thảo cũ chưa có bảng AI | Bổ sung module **AI Tutor (LingLing)** (`ai_scenarios`, `ai_conversations`, `ai_messages`) lưu vết phân tích ngữ pháp, kịch bản hội thoại và token Google Gemini API, đảm bảo 100% tiêu chí đề tài |
-| D8 | **Kiến trúc Mezon Bot Single-Clan vs Multi-Clan**: Quản lý đa Clan phức tạp hay tập trung vào 1 Clan | **Chốt Single-Clan Architecture**: Bot được thiết kế chuyên biệt phục vụ cho **1 Clan cụ thể** (trường ĐH hoặc cộng đồng sinh viên Mezon) thông qua bản ghi singleton `bot_configuration`. Không cần bảng `clans` đa cấp phức tạp, thành viên quản lý qua `configured_clan_members` và `configured_clan_role_grants` |
+| D5 | **Ma trận phạm vi PRD (mục 8)** xếp Interactive Buttons, đố vui realtime và Word Duel vào "Phase 2 (tuần 5–8)", còn Sprint Plan đã xếp /quiz vào Sprint 2 và Duel vào Sprint 3 | Sửa nhãn Phase trong PRD cho khớp Sprint Plan để Mentor không hỏi. Toàn bộ 22 bảng Core MVP được chuẩn bị sẵn |
+| D6 | **ARCHITECTURE_DESIGN.md mô tả stack khác thực tế**: FastAPI/Express, Prisma/SQLAlchemy | Viết lại theo .NET 8 Modular Monolith (7 project), EF Core, SignalR GameHub, Adapter Mezon |
+| D7 | **Đặc tả yếu tố AI cho đề tài**: Đề tài đăng ký là *"Web app học TA tích hợp AI"* | Bổ sung module **AI Tutor (LingLing)** (`ai_scenarios`, `ai_conversations` gộp `messages` JSONB) lưu vết phân tích ngữ pháp, kịch bản hội thoại và token Google Gemini API |
+| D8 | **Kiến trúc Mezon Bot Single-Clan vs Multi-Clan**: Quản lý đa Clan phức tạp hay tập trung vào 1 Clan | **Chốt Single-Clan Architecture**: Bot được thiết kế chuyên biệt phục vụ cho **1 Clan cụ thể** thông qua bản ghi singleton `bot_configuration`. Phân quyền Clan Moderator tách biệt qua `clan_moderator_grants`, quản lý hệ thống qua Simple RBAC |
 
-**Về bộ CSDL chính thức của dự án:** Nhóm đã chuẩn hóa CSDL gồm **8 file SQL chuyên nghiệp (45 bảng chuẩn PostgreSQL 13+)** lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql). Để giảm tải cho Minh BE và đảm bảo tiến độ nộp Milestone 1 (12/10), nhóm áp dụng chiến lược **Phân kỳ Migration (Phase 1: ~20 bảng Core MVP ở Sprint 1–3; Phase 2: 25 bảng Nâng cao ở Sprint 4–6)**.
+**Về bộ CSDL chính thức của dự án:** Nhóm đã tinh gọn CSDL theo định hướng của Mentor Mai Hồng Mận thành **9 file SQL chuyên nghiệp (22 bảng Core MVP chuẩn PostgreSQL 13+)** lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql). Áp dụng chiến lược **Gộp dữ liệu bằng JSONB Flex Payloads** giúp loại bỏ hơn 50% số bảng cồng kềnh mà vẫn giữ trọn vẹn 100% nghiệp vụ và lịch sử dữ liệu.
 
 ---
 
@@ -141,37 +141,34 @@ Là người học, tôi muốn gửi câu tiếng Anh bất kỳ để AI phân
 
 ---
 
-## 2. ĐẶC TẢ CƠ SỞ DỮ LIỆU CHO MINH (8 MODULES CHUẨN HOÁ — 45 BẢNG)
+## 2. ĐẶC TẢ CƠ SỞ DỮ LIỆU CHO MINH (9 MODULES CHUẨN HOÁ — 22 BẢNG CORE MVP)
 
-> **Toàn bộ script SQL thực thi:** Lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql) gồm 8 file đánh số thứ tự từ `user.sql` đến `analytics.sql`.  
+> **Toàn bộ script SQL thực thi:** Lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql) gồm 9 file đánh số thứ tự từ `user.sql` đến `audit.sql`, cùng script hợp nhất [00_init_all.sql](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql/00_init_all.sql).  
 > **File DBML trực quan:** Dán [docs/database/lingual_full_schema.dbml](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/lingual_full_schema.dbml) vào [dbdiagram.io](https://dbdiagram.io) để xuất ảnh ERD nộp bài cho Mentor Mai Hồng Mận.
 
 ### 2.1 Quy ước chung & Kiến trúc Thiết kế
 - **PostgreSQL 13+ / 16**, toàn bộ tên bảng/cột **snake_case** (EF Core: `UseSnakeCaseNamingConvention()`).
-- Khóa chính **PK `uuid`** (`gen_random_uuid()`), riêng `srs_reviews` dùng `uuid`, `xp_ledger` dùng `uuid` kèm `idempotency_key` (chống race condition).
+- Khóa chính **PK `uuid`** (`gen_random_uuid()` qua extension `pgcrypto`), riêng `xp_ledger` dùng `uuid` kèm `idempotency_key` và unique index chống race condition.
 - Thời gian dùng **`timestamptz`** (UTC). Ngày hoạt động/streak dùng `date` theo múi giờ `Asia/Ho_Chi_Minh`.
-- **Kiến trúc Single-Clan Mezon Bot:** Bot phục vụ riêng cho **1 Clan cụ thể** thông qua bảng singleton `bot_configuration` (ràng buộc `CHECK (id = 1)`). Loại bỏ bảng `clans` đa cấp phức tạp.
+- **Tự động hóa Timestamp:** Sử dụng trigger `set_updated_at()` trên 11 bảng có cột `updated_at`.
+- **Kiến trúc Single-Clan Mezon Bot:** Bot phục vụ riêng cho **1 Clan cụ thể** thông qua bảng singleton `bot_configuration` (ràng buộc `CHECK (id = 1)`). Phân quyền Clan Moderator độc lập qua `clan_moderator_grants`.
 - **Mô hình Sổ cái XP Ledger (Append-only Ledger):** Mọi điểm thưởng đều ghi nhận vào `xp_ledger` kèm `idempotency_key` chống gian lận và cộng lặp.
-- **Thuật toán SM-2 chuẩn 4 mức:** `again`, `hard`, `good`, `easy` với `ease_factor >= 1.30`.
-- **AI Tutor Context:** Lưu cấu trúc sửa lỗi ngữ pháp `correction_payload JSONB` và quản lý `input_tokens`, `output_tokens` của Google Gemini API.
+- **Thuật toán SM-2 chuẩn 4 mức:** `again`, `hard`, `good`, `easy` với `ease_factor >= 1.30`. Lịch sử lưu trong `srs_cards.review_history` (JSONB).
+- **AI Tutor Context:** Lưu chuỗi hội thoại `messages` (JSONB) và quản lý `total_tokens` của Google Gemini API trong `ai_conversations`.
+- **Nhật ký Kiểm toán (Audit Logs):** Bảng append-only `audit_logs` (Module 09) đảm bảo tuân thủ ADM-09/12.
 
-### 2.2 Chiến lược Phân kỳ Migration cho bạn Minh (20 Bảng Core MVP vs 25 Bảng Nâng cao)
-Nhóm phân định rõ ràng để Minh BE không bị quá tải khi code trong 10 tuần:
-- **Mốc 12/10 (Milestone 1 nộp bài):** Nộp trọn vẹn bản thiết kế **8 Module (45 bảng)** trên `dbdiagram.io` để Mentor đánh giá cao về tầm nhìn kiến trúc hệ thống chuyên nghiệp.
-- **Đợt code Migration 1 (Sprint 1–3 — Core MVP ~20 bảng cốt lõi):**
-  1. *Module 01 Identity (3 bảng):* `users`, `roles`, `user_roles`.
-  2. *Module 02 Curriculum (4 bảng):* `courses`, `units`, `lessons`, `vocabulary_items`, `lesson_vocabulary`.
-  3. *Module 03 Learning (5 bảng):* `lesson_progress`, `srs_cards`, `srs_reviews`, `xp_ledger`, `user_streaks`.
-  4. *Module 04 Quiz (3 bảng):* `quizzes`, `quiz_questions`, `quiz_options`.
-  5. *Module 05 Community (3 bảng):* `bot_configuration`, `configured_clan_members`, `clan_quiz_sessions`, `clan_quiz_responses`.
-  6. *Module 06 Competition (3 bảng):* `duel_matches`, `duel_answers`, `duel_results`.
-  7. *Module 07 AI Tutor (1 bảng):* `ai_messages` (hoặc `ai_conversations` + `ai_messages`).
-- **Đợt code Migration 2 (Sprint 4–6 — Mở rộng 25 bảng còn lại):**
-  - Kích hoạt `placement_attempts`, `placement_answers` (Test đầu vào).
-  - Sổ tay cá nhân `user_vocabulary_deck`, ví dụ đa ngữ cảnh `vocabulary_examples`.
-  - Lập lịch tự động `bot_schedules`, phân quyền `configured_clan_role_grants`.
-  - Bảng xếp hạng tuần đóng băng `leaderboard_weeks`, `user_weekly_leaderboard`, `configured_clan_weekly_stats`.
-  - Báo cáo phân tích giữ chân `configured_clan_daily_analytics`, `user_retention_cohorts`.
+### 2.2 Danh mục 22 Bảng Core MVP theo Module cho bạn Minh
+Hệ thống tinh gọn thành đúng **22 bảng cốt lõi** hoàn thiện trọn vẹn trong vòng đời 10 tuần:
+1. *Module 01 Identity (3 bảng):* `users` (Simple RBAC role), `learner_profiles`, `placement_tests` (answers_detail JSONB).
+2. *Module 02 Curriculum (4 bảng):* `courses`, `units`, `lessons` (vocabulary_ids JSONB), `vocabulary_items` (examples JSONB).
+3. *Module 03 Learning (4 bảng):* `lesson_progress` (session_history JSONB), `srs_cards` (review_history JSONB), `xp_ledger`, `user_streaks` (freeze_history, daily_activity JSONB).
+4. *Module 04 Quiz (3 bảng):* `quizzes`, `quiz_questions` (options JSONB), `quiz_attempts` (answers_detail JSONB).
+5. *Module 05 Community (3 bảng):* `bot_configuration` (schedules JSONB), `clan_quiz_sessions` (responses JSONB), `clan_moderator_grants`.
+6. *Module 06 Competition (2 bảng):* `duel_matches` (question_ids, answers, scores JSONB), `weekly_leaderboards`.
+7. *Module 07 AI Tutor (2 bảng):* `ai_scenarios`, `ai_conversations` (messages JSONB).
+8. *Module 08 Analytics (0 bảng):* Phase 2 (chỉ số được query trực tiếp từ `xp_ledger` và `lesson_progress`).
+9. *Module 09 Audit (1 bảng):* `audit_logs` (append-only security audit trail).
+
 
 ### 2.2 MODULE IDENTITY
 
@@ -440,17 +437,19 @@ IX: **UQ** `(match_round_id, user_id)`.
 | created_at | timestamptz | N | |
 IX: `(user_id, created_at)`, `(user_id, mode)`.
 
-### 2.7 Quan hệ chính & Bộ Lược đồ CSDL Chuẩn 8 Module (45 bảng)
+### 2.7 Quan hệ chính & Bộ Lược đồ CSDL Chuẩn 9 Module (22 bảng Core MVP)
 > **Nguồn chân lý thiết kế CSDL (Source of Truth):** Xem chi tiết tại [`docs/database/lingual_full_schema.dbml`](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/lingual_full_schema.dbml) và file khởi tạo [`docs/database/sql/00_init_all.sql`](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql/00_init_all.sql).
-- `courses` 1—N `units` 1—N `lessons` 1—N `lesson_vocabulary` N—1 `vocabulary_items` 1—N `vocabulary_examples`.
-- `users` 1—1 `learner_profiles`; `users` N—N `roles` qua `user_roles`.
-- `users` 1—N `srs_cards` (trạng thái thuật toán SM-2) 1—N `srs_reviews` (nhật ký ôn tập).
-- `users` 1—N `lesson_progress`; `users` 1—N `learning_sessions`.
-- `users` 1—N `xp_ledger` (sổ cái bất biến Append-Only có `idempotency_key`); `users` 1—1 `user_streaks`.
-- `bot_configuration` (Single-Clan Singleton) 1—N `configured_clan_members`, `bot_schedules`, `clan_quiz_sessions` 1—N `clan_quiz_responses`.
-- `duel_matches` 1—N `duel_match_questions` (5 câu/trận) 1—N `duel_answers`; `duel_matches` 1—1 `duel_results`.
-- `leaderboard_weeks` 1—N `user_weekly_leaderboard` (N—1 `users`).
-- `ai_scenarios` 1—N `ai_conversations` 1—N `ai_messages` (kèm tracking `tokens_used`).
+- `courses` 1—N `units` 1—N `lessons` (tích hợp `vocabulary_ids` JSONB).
+- `users` 1—1 `learner_profiles`; `users` 1—N `placement_tests` (tích hợp `answers_detail` JSONB).
+- `users` 1—N `srs_cards` (thuật toán SM-2, tích hợp `review_history` JSONB) N—1 `vocabulary_items` (tích hợp `examples` JSONB).
+- `users` 1—N `lesson_progress` (tích hợp `session_history` JSONB) N—1 `lessons`.
+- `users` 1—N `xp_ledger` (sổ cái bất biến Append-Only có `idempotency_key`); `users` 1—1 `user_streaks` (tích hợp `freeze_history` & `daily_activity` JSONB).
+- `quizzes` 1—N `quiz_questions` (tích hợp `options` JSONB); `quizzes` 1—N `quiz_attempts` (tích hợp `answers_detail` JSONB).
+- `bot_configuration` (Single-Clan Singleton); `clan_quiz_sessions` (tích hợp `responses` JSONB); `clan_moderator_grants` (quyền hạn phạm vi Clan).
+- `duel_matches` (tích hợp `question_ids`, `challenger_answers`, `opponent_answers` và điểm số); `weekly_leaderboards` (bảng xếp hạng tuần).
+- `ai_scenarios` 1—N `ai_conversations` (tích hợp chuỗi tin nhắn `messages` JSONB).
+- `audit_logs` (nhật ký kiểm toán append-only cho Admin và Clan Moderator).
+
 
 ### 2.8 Việc để dành cho Redis, không nhét vào RDBMS
 BXH tuần (`ZADD`), trạng thái trận đang chạy (heartbeat/reconnect), rate-limit sliding window, cache giải thích AI. Có thể ghi chú một ô "Redis keys" bên cạnh ERD để Mentor thấy ranh giới.
@@ -465,8 +464,8 @@ Tải việc được chia đủ nhẹ để làm được cả trong tuần có
 
 | Ngày | Công (Lead/Bot/AI) | Minh (DB/BE) | Trí (FE/Data/QA) |
 |---|---|---|---|
-| **CN 04/10** | Chốt D1–D8, thống nhất phân kỳ Migration 8 module (45 bảng). Đẩy DBML chuẩn vào `/docs/database` | Import `lingual_full_schema.dbml` (đã có TableGroup 8 module) vào dbdiagram.io, kéo thả layout | Chốt template CSV vocab theo cột ở 2.3; chia 500 từ thành 5 lô × 100; làm mẫu 20 từ |
-| **T2 05/10** | Sửa PRD → **v1.1**: D1–D7 (nút SRS, 30s, streak, Mezon UX, AI log P0/P1). Thêm mục "Quy tắc điểm Duel" | **ERD v1**: chốt các cột mới của `matches` (accepted, no_show, result_posted_at), đủ 18 bảng. Review với Công | Lô 1: 100 từ A1 (Unit 1–2) + 30 `quiz_questions` mẫu khớp schema |
+| **CN 04/10** | Chốt D1–D8, thống nhất thiết kế CSDL 9 module (22 bảng Core MVP). Đẩy DBML chuẩn vào `/docs/database` | Import `lingual_full_schema.dbml` (đã có TableGroup 9 module) vào dbdiagram.io, kéo thả layout | Chốt template CSV vocab theo cột ở 2.3; chia 500 từ thành 5 lô × 100; làm mẫu 20 từ |
+| **T2 05/10** | Sửa PRD → **v1.1**: D1–D7 (nút SRS, 30s, streak, Mezon UX, AI log P0/P1). Thêm mục "Quy tắc điểm Duel" | **ERD v1**: chốt các cột mới của `matches` (accepted, no_show, result_posted_at), đủ 22 bảng Core MVP. Review với Công | Lô 1: 100 từ A1 (Unit 1–2) + 30 `quiz_questions` mẫu khớp schema |
 | **T3 06/10** | Viết lại ARCHITECTURE_DESIGN.md theo .NET 8 (module map 7 project, SignalR, Adapter Mezon, sơ đồ tuần tự `/quiz` & Duel). Thêm mục **Spike Mezon SSO & Webview** | Viết **data dictionary** (đã có nền ở phần 2) + bảng quan hệ; liệt kê CHECK/partial index cần đưa vào migration (để Sprint 1 làm ngay) | Lô 2: 100 từ A1 (còn lại) + viết script kiểm tra CSV (trùng từ, thiếu cột, `cefr_level` hợp lệ) |
 | **T4 07/10** | Sprint Plan → **v1.1**: sửa SP2-03 (30s), SP3-01 (thách đấu trước, ghép cặp stretch), thêm story ID từ phần 1 vào backlog | **Ứng viên freeze ERD**: xuất PNG/PDF + giữ DBML trong `/docs/database` | Lô 3: 100 từ A2 + 60 câu quiz; chạy script kiểm tra |
 | **T5 08/10** | **Gửi Mentor** bản xem trước: ERD v1 + PRD v1.1 + Sprint Plan v1.1, xin phản hồi trong 24h. Xác nhận cách nộp (kênh, định dạng) | Chuẩn bị kế hoạch seed 500 từ + sơ đồ migration thứ tự bảng (cho SP1-01) | Lô 4: 100 từ A2 + 60 câu quiz; viết **Test Plan** (US-101…US-209, mỗi story ≥ 1 test case) |

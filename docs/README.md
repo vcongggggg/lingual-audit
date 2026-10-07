@@ -30,7 +30,7 @@ Hệ thống tài liệu được đồng bộ đầy đủ theo cấu trúc chu
 | Thư mục | Mục đích & Nội dung | Tài liệu chính |
 | :--- | :--- | :--- |
 | **`product/`** | Toàn bộ hồ sơ PRD v1.1, Kế hoạch Sprint 10 tuần, Lộ trình tác chiến Milestone 1 | [`PRD.docx`](product/PRODUCT_REQUIREMENTS_DOCUMENT_LINGUAL.docx), [`SPRINT_PLAN.docx`](product/SPRINT_PLAN_LINGUAL_MCS2026.docx), [`MILESTONE1_PACK.md`](product/LINGUAL_MILESTONE1_PACK.md) |
-| **`database/`** | Thiết kế CSDL PostgreSQL 16 (8 modules SQL & DBML) | [`sql/`](database/sql/) (8 file DDL + `00_init_all.sql`), [`lingual_full_schema.dbml`](database/lingual_full_schema.dbml) (45 bảng chuẩn) |
+| **`database/`** | Thiết kế CSDL PostgreSQL 16 (9 modules SQL & DBML) | [`sql/`](database/sql/) (9 file DDL + `00_init_all.sql`), [`lingual_full_schema.dbml`](database/lingual_full_schema.dbml) (22 bảng Core MVP chuẩn) |
 | **`architecture/`** | Thiết kế kiến trúc .NET 8 Modular Monolith, SignalR GameHub, Single-Clan Bot | [`ARCHITECTURE_DESIGN.md`](architecture/ARCHITECTURE_DESIGN.md), `system-design.md`, `workflow.md` |
 | **`experience/`** | Đặc tả trải nghiệm người dùng & Ma trận phân quyền RBAC | [`role-permission.md`](experience/role-permission.md), [`role/learner.md`](experience/role/learner.md), [`role/clan-moderator.md`](experience/role/clan-moderator.md) |
 | **`templates/`** | Các biểu mẫu báo cáo daily standup, biểu mẫu PRD | [`DAILY_STANDUP_TEMPLATE.md`](templates/DAILY_STANDUP_TEMPLATE.md), [`PRD_TEMPLATE.md`](templates/PRD_TEMPLATE.md) |

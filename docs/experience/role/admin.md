@@ -41,7 +41,7 @@ Hệ thống chỉ có một vị trí cấu hình Bot. Không cung cấp thao t
 | ADM-06 | Lưu webhook signing secret, OAuth token và credential nhà cung cấp trong secret manager; database/UI chỉ giữ tham chiếu hoặc trạng thái đã che, không lưu/hiển thị plaintext. |
 | ADM-07 | Kiểm tra chữ ký webhook Mezon trước khi nhận sự kiện; từ chối chữ ký sai và ghi kết quả bảo mật nhưng không ghi secret vào log. |
 | ADM-08 | Cấu hình và theo dõi sliding-window rate limit với mục tiêu 5 request/giây/người dùng; trả lỗi có thể thử lại khi vượt ngưỡng. |
-| ADM-09 | Ghi audit cho thay đổi role, integration, moderation, cấu hình và thao tác nhạy cảm; người dùng ứng dụng không được sửa/xóa audit record. |
+| ADM-09 | Ghi audit cho thay đổi role, integration, moderation, cấu hình và thao tác nhạy cảm vào bảng `audit_logs`; người dùng ứng dụng không được sửa/xóa audit record (thu hồi quyền UPDATE/DELETE đối với application role `lingual_user`). |
 | ADM-10 | Theo dõi mục tiêu PRD: 500 người dùng hoạt động đồng thời, phản hồi Bot dưới 500 ms, màn hình tương tác đầu tiên dưới 1,5 giây, availability 99,5%. |
 | ADM-11 | Cho phép tạm dừng/gỡ Bot an toàn; giữ tiến độ học và dữ liệu quiz/XP lịch sử khi integration tạm dừng. |
 | ADM-12 | Không hiển thị nội dung hội thoại AI riêng trong dashboard Admin hoặc audit thông thường. Trường hợp truy cập đặc biệt phải được cấp quyền riêng, nêu lý do và ghi audit. |

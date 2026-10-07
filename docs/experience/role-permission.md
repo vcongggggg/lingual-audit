@@ -32,10 +32,10 @@ Lingual có ba role toàn cục và một quyền riêng có phạm vi Clan. Quy
 ## Quy tắc phân quyền
 
 1. Mỗi thao tác được kiểm tra quyền phía máy chủ; ẩn menu hoặc nút không thay thế kiểm tra quyền.
-2. Role toàn cục lưu trong `user_roles`. Grant `clan_moderator` lưu trong `configured_clan_role_grants` và chỉ có hiệu lực trong Clan Bot duy nhất được cấu hình.
+2. Role toàn cục lưu trực tiếp trong cột `users(role)` (Simple RBAC: `learner`, `moderator`, `admin`). Grant `clan_moderator` lưu trong bảng `clan_moderator_grants` và chỉ có hiệu lực trong Clan Bot duy nhất được cấu hình.
 3. Một người có thể nhận nhiều quyền. Năng lực hiệu lực là hợp của các quyền được cấp, nhưng vẫn bị giới hạn theo phạm vi Clan và quy tắc riêng tư dữ liệu.
 4. Sản phẩm chỉ hỗ trợ một Clan cho Bot; không role nào được tạo integration thứ hai hoặc truy vấn bảng xếp hạng liên Clan.
-5. Admin có thể cấp/thu hồi role; mọi thay đổi nhạy cảm phải được audit và không được vô tình xóa Admin hoạt động cuối cùng.
+5. Admin có thể cấp/thu hồi role; mọi thay đổi nhạy cảm phải được audit vào bảng `audit_logs` (Module 09) và không được vô tình xóa Admin hoạt động cuối cùng.
 6. Nội dung hội thoại AI riêng không xuất hiện trong dashboard của Moderator, Clan Moderator hoặc Admin theo mặc định.
 7. Thu hồi quyền truy cập phù hợp khi tài khoản bị khóa, người dùng rời Clan cấu hình hoặc grant theo phạm vi bị thu hồi.
 

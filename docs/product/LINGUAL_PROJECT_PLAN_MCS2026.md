@@ -5,7 +5,7 @@
 > **Chương trình:** Mezon Campus Studio 2026 (NCC+ & Mezon Platform)  
 > **Kế thừa & Tái thiết kế từ:** Dự án *LinguaFlow* (Được tinh gọn, module hóa và tối ưu chuyên biệt cho hệ sinh thái Mezon)  
 > **Mục tiêu:** Xây dựng nền tảng học ngoại ngữ tương tác xã hội (Social Language Learning Platform) kết hợp Spaced Repetition, Gamification và AI Tutor, hoạt động mượt mà bên trong cộng đồng Mezon Clan.  
-> **Tài liệu Nghiệp vụ & Yêu cầu Sản phẩm chi tiết (PRD/SRS):** Xem tại [PRODUCT_REQUIREMENTS_DOCUMENT_LINGUAL.md](file:///c:/Study/HocKy6/MezonCampusStudio/docs/PRODUCT_REQUIREMENTS_DOCUMENT_LINGUAL.md)
+> **Tài liệu Nghiệp vụ & Yêu cầu Sản phẩm chi tiết (PRD/SRS):** Xem tại [PRODUCT_REQUIREMENTS_DOCUMENT_LINGUAL.md](PRODUCT_REQUIREMENTS_DOCUMENT_LINGUAL.md)
 
 ---
 
@@ -192,7 +192,7 @@ Giai đoạn 3: Nghiệm thu, Demo Day & Bảo vệ (Tuần 10)
 | Thành viên | Vai trò | Nhiệm vụ chính trong Milestone 1 (Hạn 12/10) |
 | :--- | :--- | :--- |
 | **Ngô Văn Công** (`cong.ngovan`) | **Project Lead & Fullstack** | - Quản lý tiến độ tổng thể, đại diện làm việc với Mentor.<br>- Khởi tạo khung dự án ASP.NET Core Modular Monolith + Next.js 14.<br>- Cấu hình Docker Compose (PostgreSQL, Redis) và CI/CD.<br>- Review tài liệu Database Schema / ERD do Minh thiết kế. |
-| **Nguyễn Công Minh** (`minh.nguyencong`) | **Backend Engineer** | - Phụ trách thiết kế chi tiết Lược đồ Cơ sở dữ liệu (Database Schema / ERD).<br>- Định nghĩa quan hệ các thực thể: Users, Vocabulary, Courses, SRS States, Clans.<br>- Cùng review và thống nhất API Contract với Lead. |
+| **Nguyễn Công Minh** (`minh.nguyencong`) | **Backend Engineer** | - Phụ trách thiết kế chi tiết Lược đồ Cơ sở dữ liệu (Database Schema / ERD 22 bảng Core MVP).<br>- Định nghĩa quan hệ các thực thể: Users, Vocabulary, Courses, SRS States, Bot Configuration, Duels, Audit Logs.<br>- Cùng review và thống nhất API Contract với Lead. |
 | **Phan Phước Trí** (`tri.phanphuoc`) | **Frontend & QA Engineer** | - Chuẩn hóa bộ dữ liệu từ vựng theo CEFR (A1-B2) và Oxford 3000.<br>- Soạn thảo ngân hàng câu hỏi trắc nghiệm & ngữ cảnh cho Quiz Engine.<br>- Chuẩn bị kịch bản kiểm thử (Test Cases) cho các tính năng MVP và hỗ trợ thiết kế giao diện UI/UX Next.js. |
 
 ---

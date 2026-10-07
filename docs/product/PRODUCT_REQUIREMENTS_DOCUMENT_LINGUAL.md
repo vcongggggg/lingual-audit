@@ -126,56 +126,57 @@ sequenceDiagram
 
 ### FR-01: Quản lý Tài khoản & Đánh giá Đầu vào (Onboarding & Placement)
 * **FR-01.1 Đăng nhập một chạm (Single Sign-On qua Mezon):**
-  - Hệ thống cho phép người dùng đăng nhập tức thì thông qua định danh Mezon (`mezon_user_id`), tự động đồng bộ `display_name`, `avatar_url`, múi giờ (mặc định `Asia/Ho_Chi_Minh`) mà không yêu cầu tạo mật khẩu riêng.
-  - Tự động ghi nhận thành viên vào cộng đồng Clan được cấu hình (`configured_clan_members`).
+  - Hệ thống cho phép người dùng đăng nhập tức thì thông qua định danh Mezon (`mezon_user_id`), tự động đồng bộ `display_name`, `avatar_url`, múi giờ (mặc định `Asia/Ho_Chi_Minh`) mà không yêu cầu tạo mật khẩu riêng (`users`).
+  - Phân quyền Simple RBAC trực tiếp qua cột `users.role` (`learner`, `moderator`, `admin`).
 * **FR-01.2 Khảo sát mục tiêu cá nhân (Learner Profile):**
   - Lần đầu sử dụng, người học thiết lập: Mục tiêu học tập (`daily_communication`, `career`, `certification`), Thời lượng cam kết (5, 15, 30 phút/ngày) và lưu vào `learner_profiles`.
 * **FR-01.3 Bài kiểm tra nhanh phân loại trình độ (Placement Test):**
-  - Cung cấp bài test trắc nghiệm 10 câu hỏi ngắn thích ứng (`placement_attempts`, `placement_answers`) để tự động xếp người học vào phân tầng trình độ phù hợp (A1, A2, B1, B2).
+  - Cung cấp bài test trắc nghiệm 10 câu hỏi ngắn thích ứng (`placement_tests` kèm chi tiết câu trả lời lưu dạng `answers_detail` JSONB) để tự động xếp người học vào phân tầng trình độ phù hợp (A1, A2, B1, B2).
   - Cho phép người học bỏ qua và tự chọn cấp độ xuất phát nếu muốn.
 
 ### FR-02: Lộ trình Bài học & Kho Từ vựng Chuẩn hóa (Curriculum & Vocabulary)
 * **FR-02.1 Cấu trúc nội dung phân tầng:**
-  - Khóa học (`courses`) ➔ Chương (`units`) ➔ Bài học (`lessons` - 5 đến 7 từ mới/cấu trúc).
+  - Khóa học (`courses`) ➔ Chương (`units`) ➔ Bài học (`lessons` - tích hợp danh sách ID từ vựng trực tiếp qua cột `vocabulary_ids` JSONB).
 * **FR-02.2 Thẻ từ vựng giàu ngữ cảnh (Rich Vocabulary Items & Examples):**
   - Mỗi mục từ (`vocabulary_items`) gồm: Thuật ngữ chuẩn hóa, Phiên âm quốc tế (IPA), Loại từ, Nghĩa tiếng Việt, File âm thanh phát âm chuẩn bản xứ, Hình ảnh minh họa.
-  - Bảng câu ví dụ ngữ cảnh song ngữ độc lập (`vocabulary_examples`) hỗ trợ nhiều ví dụ thực tế cho mỗi từ vựng.
-* **FR-02.3 Sổ tay từ vựng cá nhân (Personal Vocabulary Deck):**
-  - Bảng `user_vocabulary_deck` cho phép người học bấm "Lưu từ" (Bookmark) khi bắt gặp từ mới trong bài học, tin nhắn chat Bot hoặc đoạn hội thoại AI để chủ động gom vào sổ tay ôn tập riêng.
+  - Các câu ví dụ ngữ cảnh song ngữ được lưu trực tiếp dạng mảng `examples` (JSONB) trong bảng `vocabulary_items`.
+* **FR-02.3 Sổ tay từ vựng & Ôn tập tích hợp:**
+  - Tính năng lưu từ vựng (Bookmark) và chủ động ôn tập được quản lý và đồng bộ tập trung vào bảng thẻ nhớ `srs_cards` trong phân hệ Learning.
 
 ### FR-03: Động cơ Lặp lại Ngắt quãng (Spaced Repetition Engine - SRS)
 * **FR-03.1 Thuật toán ghi nhớ khoa học (SM-2 Algorithm):**
   - Bảng trạng thái thẻ nhớ theo từng cặp học viên–từ vựng (`srs_cards`): Số lần lặp lại (`repetitions`), Khoảng cách ôn tập (`interval_days`), Hệ số dễ nhớ (`ease_factor` $\ge 1.30$), Ngày đến hạn (`next_due_at`), Số lần quên (`lapses`).
 * **FR-03.2 Hàng đợi ôn tập hàng ngày & 4 mức đánh giá (SRS Review Queue):**
   - Hệ thống tự động lọc ra các từ đến hạn (`next_due_at <= now()`).
-  - Ghi nhật ký ôn tập chi tiết vào `srs_reviews` với 4 nút chuẩn UX Anki/Duolingo:
+  - Ghi nhật ký ôn tập chi tiết vào cột `review_history` (JSONB) trong `srs_cards` với 4 nút chuẩn UX Anki/Duolingo:
     - *Again (Quên hoàn toàn):* repetitions=0, interval=1 ngày, lapses+1, thẻ quay lại cuối phiên.
     - *Hard (Nhớ chật vật):* Giãn thời gian ngắn, giảm nhẹ Ease Factor.
     - *Good (Nhớ chính xác):* Giãn thời gian chuẩn theo thuật toán SM-2.
     - *Easy (Thuộc lòng):* Tăng khoảng cách ôn tập tối đa, tăng Ease Factor.
 
 ### FR-04: Ngân hàng Bài tập & Trắc nghiệm Tương tác (Interactive Quiz Engine)
-* **FR-04.1 Cấu trúc đề thi & câu hỏi đa dạng (`quizzes`, `quiz_questions`, `quiz_options`):**
+* **FR-04.1 Cấu trúc đề thi & câu hỏi đa dạng (`quizzes`, `quiz_questions`):**
   - Quản lý đề thi linh hoạt (`quiz_type`: practice, placement, lesson, clan).
+  - Bảng `quiz_questions` gắn trực tiếp `quiz_id`, tích hợp toàn bộ các phương án trắc nghiệm qua cột `options` (JSONB) và nội dung mở rộng qua `payload` (JSONB).
   - Đa dạng dạng thức: Trắc nghiệm 4 lựa chọn (`multiple_choice`), Ghép đôi từ vựng (`word_matching`), Sắp xếp câu (`sentence_scramble`), Nghe chép chính tả (`dictation`).
-* **FR-04.2 Phiên làm bài và chấm điểm (`quiz_attempts`, `quiz_attempt_answers`):**
-  - Ghi nhận thời gian bắt đầu, nộp bài, điểm số tự động và câu trả lời chi tiết.
+* **FR-04.2 Phiên làm bài và chấm điểm (`quiz_attempts`):**
+  - Ghi nhận thời gian bắt đầu, nộp bài, điểm số tự động và toàn bộ chi tiết bài làm của học viên lưu tập trung trong cột `answers_detail` (JSONB).
 
 ### FR-05: Hệ thống Tương tác Mezon Clan Bot (Single-Clan Community Bot)
 * **FR-05.1 Kiến trúc Single-Clan chuyên biệt (`bot_configuration`):**
   - Bot được cấu hình cố định phục vụ cho **1 Clan trường học / cộng đồng cụ thể** trên Mezon thông qua bản ghi singleton `bot_configuration` (`mezon_clan_id`, `default_channel_mezon_id`, `quiz_duration_seconds=30`).
-  - Loại bỏ hoàn toàn sự phức tạp của kiến trúc đa Clan (Multi-tenant), tập trung tối đa vào trải nghiệm gắn kết chiều sâu trong cộng đồng sinh viên.
+  - Tích hợp lịch hẹn giờ tự động (Word of the Day, Daily Quiz) trực tiếp qua cột `schedules` (JSONB).
 * **FR-05.2 Nhóm lệnh cá nhân hóa (Slash Commands):**
   - `/learn`: Nhận thẻ bài học 3 từ vựng của ngày hôm nay ngay trong tin nhắn riêng hoặc kênh chỉ định.
   - `/review`: Nhận danh sách 5 từ cần ôn tập khẩn cấp.
   - `/streak`: Kiểm tra chuỗi ngày học liên tục và số lượng "Đóng băng chuỗi" (Streak Freeze) còn lại.
   - `/profile`: Xem thẻ căn cước người học (Cấp độ, Tổng XP, Huy hiệu đạt được).
-* **FR-05.3 Đố vui tương tác cộng đồng trong kênh Chat (`clan_quiz_sessions`, `clan_quiz_responses`):**
+* **FR-05.3 Đố vui tương tác cộng đồng trong kênh Chat (`clan_quiz_sessions`):**
   - Lệnh `/quiz`: Bot đăng 1 câu đố 4 nút bấm tương tác (A, B, C, D) vào kênh định sẵn với thời gian đếm ngược chính xác **30 giây** (`closes_at = now + 30s`).
-  - Mỗi thành viên chỉ được bấm trả lời đúng 1 lần (ràng buộc UNIQUE `session_id, user_id` chống double-click / race condition).
+  - Toàn bộ câu trả lời của các thành viên được lưu dạng `responses` (JSONB) trong `clan_quiz_sessions`.
   - Hết 30 giây, Bot công bố đáp án, người trả lời đúng nhanh nhất (`winning_user_id`, `winning_response_ms`) và cộng điểm XP tự động.
-* **FR-05.4 Lập lịch tự động định kỳ (`bot_schedules`):**
-  - Cho phép cấu hình lịch gửi tự động "Word of the Day" vào 8h00 sáng mỗi ngày hoặc câu đố định kỳ mà không cần can thiệp thủ công.
+* **FR-05.4 Phân quyền Clan Moderator (`clan_moderator_grants`):**
+  - Bảng `clan_moderator_grants` lưu trữ quyền quản trị đố vui và vận hành cục bộ trong phạm vi 1 Clan, tách biệt hoàn toàn với role toàn cục.
 
 ### FR-06: Ứng dụng nhúng Mezon Channel Mini-App (Embedded Learning Cockpit)
 * **FR-06.1 Trải nghiệm nhúng trực tiếp (Embedded Webview via Next.js 14):**
@@ -187,36 +188,36 @@ sequenceDiagram
 ### FR-07: Đấu trường Từ vựng & Gamification (Word Duel & Clan Leaderboard)
 * **FR-07.1 Đấu trường đối kháng 1vs1 Realtime (Word Duel via SignalR):**
   - Thách đấu trên kênh chat Clan qua lệnh `/duel @username` ➔ Bot tạo `duel_matches` (status=`pending`) kèm 2 nút [Chấp nhận] / [Từ chối].
-  - Khi đối thủ chấp nhận, cả 2 bấm nút chuyển sang màn hình **Channel Mini-App (Webview nhúng Mezon)** kết nối SignalR GameHub để thi đấu 5 vòng đối kháng 10s/vòng (`duel_match_questions`, `duel_answers`, `duel_results`).
-  - **Lợi ích kiến trúc:** Đấu trường chạy trong Webview giúp **hoàn toàn không làm rác/spam kênh chat Clan**, đồng thời đảm bảo đếm ngược 10s mượt mà, có âm thanh và hiệu ứng sinh động.
-* **FR-07.2 Bảng xếp hạng tuần nội bộ Clan (`leaderboard_weeks`, `user_weekly_leaderboard`):**
-  - Xếp hạng Top thành viên có tổng điểm XP cao nhất trong tuần tại Clan đã cấu hình.
-  - Bảng tổng hợp chỉ số tương tác tuần của Clan (`configured_clan_weekly_stats`): Tổng XP, số giờ học, số bài học và số phiên quiz hoàn thành.
+  - Khi đối thủ chấp nhận, cả 2 bấm nút chuyển sang màn hình **Channel Mini-App (Webview nhúng Mezon)** kết nối SignalR GameHub để thi đấu 5 vòng đối kháng 10s/vòng.
+  - Toàn bộ danh sách câu hỏi (`question_ids`), bài làm 2 bên (`challenger_answers`, `opponent_answers`) và kết quả điểm số được lưu trọn vẹn trong bảng `duel_matches`.
+* **FR-07.2 Bảng xếp hạng tuần nội bộ Clan (`weekly_leaderboards`):**
+  - Xếp hạng Top thành viên có tổng điểm XP cao nhất trong tuần tại Clan đã cấu hình (`weekly_leaderboards` gộp thông tin tuần và thứ hạng học viên).
 * **FR-07.3 Hệ thống Sổ cái Điểm XP Ledger (`xp_ledger`):**
-  - Áp dụng mẫu kiến trúc **Append-only Ledger** chuẩn doanh nghiệp: Mọi biến động điểm đều được ghi vào `xp_ledger` kèm `idempotency_key`, loại bỏ hoàn toàn nguy cơ cộng trùng điểm hoặc race condition khi nhiều sự kiện diễn ra đồng thời.
+  - Áp dụng mẫu kiến trúc **Append-only Ledger** chuẩn doanh nghiệp: Mọi biến động điểm đều được ghi vào `xp_ledger` kèm `idempotency_key` và unique index chống cộng trùng điểm.
 * **FR-07.4 Cơ chế giữ lửa thói quen (Streak System):**
-  - Quản lý qua `user_streaks`, `streak_freeze_events` và bảng tổng hợp hàng ngày `user_daily_activity`.
-  - Đạt $\ge 20\text{ XP/ngày}$ (tính theo múi giờ `Asia/Ho_Chi_Minh`) để duy trì chuỗi (+1 ngày). Tự động tiêu thụ khiên bảo vệ `streak_freeze` nếu quên học.
+  - Quản lý qua `user_streaks`, tích hợp lịch sử nhận/dùng vé đóng băng (`freeze_history` JSONB) và thống kê hoạt động từng ngày (`daily_activity` JSONB).
+  - Đạt $\ge 20\text{ XP/ngày}$ (tính theo múi giờ `Asia/Ho_Chi_Minh`) để duy trì chuỗi (+1 ngày). Tự động tiêu thụ khiên bảo vệ nếu quên học.
 
 ### FR-08: Trợ lý AI Đồng hành (AI Language Companion - LingLing Mascot)
-* **FR-08.1 Kịch bản đóng vai & Hội thoại nhiều lượt (`ai_scenarios`, `ai_conversations`, `ai_messages`):**
-  - Cung cấp kịch bản đối thoại chọn trước: *Tại quán cafe, Phỏng vấn xin việc, Thủ tục sân bay, Thảo luận dự án công nghệ*.
-  - Lưu trữ lịch sử tin nhắn nhiều lượt kèm định danh vai trò (`user`, `assistant`, `system`).
+* **FR-08.1 Kịch bản đóng vai & Hội thoại nhiều lượt (`ai_scenarios`, `ai_conversations`):**
+  - Cung cấp kịch bản đối thoại chọn trước trong `ai_scenarios`: *Tại quán cafe, Phỏng vấn xin việc, Thủ tục sân bay, Thảo luận dự án công nghệ*.
+  - Lưu trữ lịch sử tin nhắn nhiều lượt dưới dạng mảng `messages` (JSONB) chuẩn OpenAI/Gemini payload trong `ai_conversations`.
 * **FR-08.2 Cơ chế sửa lỗi ngữ pháp & Quản lý Token:**
-  - AI phản hồi kèm cấu trúc JSON sửa lỗi ngữ pháp chuẩn bản xứ (`correction_payload JSONB`).
-  - Ghi nhận `input_tokens` và `output_tokens` trên mỗi tin nhắn để theo dõi và tối ưu hóa chi phí gọi Google Gemini API.
+  - AI phản hồi kèm cấu trúc JSON sửa lỗi ngữ pháp chuẩn bản xứ và thống kê `total_tokens` trên mỗi phiên hội thoại để tối ưu chi phí gọi Gemini API.
 
 ### FR-09: Theo dõi Tiến độ & Báo cáo Học tập (Progress Analytics & Retention)
-* **FR-09.1 Báo cáo hoạt động học tập hàng ngày (`user_daily_activity`):**
-  - Thống kê chi tiết theo ngày: `xp_earned`, `study_seconds`, `new_words_count`, `review_count`, `completed_lessons_count`, `completed_quizzes_count`.
-* **FR-09.2 Thống kê gắn kết Clan & Phân tích giữ chân (`configured_clan_daily_analytics`, `user_retention_cohorts`):**
-  - Cung cấp cho Clan Master bức tranh tổng thể: Số thành viên hoạt động (`active_member_count`), mức độ gắn kết theo chu kỳ ngày 1, 7, 14, 30 (`user_retention_cohorts`).
+* **FR-09.1 Báo cáo hoạt động học tập hàng ngày:**
+  - Dữ liệu hoạt động học tập được tổng hợp trực tiếp từ `user_streaks.daily_activity` (JSONB), `lesson_progress` và `xp_ledger`.
+* **FR-09.2 Thống kê gắn kết Clan & Phân tích giữ chân (Phase 2):**
+  - Phân tích Cohort retention (D1, D7, D14, D30) và báo cáo Clan được query động trực tiếp từ CSDL lõi, sẵn sàng mở rộng các bảng tĩnh chuyên biệt trong Phase 2.
 
-### FR-10: Cổng Quản trị Nội dung & Quản trị Clan (Admin & Community CMS)
+### FR-10: Cổng Quản trị Nội dung & Nhật ký Kiểm toán (Admin & Security Audit)
 * **FR-10.1 Quản trị nội dung học tập:**
   - Thêm, sửa, nhập hàng loạt (Bulk Import via CSV) các bộ từ vựng, câu hỏi trắc nghiệm và bài học.
-* **FR-10.2 Quản trị quyền hạn phân cấp (RBAC):**
-  - Hệ thống bảng quyền chuẩn hóa: `roles` (`learner`, `moderator`, `admin`), `user_roles` (gán quyền hệ thống) và `configured_clan_role_grants` (gán quyền `clan_moderator` quản trị đố vui nội bộ Clan).
+* **FR-10.2 Phân quyền Simple RBAC & Nhật ký kiểm toán (`audit_logs`):**
+  - Phân quyền Simple RBAC qua `users.role` (`learner`, `moderator`, `admin`) và phân quyền Clan qua `clan_moderator_grants`.
+  - Hệ thống ghi nhật ký kiểm toán không thể sửa xóa (`audit_logs` - Module 09, chuẩn bảo mật ADM-09/ADM-12) cho mọi thao tác phân quyền, kỷ luật và thay đổi cấu hình.
+
 
 ---
 
@@ -257,35 +258,37 @@ sequenceDiagram
 * **Chiến thắng trận đối kháng 1vs1 Word Duel (`duel_win`):** `+30 XP` cho người thắng, `+10 XP` khuyến khích cho người tham gia (`duel_participation`).
 
 ### 7.2 Quy tắc duy trì Chuỗi học tập (Streak Rules)
-1. Một ngày được tính là "Đã học" (Active Day) khi người dùng tích lũy được tối thiểu **20 XP** trong khoảng thời gian từ `00:00:00` đến `23:59:59` theo múi giờ địa phương (`Asia/Ho_Chi_Minh`), được tổng hợp vào bảng `user_daily_activity`.
+1. Một ngày được tính là "Đã học" (Active Day) khi người dùng tích lũy được tối thiểu **20 XP** trong khoảng thời gian từ `00:00:00` đến `23:59:59` theo múi giờ địa phương (`Asia/Ho_Chi_Minh`), được ghi nhận vào cột `daily_activity` (JSONB) trong bảng `user_streaks`.
 2. Nếu sang ngày hôm sau mà không phát sinh hoạt động:
-   - Nếu còn khiên **Streak Freeze** (`freeze_balance > 0`): Hệ thống tự động ghi 1 sự kiện tiêu thụ vào `streak_freeze_events`, trừ 1 khiên và bảo lưu chuỗi ngày.
+   - Nếu còn khiên **Streak Freeze** (`freeze_balance > 0`): Hệ thống tự động trừ 1 khiên, ghi nhật ký vào `freeze_history` (JSONB) trong `user_streaks` và bảo lưu chuỗi ngày.
    - Nếu hết khiên: Chuỗi ngày bị đặt lại về `0` (Kèm tin nhắn động viên từ LingLing kêu gọi bắt đầu lại chuỗi mới).
 
 ### 7.3 Quy tắc Bảng xếp hạng Tuần Clan (Clan Weekly Leaderboard Rules)
-* Bảng xếp hạng cá nhân trong Clan được tổng hợp từ điểm XP tích lũy trong tuần (`leaderboard_weeks`).
-* Chốt và đóng băng kết quả (Finalize) vào **23h59 Chủ Nhật hàng tuần**, lưu vết lịch sử vinh danh vào `user_weekly_leaderboard` và `configured_clan_weekly_stats`.
+* Bảng xếp hạng cá nhân trong Clan được tổng hợp từ điểm XP tích lũy trong tuần, quản lý tập trung trong bảng `weekly_leaderboards`.
+* Chốt và đóng băng kết quả (Finalize) vào **23h59 Chủ Nhật hàng tuần**, cập nhật `rank` và chuyển `status = 'finalized'` trong `weekly_leaderboards`.
 
 ---
 
 ## 8. MA TRẬN PHÂN KỲ PHẠM VI (SCOPE PHASING: MVP VS POST-MVP)
 
-Để đảm bảo dự án triển khai thành công xuất sắc trong 10 tuần của Mezon Campus Studio 2026, CSDL 45 bảng và các tính năng được phân kỳ làm 2 giai đoạn rõ ràng:
+Dưới sự định hướng của Mentor **Mai Hồng Mận** nhằm loại bỏ over-engineering và tối ưu hóa nguồn lực trong vòng đời 10 tuần của Mezon Campus Studio 2026, hệ thống áp dụng **Kiến trúc CSDL Core MVP 22 bảng tinh gọn (Lean Architecture)** thông qua cơ chế lưu trữ JSONB linh hoạt. Toàn bộ 22 bảng lõi được hoàn thiện ngay trong Milestone 1 (Sprint 1–3), phân bổ phát triển tính năng theo lộ trình:
 
-| Phân hệ chức năng | Giai đoạn 1: Core MVP (Sprint 1–3, ~20 bảng) | Giai đoạn 2: Trọng tâm Mezon (Sprint 4–6, Đủ 45 bảng) | Giai đoạn 3: Hậu kỳ & Mở rộng (Post-MCS) |
+| Phân hệ chức năng | Giai đoạn 1: Core MVP (Sprint 1–3, 22 bảng) | Giai đoạn 2: Tối ưu Mezon (Sprint 4–6) | Giai đoạn 3: Hậu kỳ & Mở rộng (Post-MCS) |
 | :--- | :---: | :---: | :---: |
-| **Đăng nhập một chạm Mezon SSO** | ✅ Bắt buộc (`users`) | Bổ sung khảo sát mục tiêu | Đa nền tảng |
-| **Bài test phân loại đầu vào (Placement Test)** | ❌ Tự chọn trình độ | ✅ `placement_attempts` & `answers` | Đề thi thích ứng AI |
-| **Học từ vựng theo chủ đề (A1-B2)** | ✅ Bắt buộc (`courses`, `units`, `lessons`) | Thêm chủ đề chuyên ngành IT | Bộ từ vựng do người dùng tự tạo |
-| **Sổ tay từ vựng cá nhân** | ❌ Để giai đoạn 2 | ✅ `user_vocabulary_deck` | Xuất file Anki cá nhân |
-| **Thuật toán Spaced Repetition (SRS SM-2)** | ✅ `srs_cards`, `srs_reviews` 4 nút | Tối ưu hóa trọng số ghi nhớ | Biểu đồ đường cong quên lãng |
-| **Hệ thống Điểm XP Ledger & Streak** | ✅ `xp_ledger`, `user_streaks` | `user_daily_activity` chi tiết | Đổi vật phẩm bằng XP |
-| **Trắc nghiệm Quiz 4 lựa chọn** | ✅ `quizzes`, `quiz_questions`, `quiz_options` | Kéo thả & Nghe chép chính tả | Đề thi mô phỏng TOEIC |
-| **Mezon Bot (Single-Clan Architecture)** | ✅ `bot_configuration`, `/learn`, `/quiz` | Lập lịch tự động `bot_schedules` | Tùy biến thông điệp Bot theo Clan |
-| **Channel Mini-App (Webview nhúng Mezon)** | ✅ Next.js 14 nhúng Iframe | Hiệu ứng âm thanh & lật thẻ 3D | PWA độc lập |
-| **Đấu trường 1vs1 Word Duel (SignalR)** | ✅ `duel_matches`, 5 vòng đối kháng | Bảng xếp hạng tuần đóng băng | Giải đấu Clan Tournament |
-| **Trợ lý AI LingLing sửa ngữ pháp** | ✅ Giao tiếp đơn lượt với Gemini API | ✅ `ai_scenarios`, hội thoại nhiều lượt | Luyện phát âm qua Mezon Voice Room |
-| **Phân tích số liệu giữ chân (Retention)** | ❌ Chưa kích hoạt | ✅ `configured_clan_daily_analytics`, `cohorts` | Dashboard BI chuyên sâu |
+| **Đăng nhập một chạm Mezon SSO** | ✅ Bắt buộc (`users`, Simple RBAC) | Bổ sung khảo sát mục tiêu (`learner_profiles`) | Đa nền tảng |
+| **Bài test phân loại đầu vào (Placement Test)** | ✅ `placement_tests` (answers_detail JSONB) | Ngân hàng đề thi phân tầng nâng cao | Đề thi thích ứng AI |
+| **Học từ vựng theo chủ đề (A1-B2)** | ✅ Bắt buộc (`courses`, `units`, `lessons`, `vocabulary_items`) | Thêm chủ đề chuyên ngành IT | Bộ từ vựng do người dùng tự tạo |
+| **Thuật toán Spaced Repetition (SRS SM-2)** | ✅ `srs_cards` (review_history JSONB) | Tối ưu hóa trọng số ghi nhớ Ease Factor | Biểu đồ đường cong quên lãng |
+| **Hệ thống Điểm XP Ledger & Streak** | ✅ `xp_ledger` (idempotent), `user_streaks` | Heatmap hoạt động chi tiết từ `daily_activity` | Đổi vật phẩm bằng XP |
+| **Trắc nghiệm Quiz tương tác** | ✅ `quizzes`, `quiz_questions` (options JSONB), `quiz_attempts` | Kéo thả & Nghe chép chính tả (`payload` JSONB) | Đề thi mô phỏng TOEIC |
+| **Mezon Bot (Single-Clan Architecture)** | ✅ `bot_configuration`, `clan_quiz_sessions` (responses JSONB) | Lập lịch tự động qua `schedules` JSONB | Tùy biến thông điệp Bot theo Clan |
+| **Phân quyền Clan Moderator** | ✅ `clan_moderator_grants` (quyền hạn phạm vi 1 Clan) | Tự động gia hạn quyền theo nhiệm kỳ Clan | Phân quyền ban quản trị mở rộng |
+| **Channel Mini-App (Webview nhúng Mezon)** | ✅ Next.js 14 nhúng Iframe qua SSO Handshake | Hiệu ứng âm thanh & lật thẻ 3D | PWA độc lập |
+| **Đấu trường 1vs1 Word Duel (SignalR)** | ✅ `duel_matches` (questions, answers, scores JSONB) | Bảng xếp hạng tuần đóng băng (`weekly_leaderboards`) | Giải đấu Clan Tournament |
+| **Trợ lý AI LingLing sửa ngữ pháp** | ✅ Giao tiếp đơn lượt & `ai_scenarios` | ✅ `ai_conversations` (messages JSONB) | Luyện phát âm qua Mezon Voice Room |
+| **Nhật ký Kiểm toán & Bảo mật** | ✅ `audit_logs` (append-only, ADM-09/12) | Dashboard tra cứu kiểm toán cho Admin | Cảnh báo gian lận tự động |
+| **Phân tích số liệu giữ chân (Retention)** | 쿼리 trực tiếp từ `xp_ledger` & `lesson_progress` | Thống kê Cohort giữ chân tự động | Dashboard BI chuyên sâu |
+
 
 ---
 
