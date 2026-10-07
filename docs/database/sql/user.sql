@@ -1,6 +1,17 @@
 -- Module 01: Identity, Learner Profile & Placement Test (Tinh gọn theo định hướng Mentor Mai Hồng Mận)
 -- PostgreSQL 13+. Mezon IDs are external identifiers; never store OAuth tokens here.
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Hàm tự động cập nhật timestamp updated_at khi có UPDATE
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG USERS (Tích hợp Simple RBAC trực tiếp qua cột role)
 CREATE TABLE IF NOT EXISTS users (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,3 +62,14 @@ CREATE TABLE IF NOT EXISTS placement_tests (
 -- Chỉ mục tối ưu hóa
 CREATE INDEX IF NOT EXISTS idx_users_mezon_id ON users(mezon_user_id);
 CREATE INDEX IF NOT EXISTS idx_placement_tests_user ON placement_tests(user_id, started_at DESC);
+
+-- Triggers tự động cập nhật updated_at
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_learner_profiles_updated_at ON learner_profiles;
+CREATE TRIGGER trg_learner_profiles_updated_at
+    BEFORE UPDATE ON learner_profiles
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();

@@ -5,6 +5,8 @@
 --  2. Gộp leaderboard_weeks, user_weekly_leaderboard, configured_clan_weekly_stats vào weekly_leaderboards.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. BẢNG TRẬN ĐẤU ĐỐI KHÁNG WORD DUEL (Gộp toàn bộ câu hỏi, bài làm 2 bên và kết quả)
 CREATE TABLE IF NOT EXISTS duel_matches (
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -50,4 +52,6 @@ CREATE TABLE IF NOT EXISTS weekly_leaderboards (
 -- Chỉ mục tối ưu hóa truy vấn lịch sử đấu và bảng xếp hạng
 CREATE INDEX IF NOT EXISTS idx_duel_challenger ON duel_matches(challenger_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_duel_opponent ON duel_matches(opponent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_duel_winner ON duel_matches(winner_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_leaderboard_rank ON weekly_leaderboards(week_start, rank);
+CREATE INDEX IF NOT EXISTS idx_weekly_lb_xp ON weekly_leaderboards(week_start, xp_total DESC);

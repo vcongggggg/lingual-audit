@@ -1,5 +1,5 @@
 // LINGUAL — Core MVP Database Schema (PostgreSQL 13+, EF Core 8)
-// 7 Core Modules · 20 Tables (Core MVP) · Single-Clan Mezon Bot Architecture
+// 8 Core Modules · 22 Tables (Core MVP) · Single-Clan Mezon Bot Architecture
 // Paste into https://dbdiagram.io/d to generate full system ERD
 
 Project lingual_db {
@@ -190,7 +190,7 @@ Table user_streaks [headercolor: #8b5cf6] {
 // ==========================================
 Table quizzes [headercolor: #f59e0b] {
   id uuid [pk, default: `gen_random_uuid()`]
-  code varchar(80) [unique]
+  code varchar(80) [not null, unique]
   title varchar(200) [not null]
   description text
   quiz_type varchar(20) [not null, note: 'practice | placement | lesson | clan']
@@ -233,6 +233,10 @@ Table quiz_attempts [headercolor: #f59e0b] {
   answers_detail jsonb [not null, default: `[]`, note: 'Toàn bộ câu trả lời lưu vào JSONB']
   started_at timestamptz [not null, default: `now()`]
   submitted_at timestamptz
+
+  indexes {
+    (quiz_id, user_id) [note: 'Chống 2 attempt in_progress: uq_quiz_attempt_in_progress']
+  }
 }
 
 
@@ -269,6 +273,21 @@ Table clan_quiz_sessions [headercolor: #ec4899] {
   winning_response_ms integer
   explanation_published_at timestamptz
   responses jsonb [not null, default: `[]`, note: 'Gộp toàn bộ câu trả lời của thành viên thay cho clan_quiz_responses']
+}
+
+Table clan_moderator_grants [headercolor: #ec4899] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  granted_by uuid [ref: > users.id]
+  granted_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz
+  revoked_at timestamptz
+  revoked_by uuid [ref: > users.id]
+  reason text
+
+  indexes {
+    user_id [note: 'idx_clan_mod_grants_user WHERE revoked_at IS NULL']
+  }
 }
 
 
@@ -338,10 +357,34 @@ Table ai_conversations [headercolor: #06b6d4] {
   total_tokens integer [default: 0]
   started_at timestamptz [not null, default: `now()`]
   ended_at timestamptz
+
+  indexes {
+    (user_id, started_at) [note: 'idx_ai_conversations_user']
+    scenario_id [note: 'idx_ai_conv_scenario']
+  }
 }
 
 // ==========================================
-// TABLE GROUPS FOR DBDATABASE VISUALIZATION (7 Modules · 20 Tables Core MVP)
+// MODULE 09: AUDIT LOGS (audit.sql - Append-only)
+// ==========================================
+Table audit_logs [headercolor: #64748b] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  actor_id uuid [ref: > users.id]
+  action varchar(60) [not null]
+  entity_type varchar(60) [not null]
+  entity_id uuid
+  reason text
+  metadata jsonb [not null, default: `{}`]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (actor_id, created_at) [note: 'idx_audit_logs_actor']
+    (entity_type, entity_id, created_at) [note: 'idx_audit_logs_entity']
+  }
+}
+
+// ==========================================
+// TABLE GROUPS FOR DBDATABASE VISUALIZATION (8 Modules · 22 Tables Core MVP)
 // ==========================================
 TableGroup Module01_Identity {
   users
@@ -372,6 +415,7 @@ TableGroup Module04_QuizEngine {
 TableGroup Module05_Community_SingleClan {
   bot_configuration
   clan_quiz_sessions
+  clan_moderator_grants
 }
 
 TableGroup Module06_Competition_WordDuel {
@@ -383,4 +427,9 @@ TableGroup Module07_AITutor_LingLing {
   ai_scenarios
   ai_conversations
 }
+
+TableGroup Module09_Audit {
+  audit_logs
+}
+
 

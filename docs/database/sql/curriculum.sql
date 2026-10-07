@@ -6,6 +6,16 @@
 --  3. Bỏ bảng user_vocabulary_deck: Tính năng lưu/ôn từ vựng đã được quản lý tập trung bởi srs_cards trong Module Learning.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG COURSES (Khóa học theo chuẩn CEFR A1-B2)
 CREATE TABLE IF NOT EXISTS courses (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,3 +92,19 @@ CREATE INDEX IF NOT EXISTS idx_units_course ON units(course_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_lessons_unit ON lessons(unit_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_search ON vocabulary_items(normalized_term, status);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_lang ON vocabulary_items(source_language, target_language);
+
+-- Triggers tự động cập nhật updated_at
+DROP TRIGGER IF EXISTS trg_courses_updated_at ON courses;
+CREATE TRIGGER trg_courses_updated_at
+    BEFORE UPDATE ON courses
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_lessons_updated_at ON lessons;
+CREATE TRIGGER trg_lessons_updated_at
+    BEFORE UPDATE ON lessons
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_vocabulary_items_updated_at ON vocabulary_items;
+CREATE TRIGGER trg_vocabulary_items_updated_at
+    BEFORE UPDATE ON vocabulary_items
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();

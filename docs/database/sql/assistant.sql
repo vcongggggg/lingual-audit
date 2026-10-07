@@ -5,6 +5,16 @@
 --  2. Gộp toàn bộ tin nhắn ai_messages vào cột messages (JSONB) trong ai_conversations.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG KỊCH BẢN LUYỆN TẬP VỚI AI
 CREATE TABLE IF NOT EXISTS ai_scenarios (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,4 +51,11 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
 
 -- Chỉ mục tối ưu hóa lịch sử trò chuyện của học viên
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_conv_scenario ON ai_conversations(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_ai_scenarios_level ON ai_scenarios(level, status);
+
+-- Trigger tự động cập nhật updated_at
+DROP TRIGGER IF EXISTS trg_ai_scenarios_updated_at ON ai_scenarios;
+CREATE TRIGGER trg_ai_scenarios_updated_at
+    BEFORE UPDATE ON ai_scenarios
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();

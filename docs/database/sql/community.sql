@@ -7,6 +7,16 @@
 --  3. Gộp bảng clan_quiz_responses vào cột responses (JSONB) trong clan_quiz_sessions.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG CẤU HÌNH BOT TRONG CLAN (Singleton id = 1, gộp cả lịch hẹn giờ tự động)
 CREATE TABLE IF NOT EXISTS bot_configuration (
     id                       SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
@@ -50,6 +60,28 @@ CREATE TABLE IF NOT EXISTS clan_quiz_sessions (
     responses                JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
--- Chỉ mục tối ưu hóa truy vấn các phiên đố vui đang mở
+-- 3. BẢNG CLAN_MODERATOR_GRANTS (Quyền vận hành phạm vi 1 Clan, tách biệt role toàn cục)
+CREATE TABLE IF NOT EXISTS clan_moderator_grants (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    granted_by         UUID REFERENCES users(id) ON DELETE SET NULL,
+    granted_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at         TIMESTAMPTZ,
+    revoked_at         TIMESTAMPTZ,
+    revoked_by         UUID REFERENCES users(id) ON DELETE SET NULL,
+    reason             TEXT,
+    CHECK (expires_at IS NULL OR expires_at > granted_at),
+    CHECK (revoked_at IS NULL OR revoked_at >= granted_at)
+);
+
+-- Chỉ mục tối ưu hóa truy vấn các phiên đố vui đang mở và quyền hạn
 CREATE INDEX IF NOT EXISTS idx_clan_quiz_open ON clan_quiz_sessions(closes_at) WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS idx_clan_quiz_channel ON clan_quiz_sessions(channel_mezon_id, opened_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clan_quiz_question ON clan_quiz_sessions(question_id);
+CREATE INDEX IF NOT EXISTS idx_clan_mod_grants_user ON clan_moderator_grants(user_id) WHERE revoked_at IS NULL;
+
+-- Trigger tự động cập nhật updated_at
+DROP TRIGGER IF EXISTS trg_bot_configuration_updated_at ON bot_configuration;
+CREATE TRIGGER trg_bot_configuration_updated_at
+    BEFORE UPDATE ON bot_configuration
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();

@@ -7,6 +7,16 @@
 --  4. Gộp bảng user_daily_activity vào cột daily_activity (JSONB) trong user_streaks.
 -- ==============================================================================
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG TIẾN ĐỘ BÀI HỌC (Gộp lịch sử phiên học của bài)
 CREATE TABLE IF NOT EXISTS lesson_progress (
     user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,3 +84,18 @@ CREATE TABLE IF NOT EXISTS user_streaks (
 CREATE INDEX IF NOT EXISTS idx_srs_due_queue ON srs_cards(user_id, next_due_at) WHERE suspended_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_user ON xp_ledger(user_id, awarded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_source ON xp_ledger(source_type, source_id);
+
+-- Chống cộng XP trùng lặp khi app không truyền idempotency_key
+CREATE UNIQUE INDEX IF NOT EXISTS uq_xp_ledger_source
+    ON xp_ledger(source_type, source_id) WHERE source_id IS NOT NULL;
+
+-- Triggers tự động cập nhật updated_at
+DROP TRIGGER IF EXISTS trg_srs_cards_updated_at ON srs_cards;
+CREATE TRIGGER trg_srs_cards_updated_at
+    BEFORE UPDATE ON srs_cards
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_user_streaks_updated_at ON user_streaks;
+CREATE TRIGGER trg_user_streaks_updated_at
+    BEFORE UPDATE ON user_streaks
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();

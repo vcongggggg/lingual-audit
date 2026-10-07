@@ -1,8 +1,20 @@
 -- ==========================================================================
 -- LINGUAL DATABASE — ALL-IN-ONE INITIALIZATION SCRIPT (PostgreSQL 13+)
--- Combined 8 Modules · 45 Tables · Single-Clan Mezon Architecture
+-- Combined 9 Modules · 22 Tables · Single-Clan Mezon Architecture
 -- Generated for Mezon Campus Studio 2026 (MCS 2026)
 -- ==========================================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Hàm tự động cập nhật timestamp updated_at khi có UPDATE
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 
 -- ==========================================================================
 -- MODULE 01: USER.SQL
@@ -58,9 +70,20 @@ CREATE TABLE IF NOT EXISTS placement_tests (
     completed_at       TIMESTAMPTZ
 );
 
--- Chỉ mục tối ưu hóa
+-- Chỉ mục tối ưu hóa Module 01
 CREATE INDEX IF NOT EXISTS idx_users_mezon_id ON users(mezon_user_id);
 CREATE INDEX IF NOT EXISTS idx_placement_tests_user ON placement_tests(user_id, started_at DESC);
+
+-- Triggers tự động cập nhật updated_at cho Module 01
+DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_learner_profiles_updated_at ON learner_profiles;
+CREATE TRIGGER trg_learner_profiles_updated_at
+    BEFORE UPDATE ON learner_profiles
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
@@ -134,11 +157,27 @@ CREATE TABLE IF NOT EXISTS vocabulary_items (
     UNIQUE(normalized_term, source_language, target_language)
 );
 
+-- Chỉ mục tối ưu hóa Module 02
 CREATE INDEX IF NOT EXISTS idx_units_course ON units(course_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_lessons_unit ON lessons(unit_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_search ON vocabulary_items(normalized_term, status);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_lang ON vocabulary_items(source_language, target_language);
 
+-- Triggers tự động cập nhật updated_at cho Module 02
+DROP TRIGGER IF EXISTS trg_courses_updated_at ON courses;
+CREATE TRIGGER trg_courses_updated_at
+    BEFORE UPDATE ON courses
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_lessons_updated_at ON lessons;
+CREATE TRIGGER trg_lessons_updated_at
+    BEFORE UPDATE ON lessons
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_vocabulary_items_updated_at ON vocabulary_items;
+CREATE TRIGGER trg_vocabulary_items_updated_at
+    BEFORE UPDATE ON vocabulary_items
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
@@ -200,10 +239,25 @@ CREATE TABLE IF NOT EXISTS user_streaks (
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Chỉ mục tối ưu hóa Module 03
 CREATE INDEX IF NOT EXISTS idx_srs_due_queue ON srs_cards(user_id, next_due_at) WHERE suspended_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_user ON xp_ledger(user_id, awarded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_source ON xp_ledger(source_type, source_id);
 
+-- Chống cộng XP trùng lặp khi app không truyền idempotency_key
+CREATE UNIQUE INDEX IF NOT EXISTS uq_xp_ledger_source
+    ON xp_ledger(source_type, source_id) WHERE source_id IS NOT NULL;
+
+-- Triggers tự động cập nhật updated_at cho Module 03
+DROP TRIGGER IF EXISTS trg_srs_cards_updated_at ON srs_cards;
+CREATE TRIGGER trg_srs_cards_updated_at
+    BEFORE UPDATE ON srs_cards
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_user_streaks_updated_at ON user_streaks;
+CREATE TRIGGER trg_user_streaks_updated_at
+    BEFORE UPDATE ON user_streaks
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
@@ -213,7 +267,7 @@ CREATE INDEX IF NOT EXISTS idx_xp_ledger_source ON xp_ledger(source_type, source
 -- 1. BẢNG QUIZZES (Bộ đề thi / Bài trắc nghiệm)
 CREATE TABLE IF NOT EXISTS quizzes (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code               VARCHAR(80) UNIQUE,
+    code               VARCHAR(80) NOT NULL UNIQUE,
     title              VARCHAR(200) NOT NULL,
     description        TEXT,
     quiz_type          VARCHAR(20) NOT NULL CHECK (quiz_type IN ('practice', 'placement', 'lesson', 'clan')),
@@ -260,16 +314,31 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     submitted_at       TIMESTAMPTZ
 );
 
+-- Chỉ mục tối ưu hóa Module 04
 CREATE INDEX IF NOT EXISTS idx_quizzes_type_level ON quizzes(quiz_type, level, status);
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quiz_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_quiz_questions_filter ON quiz_questions(status, level, question_type);
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_time ON quiz_attempts(user_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz ON quiz_attempts(quiz_id, status);
 
+-- Chống tạo 2 attempt đang làm dở cùng lúc
+CREATE UNIQUE INDEX IF NOT EXISTS uq_quiz_attempt_in_progress
+    ON quiz_attempts(quiz_id, user_id) WHERE status = 'in_progress';
+
+-- Triggers tự động cập nhật updated_at cho Module 04
+DROP TRIGGER IF EXISTS trg_quizzes_updated_at ON quizzes;
+CREATE TRIGGER trg_quizzes_updated_at
+    BEFORE UPDATE ON quizzes
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_quiz_questions_updated_at ON quiz_questions;
+CREATE TRIGGER trg_quiz_questions_updated_at
+    BEFORE UPDATE ON quiz_questions
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
--- MODULE 05: COMMUNITY.SQL (Tinh gọn từ 5 bảng còn 2 bảng tối ưu)
+-- MODULE 05: COMMUNITY.SQL (Mô hình Singleton Clan Bot & Clan Quiz)
 -- ==========================================================================
 
 -- 1. BẢNG CẤU HÌNH BOT TRONG CLAN (Singleton id = 1, gộp cả lịch hẹn giờ tự động)
@@ -308,26 +377,36 @@ CREATE TABLE IF NOT EXISTS clan_quiz_sessions (
     responses                JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
+-- 3. BẢNG CLAN_MODERATOR_GRANTS (Quyền vận hành phạm vi 1 Clan, tách biệt role toàn cục)
+CREATE TABLE IF NOT EXISTS clan_moderator_grants (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id            UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    granted_by         UUID REFERENCES users(id) ON DELETE SET NULL,
+    granted_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at         TIMESTAMPTZ,
+    revoked_at         TIMESTAMPTZ,
+    revoked_by         UUID REFERENCES users(id) ON DELETE SET NULL,
+    reason             TEXT,
+    CHECK (expires_at IS NULL OR expires_at > granted_at),
+    CHECK (revoked_at IS NULL OR revoked_at >= granted_at)
+);
+
+-- Chỉ mục tối ưu hóa Module 05
 CREATE INDEX IF NOT EXISTS idx_clan_quiz_open ON clan_quiz_sessions(closes_at) WHERE status = 'open';
 CREATE INDEX IF NOT EXISTS idx_clan_quiz_channel ON clan_quiz_sessions(channel_mezon_id, opened_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clan_quiz_question ON clan_quiz_sessions(question_id);
+CREATE INDEX IF NOT EXISTS idx_clan_mod_grants_user ON clan_moderator_grants(user_id) WHERE revoked_at IS NULL;
 
+-- Trigger tự động cập nhật updated_at cho Module 05
+DROP TRIGGER IF EXISTS trg_bot_configuration_updated_at ON bot_configuration;
+CREATE TRIGGER trg_bot_configuration_updated_at
+    BEFORE UPDATE ON bot_configuration
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
 -- MODULE 06: COMPETITION.SQL
 -- ==========================================================================
-
--- Module 06: asynchronous duel sessions and finalized weekly standings.
-CREATE TABLE IF NOT EXISTS duel_matches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    challenger_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    opponent_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','in_progress','completed','declined','expired','cancelled')),
-    question_count SMALLINT NOT NULL DEFAULT 5 CHECK (question_count > 0),
-    winner_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    started_at TIMESTAMPTZ, completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), CHECK (challenger_id <> opponent_id)
-);
 
 -- 1. BẢNG TRẬN ĐẤU ĐỐI KHÁNG WORD DUEL (Gộp toàn bộ câu hỏi, bài làm 2 bên và kết quả)
 CREATE TABLE IF NOT EXISTS duel_matches (
@@ -366,13 +445,16 @@ CREATE TABLE IF NOT EXISTS weekly_leaderboards (
     CHECK (week_end >= week_start)
 );
 
+-- Chỉ mục tối ưu hóa Module 06
 CREATE INDEX IF NOT EXISTS idx_duel_challenger ON duel_matches(challenger_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_duel_opponent ON duel_matches(opponent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_duel_winner ON duel_matches(winner_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_leaderboard_rank ON weekly_leaderboards(week_start, rank);
+CREATE INDEX IF NOT EXISTS idx_weekly_lb_xp ON weekly_leaderboards(week_start, xp_total DESC);
 
 
 -- ==========================================================================
--- MODULE 07: ASSISTANT.SQL (Tinh gọn từ 3 bảng còn 2 bảng tối ưu)
+-- MODULE 07: ASSISTANT.SQL (AI LingLing Roleplay & Correction)
 -- ==========================================================================
 
 -- 1. BẢNG KỊCH BẢN LUYỆN TẬP VỚI AI
@@ -407,8 +489,16 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
     ended_at           TIMESTAMPTZ
 );
 
+-- Chỉ mục tối ưu hóa Module 07
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_conv_scenario ON ai_conversations(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_ai_scenarios_level ON ai_scenarios(level, status);
+
+-- Trigger tự động cập nhật updated_at cho Module 07
+DROP TRIGGER IF EXISTS trg_ai_scenarios_updated_at ON ai_scenarios;
+CREATE TRIGGER trg_ai_scenarios_updated_at
+    BEFORE UPDATE ON ai_scenarios
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ==========================================================================
@@ -417,4 +507,22 @@ CREATE INDEX IF NOT EXISTS idx_ai_scenarios_level ON ai_scenarios(level, status)
 -- ==========================================================================
 
 
+-- ==========================================================================
+-- MODULE 09: AUDIT.SQL (Nhật ký thao tác nhạy cảm append-only cho Admin & Mod)
+-- ==========================================================================
 
+-- 1. BẢNG AUDIT_LOGS
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+    action             VARCHAR(60) NOT NULL,
+    entity_type        VARCHAR(60) NOT NULL,
+    entity_id          UUID,
+    reason             TEXT,
+    metadata           JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Chỉ mục tối ưu hóa Module 09
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id, created_at DESC);

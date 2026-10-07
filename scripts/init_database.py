@@ -52,7 +52,7 @@ def main():
         conn.autocommit = True
         cursor = conn.cursor()
 
-        print("Đang thực thi script CSDL (8 modules · 45 bảng)...")
+        print("Đang thực thi script CSDL (9 modules · 22 bảng)...")
         with open(sql_path, "r", encoding="utf-8") as f:
             sql_content = f.read()
 
