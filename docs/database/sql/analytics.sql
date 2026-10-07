@@ -1,0 +1,8 @@
+-- ==============================================================================
+-- Module 08: Analytics & Retention Reporting (Phase 2 / Post-MVP)
+-- Theo chỉ đạo của Mentor Mai Hồng Mận:
+--  Tập trung hoàn thiện trọn vẹn 7 module Core MVP (20 bảng).
+--  Các chỉ số phân tích Cohort retention (D1, D7, D14, D30) và báo cáo Clan hàng ngày
+--  được tổng hợp trực tiếp qua query từ xp_ledger, lesson_progress và users.
+--  Các bảng lưu trữ tĩnh chuyên biệt sẽ được triển khai trong Phase 2 khi mở rộng quy mô.
+-- ==============================================================================
