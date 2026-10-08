@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code               VARCHAR(80) NOT NULL UNIQUE,
     title              VARCHAR(200) NOT NULL,
+    description        TEXT,
     -- Phân loại: practice (luyện tập), lesson (kiểm tra cuối bài), clan (đố vui Clan).
     -- Lưu ý: Onboarding placement test được quản lý tập trung ở bảng placement_tests (Module 01).
     quiz_type          VARCHAR(20) NOT NULL CHECK (quiz_type IN ('practice', 'lesson', 'clan')),
