@@ -156,7 +156,7 @@ sequenceDiagram
 
 ### FR-04: Ngân hàng Bài tập & Trắc nghiệm Tương tác (Interactive Quiz Engine)
 * **FR-04.1 Cấu trúc đề thi & câu hỏi đa dạng (`quizzes`, `quiz_questions`):**
-  - Quản lý đề thi linh hoạt (`quiz_type`: practice, placement, lesson, clan).
+  - Quản lý đề thi linh hoạt (`quiz_type`: practice, lesson, clan; riêng bài test đầu vào Onboarding được quản lý tập trung ở bảng `placement_tests`).
   - Bảng `quiz_questions` gắn trực tiếp `quiz_id`, tích hợp toàn bộ các phương án trắc nghiệm qua cột `options` (JSONB) và nội dung mở rộng qua `payload` (JSONB).
   - Đa dạng dạng thức: Trắc nghiệm 4 lựa chọn (`multiple_choice`), Ghép đôi từ vựng (`word_matching`), Sắp xếp câu (`sentence_scramble`), Nghe chép chính tả (`dictation`).
 * **FR-04.2 Phiên làm bài và chấm điểm (`quiz_attempts`):**

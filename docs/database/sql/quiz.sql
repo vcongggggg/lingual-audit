@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS quizzes (
     code               VARCHAR(80) NOT NULL UNIQUE,
     title              VARCHAR(200) NOT NULL,
     description        TEXT,
-    quiz_type          VARCHAR(20) NOT NULL CHECK (quiz_type IN ('practice', 'placement', 'lesson', 'clan')),
+    -- Phân loại: practice (luyện tập), lesson (kiểm tra cuối bài), clan (đố vui Clan).
+    -- Lưu ý: Onboarding placement test được quản lý tập trung ở bảng placement_tests (Module 01).
+    quiz_type          VARCHAR(20) NOT NULL CHECK (quiz_type IN ('practice', 'lesson', 'clan')),
     level              VARCHAR(2) CHECK (level IN ('A1', 'A2', 'B1', 'B2')),
     status             VARCHAR(16) NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'archived')),
     time_limit_seconds INTEGER CHECK (time_limit_seconds > 0),

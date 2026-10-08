@@ -193,7 +193,7 @@ Table quizzes [headercolor: #f59e0b] {
   code varchar(80) [not null, unique]
   title varchar(200) [not null]
   description text
-  quiz_type varchar(20) [not null, note: 'practice | placement | lesson | clan']
+  quiz_type varchar(20) [not null, note: 'practice | lesson | clan (Placement test dùng bảng placement_tests)']
   level varchar(2) [note: 'A1 | A2 | B1 | B2']
   status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
   time_limit_seconds integer
