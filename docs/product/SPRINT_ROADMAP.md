@@ -1,4 +1,6 @@
 # 🗺️ LỘ TRÌNH 10 TUẦN & SPRINT ROADMAP
+> ⚠️ Tài liệu lịch sử: lộ trình gốc của chương trình (đã kết thúc 09/2026). Kế hoạch thực thi hiện tại xem tại [SPRINT_PLAN_LINGUAL_MCS2026.md](SPRINT_PLAN_LINGUAL_MCS2026.md) (Milestone 1, hạn 12/10/2026).
+
 ## CHƯƠNG TRÌNH MEZON CAMPUS STUDIO 2026
 
 > **Học viên:** Ngô Văn Công  

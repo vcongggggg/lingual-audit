@@ -21,7 +21,7 @@ Khi đối chiếu PRD, Sprint Plan, ARCHITECTURE_DESIGN.md và schema, nhóm th
 | D7 | **Đặc tả yếu tố AI cho đề tài**: Đề tài đăng ký là *"Web app học TA tích hợp AI"* | Bổ sung module **AI Tutor (LingLing)** (`ai_scenarios`, `ai_conversations` gộp `messages` JSONB) lưu vết phân tích ngữ pháp, kịch bản hội thoại và token Google Gemini API |
 | D8 | **Kiến trúc Mezon Bot Single-Clan vs Multi-Clan**: Quản lý đa Clan phức tạp hay tập trung vào 1 Clan | **Chốt Single-Clan Architecture**: Bot được thiết kế chuyên biệt phục vụ cho **1 Clan cụ thể** thông qua bản ghi singleton `bot_configuration`. Phân quyền Clan Moderator tách biệt qua `clan_moderator_grants`, quản lý hệ thống qua Simple RBAC |
 
-**Về bộ CSDL chính thức của dự án:** Nhóm đã tinh gọn CSDL theo định hướng của Mentor Mai Hồng Mận thành **9 file SQL chuyên nghiệp (22 bảng Core MVP chuẩn PostgreSQL 13+)** lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql). Áp dụng chiến lược **Gộp dữ liệu bằng JSONB Flex Payloads** giúp loại bỏ hơn 50% số bảng cồng kềnh mà vẫn giữ trọn vẹn 100% nghiệp vụ và lịch sử dữ liệu.
+**Về bộ CSDL chính thức của dự án:** Nhóm đã tinh gọn CSDL theo định hướng của Mentor Mai Hồng Mận thành **9 file SQL chuyên nghiệp (22 bảng Core MVP chuẩn PostgreSQL 13+)** lưu trữ tại [docs/database/sql/](../../docs/database/sql/). Áp dụng chiến lược **Gộp dữ liệu bằng JSONB Flex Payloads** giúp loại bỏ hơn 50% số bảng cồng kềnh mà vẫn giữ trọn vẹn 100% nghiệp vụ và lịch sử dữ liệu.
 
 ---
 
@@ -91,7 +91,7 @@ Là thành viên Clan, tôi sử dụng Bot hoặc mở Channel Mini-App mà kh�
 - `/review` trả tối đa 5 từ đến hạn.
 
 **US-205 · Thách đấu Word Duel trên Kênh Chat (`/duel @user`)** (P0 · Công)
-- When gõ `/duel @user` trong kênh Clan, Then tạo `matches` (status=`pending`) và bot gửi tin nhắn thách đấu công khai kèm nút **[Chấp nhận]** / **[Từ chối]**.
+- When gõ `/duel @user` trong kênh Clan, Then tạo `duel_matches` (status=`pending`) và bot gửi tin nhắn thách đấu công khai kèm nút **[Chấp nhận]** / **[Từ chối]**.
 - Không thể tự thách đấu chính mình (CHECK DB). Người được mời đang có trận khác thì bot báo bận.
 - Không phản hồi trong 60 giây thì `status=expired`.
 
@@ -99,11 +99,11 @@ Là thành viên Clan, tôi sử dụng Bot hoặc mở Channel Mini-App mà kh�
 - When người được mời bấm [Chấp nhận], Bot cung cấp nút **[VÀO ĐẤU TRƯỜNG NGAY]**. Cả 2 mở màn hình **Webview nhúng trực tiếp trong Mezon**, tự động kết nối SignalR GameHub.
 - Trận đấu diễn ra độc lập trong Webview để **hoàn toàn không làm rác/spam kênh chat Clan**, đồng thời đảm bảo đếm ngược 10s mượt mà, có âm thanh và hiệu ứng sinh động.
 - Cả hai nhận **cùng lúc** câu hỏi từng vòng (10 giây/vòng); server là nguồn sự thật (không gửi `correct_index` xuống client trước khi vòng kết thúc).
-- Mỗi người trả lời một lần mỗi vòng (UNIQUE `match_round_id, user_id`); không trả lời = `selected_index null`, 0 điểm.
+- Mỗi người trả lời một lần mỗi vòng; không trả lời = `selected_index null`, 0 điểm.
 - Điểm vòng: đúng = 100 + `round(100 × (T − t)/T)` với T = 10 000 ms; sai/hết giờ = 0. Điểm đối thủ cập nhật realtime qua SignalR.
 
 **US-207 · Kết thúc trận, vinh danh ra Kênh Chat Clan & XP** (P0 · Minh + Công)
-- When đủ 5 vòng, Then `matches.status=finished`, lưu `winner_id` (null nếu hòa), điểm hai bên, `finished_at`.
+- When đủ 5 vòng, Then `duel_matches.status=completed`, lưu `winner_id` (null nếu hòa), điểm hai bên, `completed_at`.
 - XP: thắng +30, thua +10 (PRD 7.1); hòa +20 mỗi người. XP ghi vào `xp_events` với `source_ref = match_id` (chỉ cộng một lần).
 - **Vinh danh Clan:** Bot tự động bắn 1 Thẻ Card kết quả đẹp mắt vào lại kênh chat Clan: *"🏆 @Công vừa thắng @Minh với điểm số 750 - 580 (4/5 câu đúng) trong trận Word Duel! (+30 XP cho Clan)"*.
 - Bảng xếp hạng Clan tuần cập nhật ngay trên Redis.
@@ -143,8 +143,8 @@ Là người học, tôi muốn gửi câu tiếng Anh bất kỳ để AI phân
 
 ## 2. ĐẶC TẢ CƠ SỞ DỮ LIỆU CHO MINH (9 MODULES CHUẨN HOÁ — 22 BẢNG CORE MVP)
 
-> **Toàn bộ script SQL thực thi:** Lưu trữ tại [docs/database/sql/](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql) gồm 9 file đánh số thứ tự từ `user.sql` đến `audit.sql`, cùng script hợp nhất [00_init_all.sql](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql/00_init_all.sql).  
-> **File DBML trực quan:** Dán [docs/database/lingual_full_schema.dbml](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/lingual_full_schema.dbml) vào [dbdiagram.io](https://dbdiagram.io) để xuất ảnh ERD nộp bài cho Mentor Mai Hồng Mận.
+> **Toàn bộ script SQL thực thi:** Lưu trữ tại [docs/database/sql/](../../docs/database/sql/) gồm 9 file đánh số thứ tự từ `user.sql` đến `audit.sql`, cùng script hợp nhất [00_init_all.sql](../../docs/database/sql/00_init_all.sql).  
+> **File DBML trực quan:** Dán [docs/database/lingual_full_schema.dbml](../../docs/database/lingual_full_schema.dbml) vào [dbdiagram.io](https://dbdiagram.io) để xuất ảnh ERD nộp bài cho Mentor Mai Hồng Mận.
 
 ### 2.1 Quy ước chung & Kiến trúc Thiết kế
 - **PostgreSQL 13+ / 16**, toàn bộ tên bảng/cột **snake_case** (EF Core: `UseSnakeCaseNamingConvention()`).
@@ -376,51 +376,28 @@ IX: `(clan_id, started_at)`; partial index `WHERE status='open'` (migration). T�
 | answered_at | timestamptz | N | |
 IX: **UQ** `(session_id, user_id)` (chặn bấm 2 lần / race condition — đúng điều SP2-06 cần bắt).
 
-**matches**
+**duel_matches**
 | Field | Type | Null | Ràng buộc / Index |
 |---|---|---|---|
-| id | uuid | N | PK |
-| clan_id | uuid | Y | FK→clans.id SET NULL |
-| mezon_channel_id | varchar(64) | Y | |
-| mezon_message_id | varchar(64) | Y | Tin nhắn thách đấu của bot — để sửa nút khi accept/expire, chống bấm lại |
-| player1_id | uuid | N | FK→users.id (người thách đấu) |
-| player2_id | uuid | N | FK→users.id |
-| status | varchar(15) | N | default `pending`; pending / accepted / in_progress / finished / declined / expired / abandoned (`accepted`: đã bấm đồng ý, đang chờ 2 người vào Webview) |
-| winner_id | uuid | Y | FK→users.id SET NULL; null = hòa/chưa xong |
-| player1_score / player2_score | int | N | default 0 (Tổng điểm tích lũy 5 vòng, 100–200đ/câu đúng) |
-| total_rounds | smallint | N | default 5 |
-| round_seconds | smallint | N | default 10 |
-| end_reason | varchar(20) | Y | completed / forfeit_disconnect / declined / timeout / no_show |
-| created_at | timestamptz | N | |
-| accepted_at | timestamptz | Y | thời điểm người được mời bấm chấp nhận |
-| started_at / finished_at | timestamptz | Y | |
-| result_posted_at | timestamptz | Y | thời điểm bot đăng Thẻ vinh danh Clan — chống đăng lặp khi bot retry |
-CHECK: `player1_id <> player2_id`; `winner_id IS NULL OR winner_id IN (player1_id, player2_id)`.
-IX: `(player1_id, created_at)`, `(player2_id, created_at)`, `(clan_id, finished_at)`.
-Thêm trong migration: partial index `(player1_id) WHERE status IN ('pending','accepted','in_progress')` và tương tự cho `player2_id` để kiểm tra tức thì "người chơi đang bận trận khác".
-
-**match_rounds**
-| Field | Type | Null | Ràng buộc / Index |
-|---|---|---|---|
-| id | uuid | N | PK |
-| match_id | uuid | N | FK→matches.id CASCADE |
-| round_no | smallint | N | 1..5 |
-| quiz_question_id | uuid | N | FK→quiz_questions.id |
-| sent_at | timestamptz | N | server phát câu hỏi |
-IX: **UQ** `(match_id, round_no)`.
-
-**match_answers**
-| Field | Type | Null | Ràng buộc / Index |
-|---|---|---|---|
-| id | uuid | N | PK |
-| match_round_id | uuid | N | FK→match_rounds.id CASCADE |
-| user_id | uuid | N | FK→users.id |
-| selected_index | smallint | Y | null = hết giờ |
-| is_correct | boolean | N | default false |
-| response_ms | int | N | |
-| points | int | N | default 0 |
-| answered_at | timestamptz | N | |
-IX: **UQ** `(match_round_id, user_id)`.
+| id | uuid | N | PK, default `gen_random_uuid()` |
+| challenger_id | uuid | N | FK→users.id ON DELETE CASCADE |
+| opponent_id | uuid | N | FK→users.id ON DELETE CASCADE |
+| status | varchar(16) | N | default `pending`; CHECK IN ('pending', 'accepted', 'in_progress', 'completed', 'declined', 'expired', 'cancelled') |
+| question_count | smallint | N | default 5 |
+| question_ids | jsonb | N | default `[]` (Mảng UUID 5 câu hỏi từ quiz_questions, validate bằng trigger `check_jsonb_uuid_refs`) |
+| challenger_answers | jsonb | N | default `[]` (Chi tiết câu trả lời người thách đấu, append nguyên tử raw SQL `\|\|`) |
+| opponent_answers | jsonb | N | default `[]` (Chi tiết câu trả lời đối thủ, append nguyên tử raw SQL `\|\|`) |
+| challenger_score | numeric(8,2) | N | default 0 |
+| opponent_score | numeric(8,2) | N | default 0 |
+| challenger_correct | smallint | N | default 0 |
+| opponent_correct | smallint | N | default 0 |
+| winner_id | uuid | Y | FK→users.id ON DELETE SET NULL; null = hòa / chưa kết thúc |
+| started_at | timestamptz | Y | |
+| completed_at | timestamptz | Y | |
+| created_at | timestamptz | N | default `now()` |
+CHECK: `challenger_id <> opponent_id`; `completed_at IS NULL OR completed_at >= started_at`.  
+Trigger: `trg_duel_question_ref_check` kiểm tra tính hợp lệ của `question_ids` tham chiếu `quiz_questions`.  
+IX: `idx_duel_matches_challenger (challenger_id)`, `idx_duel_matches_opponent (opponent_id)`, `idx_duel_matches_status (status)`.
 
 ### 2.6 MODULE AI TUTOR (LINGLING)
 
@@ -438,7 +415,7 @@ IX: **UQ** `(match_round_id, user_id)`.
 IX: `(user_id, created_at)`, `(user_id, mode)`.
 
 ### 2.7 Quan hệ chính & Bộ Lược đồ CSDL Chuẩn 9 Module (22 bảng Core MVP)
-> **Nguồn chân lý thiết kế CSDL (Source of Truth):** Xem chi tiết tại [`docs/database/lingual_full_schema.dbml`](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/lingual_full_schema.dbml) và file khởi tạo [`docs/database/sql/00_init_all.sql`](file:///c:/Study/HocKy6/MezonCampusStudio/docs/database/sql/00_init_all.sql).
+> **Nguồn chân lý thiết kế CSDL (Source of Truth):** Xem chi tiết tại [`docs/database/lingual_full_schema.dbml`](../../docs/database/lingual_full_schema.dbml) và file khởi tạo [`docs/database/sql/00_init_all.sql`](../../docs/database/sql/00_init_all.sql).
 - `courses` 1—N `units` 1—N `lessons` (tích hợp `vocabulary_ids` JSONB).
 - `users` 1—1 `learner_profiles`; `users` 1—N `placement_tests` (tích hợp `answers_detail` JSONB).
 - `users` 1—N `srs_cards` (thuật toán SM-2, tích hợp `review_history` JSONB) N—1 `vocabulary_items` (tích hợp `examples` JSONB).
@@ -465,7 +442,7 @@ Tải việc được chia đủ nhẹ để làm được cả trong tuần có
 | Ngày | Công (Lead/Bot/AI) | Minh (DB/BE) | Trí (FE/Data/QA) |
 |---|---|---|---|
 | **CN 04/10** | Chốt D1–D8, thống nhất thiết kế CSDL 9 module (22 bảng Core MVP). Đẩy DBML chuẩn vào `/docs/database` | Import `lingual_full_schema.dbml` (đã có TableGroup 9 module) vào dbdiagram.io, kéo thả layout | Chốt template CSV vocab theo cột ở 2.3; chia 500 từ thành 5 lô × 100; làm mẫu 20 từ |
-| **T2 05/10** | Sửa PRD → **v1.1**: D1–D7 (nút SRS, 30s, streak, Mezon UX, AI log P0/P1). Thêm mục "Quy tắc điểm Duel" | **ERD v1**: chốt các cột mới của `matches` (accepted, no_show, result_posted_at), đủ 22 bảng Core MVP. Review với Công | Lô 1: 100 từ A1 (Unit 1–2) + 30 `quiz_questions` mẫu khớp schema |
+| **T2 05/10** | Sửa PRD → **v1.1**: D1–D7 (nút SRS, 30s, streak, Mezon UX, AI log P0/P1). Thêm mục "Quy tắc điểm Duel" | **ERD v1**: chốt schema `duel_matches` (18 cột & ràng buộc, gộp câu hỏi & đáp án vào JSONB), đủ 22 bảng Core MVP. Review với Công | Lô 1: 100 từ A1 (Unit 1–2) + 30 `quiz_questions` mẫu khớp schema |
 | **T3 06/10** | Viết lại ARCHITECTURE_DESIGN.md theo .NET 8 (module map 7 project, SignalR, Adapter Mezon, sơ đồ tuần tự `/quiz` & Duel). Thêm mục **Spike Mezon SSO & Webview** | Viết **data dictionary** (đã có nền ở phần 2) + bảng quan hệ; liệt kê CHECK/partial index cần đưa vào migration (để Sprint 1 làm ngay) | Lô 2: 100 từ A1 (còn lại) + viết script kiểm tra CSV (trùng từ, thiếu cột, `cefr_level` hợp lệ) |
 | **T4 07/10** | Sprint Plan → **v1.1**: sửa SP2-03 (30s), SP3-01 (thách đấu trước, ghép cặp stretch), thêm story ID từ phần 1 vào backlog | **Ứng viên freeze ERD**: xuất PNG/PDF + giữ DBML trong `/docs/database` | Lô 3: 100 từ A2 + 60 câu quiz; chạy script kiểm tra |
 | **T5 08/10** | **Gửi Mentor** bản xem trước: ERD v1 + PRD v1.1 + Sprint Plan v1.1, xin phản hồi trong 24h. Xác nhận cách nộp (kênh, định dạng) | Chuẩn bị kế hoạch seed 500 từ + sơ đồ migration thứ tự bảng (cho SP1-01) | Lô 4: 100 từ A2 + 60 câu quiz; viết **Test Plan** (US-101…US-209, mỗi story ≥ 1 test case) |
