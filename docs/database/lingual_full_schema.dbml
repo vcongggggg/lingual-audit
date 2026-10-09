@@ -45,7 +45,12 @@ Table placement_tests [headercolor: #3b82f6] {
   assessed_level varchar(2) [note: 'A1 | A2 | B1 | B2']
   answers_detail jsonb [not null, default: `[]`, note: 'Lưu chi tiết câu trả lời vào JSONB']
   started_at timestamptz [not null, default: `now()`]
-  completed_at timestamptz
+  completed_at timestamptz [note: 'CHECK completed_at IS NULL OR completed_at >= started_at']
+
+  indexes {
+    user_id [name: 'idx_placement_tests_user']
+    user_id [name: 'uq_placement_test_in_progress', unique, note: 'Partial unique: WHERE status = in_progress']
+  }
 }
 
 
@@ -267,7 +272,7 @@ Table clan_quiz_sessions [headercolor: #ec4899] {
   started_by uuid [ref: > users.id]
   status varchar(16) [not null, default: 'open', note: 'open | closed | cancelled']
   opened_at timestamptz [not null, default: `now()`]
-  closes_at timestamptz [not null]
+  closes_at timestamptz [not null, note: 'CHECK closes_at > opened_at']
   closed_at timestamptz
   winning_user_id uuid [ref: > users.id]
   winning_response_ms integer
@@ -309,7 +314,7 @@ Table duel_matches [headercolor: #ef4444] {
   opponent_correct smallint [not null, default: 0]
   winner_id uuid [ref: > users.id]
   started_at timestamptz
-  completed_at timestamptz
+  completed_at timestamptz [note: 'CHECK completed_at IS NULL OR completed_at >= started_at']
   created_at timestamptz [not null, default: `now()`]
 }
 

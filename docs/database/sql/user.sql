@@ -56,12 +56,15 @@ CREATE TABLE IF NOT EXISTS placement_tests (
     -- Chi tiết bài làm lưu dạng JSONB: [{"question_id": "...", "order": 1, "selected_option_id": "...", "is_correct": true}]
     answers_detail     JSONB NOT NULL DEFAULT '[]'::jsonb,
     started_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    completed_at       TIMESTAMPTZ
+    completed_at       TIMESTAMPTZ,
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
 );
 
 -- Chỉ mục tối ưu hóa
 CREATE INDEX IF NOT EXISTS idx_users_mezon_id ON users(mezon_user_id);
 CREATE INDEX IF NOT EXISTS idx_placement_tests_user ON placement_tests(user_id, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_placement_test_in_progress
+    ON placement_tests(user_id) WHERE status = 'in_progress';
 
 -- Triggers tự động cập nhật updated_at
 DROP TRIGGER IF EXISTS trg_users_updated_at ON users;

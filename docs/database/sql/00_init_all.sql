@@ -15,6 +15,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Hàm kiểm tra toàn vẹn tham chiếu UUID trong mảng JSONB (fail closed)
+CREATE OR REPLACE FUNCTION check_jsonb_uuid_refs()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_ARGV[0] = 'lessons' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.vocabulary_ids) AS vid
+            WHERE NOT EXISTS (SELECT 1 FROM vocabulary_items v WHERE v.id = vid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'lessons.vocabulary_ids contains unknown vocabulary_items id';
+        END IF;
+    ELSIF TG_ARGV[0] = 'duel_matches' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.question_ids) AS qid
+            WHERE NOT EXISTS (SELECT 1 FROM quiz_questions q WHERE q.id = qid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'duel_matches.question_ids contains unknown quiz_questions id';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 
 -- ==========================================================================
 -- MODULE 01: USER.SQL
@@ -67,12 +90,15 @@ CREATE TABLE IF NOT EXISTS placement_tests (
     -- Chi tiết bài làm lưu dạng JSONB: [{"question_id": "...", "order": 1, "selected_option_id": "...", "is_correct": true}]
     answers_detail     JSONB NOT NULL DEFAULT '[]'::jsonb,
     started_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    completed_at       TIMESTAMPTZ
+    completed_at       TIMESTAMPTZ,
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
 );
 
 -- Chỉ mục tối ưu hóa Module 01
 CREATE INDEX IF NOT EXISTS idx_users_mezon_id ON users(mezon_user_id);
 CREATE INDEX IF NOT EXISTS idx_placement_tests_user ON placement_tests(user_id, started_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_placement_test_in_progress
+    ON placement_tests(user_id) WHERE status = 'in_progress';
 
 -- Triggers tự động cập nhật updated_at cho Module 01
 DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
@@ -178,6 +204,12 @@ DROP TRIGGER IF EXISTS trg_vocabulary_items_updated_at ON vocabulary_items;
 CREATE TRIGGER trg_vocabulary_items_updated_at
     BEFORE UPDATE ON vocabulary_items
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Trigger kiểm tra toàn vẹn tham chiếu vocabulary_ids trong lessons
+DROP TRIGGER IF EXISTS trg_lessons_vocab_ref_check ON lessons;
+CREATE TRIGGER trg_lessons_vocab_ref_check
+    BEFORE INSERT OR UPDATE OF vocabulary_ids ON lessons
+    FOR EACH ROW EXECUTE FUNCTION check_jsonb_uuid_refs('lessons');
 
 
 -- ==========================================================================
@@ -376,7 +408,8 @@ CREATE TABLE IF NOT EXISTS clan_quiz_sessions (
     winning_user_id          UUID REFERENCES users(id) ON DELETE SET NULL,
     winning_response_ms      INTEGER CHECK (winning_response_ms >= 0),
     explanation_published_at TIMESTAMPTZ,
-    responses                JSONB NOT NULL DEFAULT '[]'::jsonb
+    responses                JSONB NOT NULL DEFAULT '[]'::jsonb,
+    CHECK (closes_at > opened_at)
 );
 
 -- 3. BẢNG CLAN_MODERATOR_GRANTS (Quyền vận hành phạm vi 1 Clan, tách biệt role toàn cục)
@@ -429,7 +462,8 @@ CREATE TABLE IF NOT EXISTS duel_matches (
     started_at           TIMESTAMPTZ,
     completed_at         TIMESTAMPTZ,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (challenger_id <> opponent_id)
+    CHECK (challenger_id <> opponent_id),
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
 );
 
 -- 2. BẢNG XẾP HẠNG TUẦN (Weekly Leaderboard tinh gọn)
@@ -453,6 +487,12 @@ CREATE INDEX IF NOT EXISTS idx_duel_opponent ON duel_matches(opponent_id, create
 CREATE INDEX IF NOT EXISTS idx_duel_winner ON duel_matches(winner_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_leaderboard_rank ON weekly_leaderboards(week_start, rank);
 CREATE INDEX IF NOT EXISTS idx_weekly_lb_xp ON weekly_leaderboards(week_start, xp_total DESC);
+
+-- Trigger kiểm tra toàn vẹn tham chiếu question_ids trong duel_matches
+DROP TRIGGER IF EXISTS trg_duel_question_ref_check ON duel_matches;
+CREATE TRIGGER trg_duel_question_ref_check
+    BEFORE INSERT OR UPDATE OF question_ids ON duel_matches
+    FOR EACH ROW EXECUTE FUNCTION check_jsonb_uuid_refs('duel_matches');
 
 
 -- ==========================================================================

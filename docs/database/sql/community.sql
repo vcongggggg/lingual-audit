@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS clan_quiz_sessions (
     explanation_published_at TIMESTAMPTZ,
     -- Gộp toàn bộ câu trả lời của các thành viên vào JSONB (thay cho bảng clan_quiz_responses):
     -- Ví dụ: [{"user_id": "...", "selected_key": "A", "is_correct": true, "response_ms": 1420, "responded_at": "..."}]
-    responses                JSONB NOT NULL DEFAULT '[]'::jsonb
+    responses                JSONB NOT NULL DEFAULT '[]'::jsonb,
+    CHECK (closes_at > opened_at)
 );
 
 -- 3. BẢNG CLAN_MODERATOR_GRANTS (Quyền vận hành phạm vi 1 Clan, tách biệt role toàn cục)

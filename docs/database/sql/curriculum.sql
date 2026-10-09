@@ -16,6 +16,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Hàm kiểm tra toàn vẹn tham chiếu UUID trong mảng JSONB (fail closed)
+CREATE OR REPLACE FUNCTION check_jsonb_uuid_refs()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_ARGV[0] = 'lessons' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.vocabulary_ids) AS vid
+            WHERE NOT EXISTS (SELECT 1 FROM vocabulary_items v WHERE v.id = vid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'lessons.vocabulary_ids contains unknown vocabulary_items id';
+        END IF;
+    ELSIF TG_ARGV[0] = 'duel_matches' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.question_ids) AS qid
+            WHERE NOT EXISTS (SELECT 1 FROM quiz_questions q WHERE q.id = qid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'duel_matches.question_ids contains unknown quiz_questions id';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG COURSES (Khóa học theo chuẩn CEFR A1-B2)
 CREATE TABLE IF NOT EXISTS courses (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -108,3 +131,9 @@ DROP TRIGGER IF EXISTS trg_vocabulary_items_updated_at ON vocabulary_items;
 CREATE TRIGGER trg_vocabulary_items_updated_at
     BEFORE UPDATE ON vocabulary_items
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Trigger kiểm tra toàn vẹn tham chiếu vocabulary_ids trong lessons
+DROP TRIGGER IF EXISTS trg_lessons_vocab_ref_check ON lessons;
+CREATE TRIGGER trg_lessons_vocab_ref_check
+    BEFORE INSERT OR UPDATE OF vocabulary_ids ON lessons
+    FOR EACH ROW EXECUTE FUNCTION check_jsonb_uuid_refs('lessons');

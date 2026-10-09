@@ -7,6 +7,29 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Hàm kiểm tra toàn vẹn tham chiếu UUID trong mảng JSONB (fail closed)
+CREATE OR REPLACE FUNCTION check_jsonb_uuid_refs()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_ARGV[0] = 'lessons' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.vocabulary_ids) AS vid
+            WHERE NOT EXISTS (SELECT 1 FROM vocabulary_items v WHERE v.id = vid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'lessons.vocabulary_ids contains unknown vocabulary_items id';
+        END IF;
+    ELSIF TG_ARGV[0] = 'duel_matches' THEN
+        IF EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(NEW.question_ids) AS qid
+            WHERE NOT EXISTS (SELECT 1 FROM quiz_questions q WHERE q.id = qid::uuid)
+        ) THEN
+            RAISE EXCEPTION 'duel_matches.question_ids contains unknown quiz_questions id';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 1. BẢNG TRẬN ĐẤU ĐỐI KHÁNG WORD DUEL (Gộp toàn bộ câu hỏi, bài làm 2 bên và kết quả)
 CREATE TABLE IF NOT EXISTS duel_matches (
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -31,7 +54,8 @@ CREATE TABLE IF NOT EXISTS duel_matches (
     started_at           TIMESTAMPTZ,
     completed_at         TIMESTAMPTZ,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (challenger_id <> opponent_id)
+    CHECK (challenger_id <> opponent_id),
+    CHECK (completed_at IS NULL OR completed_at >= started_at)
 );
 
 -- 2. BẢNG XẾP HẠNG TUẦN (Weekly Leaderboard tinh gọn)
@@ -55,3 +79,9 @@ CREATE INDEX IF NOT EXISTS idx_duel_opponent ON duel_matches(opponent_id, create
 CREATE INDEX IF NOT EXISTS idx_duel_winner ON duel_matches(winner_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_leaderboard_rank ON weekly_leaderboards(week_start, rank);
 CREATE INDEX IF NOT EXISTS idx_weekly_lb_xp ON weekly_leaderboards(week_start, xp_total DESC);
+
+-- Trigger kiểm tra toàn vẹn tham chiếu question_ids trong duel_matches
+DROP TRIGGER IF EXISTS trg_duel_question_ref_check ON duel_matches;
+CREATE TRIGGER trg_duel_question_ref_check
+    BEFORE INSERT OR UPDATE OF question_ids ON duel_matches
+    FOR EACH ROW EXECUTE FUNCTION check_jsonb_uuid_refs('duel_matches');

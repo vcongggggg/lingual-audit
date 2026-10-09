@@ -21,7 +21,37 @@ Design notes:
   REVOKE UPDATE, DELETE ON audit_logs FROM lingual_user;
   ```
 - Extensions & Triggers: `pgcrypto` is required for `gen_random_uuid()`. 11 tables with `updated_at` timestamps utilize the `set_updated_at()` PL/pgSQL trigger function to update automatically on row modification.
+- JSONB Foreign Key Integrity (Fail-Closed): `check_jsonb_uuid_refs()` trigger validates that all UUIDs in `lessons.vocabulary_ids` exist in `vocabulary_items(id)` and `duel_matches.question_ids` exist in `quiz_questions(id)`. Items must never be HARD-DELETED; soft-archive via `status = 'archived'`.
+- Single Placement Test In-Progress: Partial unique index `uq_placement_test_in_progress` guarantees a learner cannot open concurrent placement evaluations.
+- Temporal Constraints: Enforced via `CHECK (closes_at > opened_at)` on `clan_quiz_sessions`, and `CHECK (completed_at IS NULL OR completed_at >= started_at)` on `placement_tests` and `duel_matches`.
 
+Implementation & Concurrency Guidelines (Backend .NET 8 / SQL):
+1. **Atomic Array Appends (Anti-Lost Update):** Never read-modify-write JSONB arrays in memory. Execute atomic SQL updates using PostgreSQL's `||` operator:
+   ```sql
+   -- Clan quiz response (atomic append, serialized row lock)
+   UPDATE clan_quiz_sessions
+   SET responses = responses || @response::jsonb
+   WHERE id = @sessionId AND status = 'open' AND closes_at > now();
+   
+   -- AI chat messages
+   UPDATE ai_conversations
+   SET messages = messages || @msg::jsonb, total_tokens = total_tokens + @tokens
+   WHERE id = @conversationId;
+   
+   -- Word duel participant answers
+   UPDATE duel_matches
+   SET challenger_answers = challenger_answers || @answer::jsonb
+   WHERE id = @matchId AND status = 'in_progress';
+   ```
+2. **First-Use Upsert Pattern:** Always use `INSERT ... ON CONFLICT (user_id) DO NOTHING` for `user_streaks`, `lesson_progress`, and `srs_cards` to prevent race conditions during first activity.
+3. **Atomic Streak Freeze Consumption:**
+   ```sql
+   UPDATE user_streaks
+   SET freeze_balance = freeze_balance - 1,
+       freeze_history = freeze_history || jsonb_build_object('used_at', now(), 'reason', @reason)
+   WHERE user_id = @userId AND freeze_balance > 0;
+   -- affected rows = 1 indicates success; 0 indicates insufficient balance.
+   ```
 - The Bot is configured for exactly one Mezon Clan. Its external Clan ID is stored in the singleton `bot_configuration` row; member snapshots do not carry a Clan foreign key. OAuth access/refresh tokens and webhook secrets belong in a secrets manager, not these tables.
 - Timestamps are `TIMESTAMPTZ`; streak/activity dates are persisted in the learner's configured timezone (default `Asia/Ho_Chi_Minh`).
 - XP is an append-only ledger; leaderboard totals can be derived from it. Weekly snapshots preserve published results.
