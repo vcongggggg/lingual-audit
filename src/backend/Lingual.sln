@@ -1,0 +1,58 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Api", "Lingual.Api\Lingual.Api.csproj", "{72FCB987-5889-42C7-B31D-A33952FC3F54}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.AITutor", "Lingual.Modules.AITutor\Lingual.Modules.AITutor.csproj", "{D9472557-2A99-410F-8179-F32CA3FD6AEC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.Gamification", "Lingual.Modules.Gamification\Lingual.Modules.Gamification.csproj", "{67FB9768-2725-42F6-B2BD-4BDDB0D03120}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.Identity", "Lingual.Modules.Identity\Lingual.Modules.Identity.csproj", "{272F7CD3-94B8-4A3A-9980-BCC2D6F64245}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.Learning", "Lingual.Modules.Learning\Lingual.Modules.Learning.csproj", "{792D64D4-72A6-4803-BB88-DACF44A27489}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.MezonBot", "Lingual.Modules.MezonBot\Lingual.Modules.MezonBot.csproj", "{77586849-98C7-4889-B539-2EF2E4A474DB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Shared", "Lingual.Shared\Lingual.Shared.csproj", "{7696927B-BD47-4425-BC07-8C362397EF87}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{72FCB987-5889-42C7-B31D-A33952FC3F54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72FCB987-5889-42C7-B31D-A33952FC3F54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72FCB987-5889-42C7-B31D-A33952FC3F54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72FCB987-5889-42C7-B31D-A33952FC3F54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9472557-2A99-410F-8179-F32CA3FD6AEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9472557-2A99-410F-8179-F32CA3FD6AEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9472557-2A99-410F-8179-F32CA3FD6AEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9472557-2A99-410F-8179-F32CA3FD6AEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67FB9768-2725-42F6-B2BD-4BDDB0D03120}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67FB9768-2725-42F6-B2BD-4BDDB0D03120}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67FB9768-2725-42F6-B2BD-4BDDB0D03120}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67FB9768-2725-42F6-B2BD-4BDDB0D03120}.Release|Any CPU.Build.0 = Release|Any CPU
+		{272F7CD3-94B8-4A3A-9980-BCC2D6F64245}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{272F7CD3-94B8-4A3A-9980-BCC2D6F64245}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{272F7CD3-94B8-4A3A-9980-BCC2D6F64245}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{272F7CD3-94B8-4A3A-9980-BCC2D6F64245}.Release|Any CPU.Build.0 = Release|Any CPU
+		{792D64D4-72A6-4803-BB88-DACF44A27489}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{792D64D4-72A6-4803-BB88-DACF44A27489}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{792D64D4-72A6-4803-BB88-DACF44A27489}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{792D64D4-72A6-4803-BB88-DACF44A27489}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77586849-98C7-4889-B539-2EF2E4A474DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77586849-98C7-4889-B539-2EF2E4A474DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77586849-98C7-4889-B539-2EF2E4A474DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77586849-98C7-4889-B539-2EF2E4A474DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7696927B-BD47-4425-BC07-8C362397EF87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7696927B-BD47-4425-BC07-8C362397EF87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7696927B-BD47-4425-BC07-8C362397EF87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7696927B-BD47-4425-BC07-8C362397EF87}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

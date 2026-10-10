@@ -1,0 +1,440 @@
+// LINGUAL — Core MVP Database Schema (PostgreSQL 13+, EF Core 8)
+// 8 Core Modules · 22 Tables (Core MVP) · Single-Clan Mezon Bot Architecture
+// Paste into https://dbdiagram.io/d to generate full system ERD
+
+Project lingual_db {
+  database_type: 'PostgreSQL'
+  Note: 'LINGUAL — Social Language Learning Platform on Mezon Platform (MCS 2026)'
+}
+
+// ==========================================
+// MODULE 01: IDENTITY & ONBOARDING (user.sql)
+// ==========================================
+Table users [headercolor: #3b82f6] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  mezon_user_id varchar(128) [not null, unique, note: 'External Mezon User ID']
+  display_name varchar(160) [not null]
+  avatar_url text
+  preferred_locale varchar(16) [not null, default: 'vi-VN']
+  timezone varchar(64) [not null, default: 'Asia/Ho_Chi_Minh']
+  status varchar(20) [not null, default: 'active', note: 'active | suspended | deleted']
+  role varchar(20) [not null, default: 'learner', note: 'Simple RBAC: learner | moderator | admin']
+  last_seen_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  deleted_at timestamptz
+}
+
+Table learner_profiles [headercolor: #3b82f6] {
+  user_id uuid [pk, ref: - users.id]
+  learning_goal varchar(32) [note: 'daily_communication | career | certification']
+  daily_commitment_minutes smallint [note: '5 | 15 | 30']
+  proficiency_level varchar(2) [note: 'A1 | A2 | B1 | B2']
+  placement_status varchar(16) [not null, default: 'pending', note: 'pending | in_progress | completed | skipped | self_selected']
+  onboarding_completed_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table placement_tests [headercolor: #3b82f6] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  status varchar(16) [not null, default: 'in_progress', note: 'in_progress | completed | abandoned']
+  question_count smallint [not null, default: 10]
+  correct_count smallint
+  assessed_level varchar(2) [note: 'A1 | A2 | B1 | B2']
+  answers_detail jsonb [not null, default: `[]`, note: 'Lưu chi tiết câu trả lời vào JSONB']
+  started_at timestamptz [not null, default: `now()`]
+  completed_at timestamptz [note: 'CHECK completed_at IS NULL OR completed_at >= started_at']
+
+  indexes {
+    user_id [name: 'idx_placement_tests_user']
+    user_id [name: 'uq_placement_test_in_progress', unique, note: 'Partial unique: WHERE status = in_progress']
+  }
+}
+
+
+// ==========================================
+// MODULE 02: CURRICULUM & VOCABULARY (curriculum.sql)
+// ==========================================
+Table courses [headercolor: #10b981] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(80) [not null, unique]
+  title varchar(200) [not null]
+  description text
+  source_language varchar(16) [not null, default: 'en']
+  target_language varchar(16) [not null, default: 'vi']
+  level varchar(2) [not null, note: 'A1 | A2 | B1 | B2']
+  status varchar(16) [not null, default: 'draft', note: 'draft | published | archived']
+  sort_order integer [not null, default: 0]
+  created_by uuid [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table units [headercolor: #10b981] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  course_id uuid [not null, ref: > courses.id]
+  code varchar(80) [not null]
+  title varchar(200) [not null]
+  description text
+  topic varchar(120)
+  sort_order integer [not null, default: 0]
+  status varchar(16) [not null, default: 'draft', note: 'draft | published | archived']
+
+  indexes {
+    (course_id, code) [unique]
+    (course_id, sort_order) [unique]
+  }
+}
+
+Table lessons [headercolor: #10b981] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  unit_id uuid [not null, ref: > units.id]
+  code varchar(80) [not null]
+  title varchar(200) [not null]
+  summary text
+  estimated_minutes smallint
+  sort_order integer [not null, default: 0]
+  status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
+  vocabulary_ids jsonb [not null, default: `[]`, note: 'Mảng ID từ vựng JSONB thay cho bảng lesson_vocabulary']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (unit_id, code) [unique]
+    (unit_id, sort_order) [unique]
+  }
+}
+
+Table vocabulary_items [headercolor: #10b981] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  term varchar(240) [not null]
+  normalized_term varchar(240) [not null]
+  source_language varchar(16) [not null, default: 'en']
+  target_language varchar(16) [not null, default: 'vi']
+  ipa varchar(240)
+  part_of_speech varchar(32)
+  meaning text [not null]
+  pronunciation_audio_url text
+  image_url text
+  examples jsonb [not null, default: `[]`, note: 'Mảng câu ví dụ JSONB thay cho bảng vocabulary_examples']
+  status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
+  created_by uuid [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (normalized_term, source_language, target_language) [unique]
+  }
+}
+
+
+// ==========================================
+// MODULE 03: LEARNING & SRS (learning.sql - Gộp 4 bảng tối ưu)
+// ==========================================
+Table lesson_progress [headercolor: #8b5cf6] {
+  user_id uuid [not null, ref: > users.id]
+  lesson_id uuid [not null, ref: > lessons.id]
+  status varchar(16) [not null, default: 'not_started', note: 'not_started | in_progress | completed']
+  first_started_at timestamptz
+  completed_at timestamptz
+  best_score numeric(5,2)
+  session_history jsonb [not null, default: `[]`, note: 'Gộp lịch sử phiên học thay cho learning_sessions']
+
+  indexes {
+    (user_id, lesson_id) [pk]
+  }
+}
+
+Table srs_cards [headercolor: #8b5cf6] {
+  user_id uuid [not null, ref: > users.id]
+  vocabulary_id uuid [not null, ref: > vocabulary_items.id]
+  repetitions integer [not null, default: 0]
+  interval_days numeric(8,2) [not null, default: 0]
+  ease_factor numeric(4,2) [not null, default: 2.50, note: '>= 1.30']
+  next_due_at timestamptz [not null, default: `now()`]
+  last_reviewed_at timestamptz
+  lapses integer [not null, default: 0]
+  suspended_at timestamptz
+  review_history jsonb [not null, default: `[]`, note: 'Gộp lịch sử review SM-2 thay cho srs_reviews']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, vocabulary_id) [pk]
+    (user_id, next_due_at) [name: 'srs_due_queue_idx']
+  }
+}
+
+Table xp_ledger [headercolor: #8b5cf6] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  source_type varchar(24) [not null, note: 'new_vocabulary | srs_review | clan_quiz | speed_bonus | lesson_complete | duel_win | duel_participation | adjustment']
+  source_id uuid
+  xp_delta integer [not null]
+  awarded_at timestamptz [not null, default: `now()`]
+  idempotency_key varchar(200) [unique, note: 'Chống cộng trùng lặp điểm']
+  metadata jsonb [not null, default: `{}`]
+}
+
+Table user_streaks [headercolor: #8b5cf6] {
+  user_id uuid [pk, ref: - users.id]
+  current_days integer [not null, default: 0]
+  best_days integer [not null, default: 0]
+  last_active_date date
+  freeze_balance integer [not null, default: 0]
+  freeze_history jsonb [not null, default: `[]`, note: 'Gộp lịch sử vé freeze thay cho streak_freeze_events']
+  daily_activity jsonb [not null, default: `{}`, note: 'Gộp thống kê theo ngày thay cho user_daily_activity']
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+
+// ==========================================
+// MODULE 04: QUIZ ENGINE (quiz.sql - Tinh gọn 3 bảng)
+// ==========================================
+Table quizzes [headercolor: #f59e0b] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(80) [not null, unique]
+  title varchar(200) [not null]
+  description text
+  quiz_type varchar(20) [not null, note: 'practice | lesson | clan (Placement test dùng bảng placement_tests)']
+  level varchar(2) [note: 'A1 | A2 | B1 | B2']
+  status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
+  time_limit_seconds integer
+  total_questions smallint [not null, default: 0]
+  created_by uuid [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table quiz_questions [headercolor: #f59e0b] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  quiz_id uuid [ref: > quizzes.id, note: 'NULL nếu thuộc ngân hàng câu hỏi chung']
+  question_type varchar(24) [not null, note: 'multiple_choice | word_matching | sentence_scramble | spelling | dictation']
+  prompt text [not null]
+  prompt_audio_url text
+  difficulty smallint [note: '1-5']
+  level varchar(2) [note: 'A1 | A2 | B1 | B2']
+  options jsonb [not null, default: `[]`, note: 'Mảng options JSONB thay cho bảng quiz_options']
+  payload jsonb [not null, default: `{}`]
+  explanation text
+  points smallint [not null, default: 1]
+  sort_order smallint [not null, default: 1]
+  status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
+  created_by uuid [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table quiz_attempts [headercolor: #f59e0b] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  quiz_id uuid [not null, ref: > quizzes.id]
+  user_id uuid [not null, ref: > users.id]
+  status varchar(16) [not null, default: 'in_progress', note: 'in_progress | submitted | expired | abandoned']
+  score numeric(7,2) [default: 0]
+  max_score numeric(7,2) [default: 0]
+  correct_count smallint [default: 0]
+  answers_detail jsonb [not null, default: `[]`, note: 'Toàn bộ câu trả lời lưu vào JSONB']
+  started_at timestamptz [not null, default: `now()`]
+  submitted_at timestamptz
+
+  indexes {
+    (quiz_id, user_id) [note: 'Chống 2 attempt in_progress: uq_quiz_attempt_in_progress']
+  }
+}
+
+
+// ==========================================
+// MODULE 05: COMMUNITY SINGLE-CLAN (community.sql - Gộp 2 bảng tối ưu)
+// ==========================================
+Table bot_configuration [headercolor: #ec4899] {
+  id smallint [pk, default: 1, note: 'CHECK id = 1 (Singleton Config)']
+  mezon_clan_id varchar(128) [not null, unique]
+  clan_name_snapshot varchar(200)
+  default_channel_mezon_id varchar(128)
+  status varchar(16) [not null, default: 'active', note: 'active | paused | uninstalled']
+  timezone varchar(64) [not null, default: 'Asia/Ho_Chi_Minh']
+  installed_by uuid [ref: > users.id]
+  installed_at timestamptz [not null, default: `now()`]
+  uninstalled_at timestamptz
+  daily_word_enabled boolean [not null, default: true]
+  quiz_enabled boolean [not null, default: true]
+  quiz_duration_seconds smallint [not null, default: 30, note: '5-300 seconds']
+  schedules jsonb [not null, default: `[]`, note: 'Gộp lịch hẹn giờ tự động thay cho bot_schedules']
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table clan_quiz_sessions [headercolor: #ec4899] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  channel_mezon_id varchar(128) [not null]
+  question_id uuid [not null, ref: > quiz_questions.id]
+  started_by uuid [ref: > users.id]
+  status varchar(16) [not null, default: 'open', note: 'open | closed | cancelled']
+  opened_at timestamptz [not null, default: `now()`]
+  closes_at timestamptz [not null, note: 'CHECK closes_at > opened_at']
+  closed_at timestamptz
+  winning_user_id uuid [ref: > users.id]
+  winning_response_ms integer
+  explanation_published_at timestamptz
+  responses jsonb [not null, default: `[]`, note: 'Gộp toàn bộ câu trả lời của thành viên thay cho clan_quiz_responses']
+}
+
+Table clan_moderator_grants [headercolor: #ec4899] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  granted_by uuid [ref: > users.id]
+  granted_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz
+  revoked_at timestamptz
+  revoked_by uuid [ref: > users.id]
+  reason text
+
+  indexes {
+    user_id [note: 'idx_clan_mod_grants_user WHERE revoked_at IS NULL']
+  }
+}
+
+
+// ==========================================
+// MODULE 06: COMPETITION & WORD DUEL (competition.sql - Gộp 2 bảng tối ưu)
+// ==========================================
+Table duel_matches [headercolor: #ef4444] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  challenger_id uuid [not null, ref: > users.id]
+  opponent_id uuid [not null, ref: > users.id]
+  status varchar(16) [not null, default: 'pending', note: 'pending | accepted | in_progress | completed | declined | expired | cancelled']
+  question_count smallint [not null, default: 5]
+  question_ids jsonb [not null, default: `[]`, note: 'Mảng ID 5 câu hỏi thay cho duel_match_questions']
+  challenger_answers jsonb [not null, default: `[]`, note: 'Bài làm người thách đấu thay cho duel_answers']
+  opponent_answers jsonb [not null, default: `[]`, note: 'Bài làm đối thủ thay cho duel_answers']
+  challenger_score numeric(8,2) [not null, default: 0]
+  opponent_score numeric(8,2) [not null, default: 0]
+  challenger_correct smallint [not null, default: 0]
+  opponent_correct smallint [not null, default: 0]
+  winner_id uuid [ref: > users.id]
+  started_at timestamptz
+  completed_at timestamptz [note: 'CHECK completed_at IS NULL OR completed_at >= started_at']
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table weekly_leaderboards [headercolor: #ef4444] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  week_start date [not null]
+  week_end date [not null]
+  user_id uuid [not null, ref: > users.id]
+  xp_total integer [not null, default: 0]
+  rank smallint
+  status varchar(16) [not null, default: 'open', note: 'open | finalized']
+  finalized_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (week_start, user_id) [unique]
+  }
+}
+
+// ==========================================
+// MODULE 07: AI TUTOR LINGLING (assistant.sql - Gộp 2 bảng tối ưu)
+// ==========================================
+Table ai_scenarios [headercolor: #06b6d4] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(80) [not null, unique]
+  title varchar(160) [not null]
+  description text
+  level varchar(2) [note: 'A1 | A2 | B1 | B2']
+  system_prompt_key varchar(120) [not null]
+  status varchar(16) [not null, default: 'published', note: 'draft | published | archived']
+  created_by uuid [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table ai_conversations [headercolor: #06b6d4] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  scenario_id uuid [ref: > ai_scenarios.id]
+  conversation_type varchar(16) [not null, note: 'correction | roleplay | free_chat']
+  title varchar(200)
+  status varchar(16) [not null, default: 'active', note: 'active | completed | archived']
+  messages jsonb [not null, default: `[]`, note: 'Gộp toàn bộ tin nhắn chat thay cho ai_messages']
+  model_name varchar(80)
+  total_tokens integer [default: 0]
+  started_at timestamptz [not null, default: `now()`]
+  ended_at timestamptz
+
+  indexes {
+    (user_id, started_at) [note: 'idx_ai_conversations_user']
+    scenario_id [note: 'idx_ai_conv_scenario']
+  }
+}
+
+// ==========================================
+// MODULE 09: AUDIT LOGS (audit.sql - Append-only)
+// ==========================================
+Table audit_logs [headercolor: #64748b] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  actor_id uuid [ref: > users.id]
+  action varchar(60) [not null]
+  entity_type varchar(60) [not null]
+  entity_id uuid
+  reason text
+  metadata jsonb [not null, default: `{}`]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (actor_id, created_at) [note: 'idx_audit_logs_actor']
+    (entity_type, entity_id, created_at) [note: 'idx_audit_logs_entity']
+  }
+}
+
+// ==========================================
+// TABLE GROUPS FOR DBDATABASE VISUALIZATION (8 Modules · 22 Tables Core MVP)
+// ==========================================
+TableGroup Module01_Identity {
+  users
+  learner_profiles
+  placement_tests
+}
+
+TableGroup Module02_Curriculum {
+  courses
+  units
+  lessons
+  vocabulary_items
+}
+
+TableGroup Module03_Learning_SRS {
+  lesson_progress
+  srs_cards
+  xp_ledger
+  user_streaks
+}
+
+TableGroup Module04_QuizEngine {
+  quizzes
+  quiz_questions
+  quiz_attempts
+}
+
+TableGroup Module05_Community_SingleClan {
+  bot_configuration
+  clan_quiz_sessions
+  clan_moderator_grants
+}
+
+TableGroup Module06_Competition_WordDuel {
+  duel_matches
+  weekly_leaderboards
+}
+
+TableGroup Module07_AITutor_LingLing {
+  ai_scenarios
+  ai_conversations
+}
+
+TableGroup Module09_Audit {
+  audit_logs
+}
+
+

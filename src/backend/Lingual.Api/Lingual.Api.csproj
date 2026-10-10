@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lingual.Shared\Lingual.Shared.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Identity\Lingual.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Learning\Lingual.Modules.Learning.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Gamification\Lingual.Modules.Gamification.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.MezonBot\Lingual.Modules.MezonBot.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.AITutor\Lingual.Modules.AITutor.csproj" />
+  </ItemGroup>
+
+</Project>

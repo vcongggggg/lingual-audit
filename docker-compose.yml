@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lingual-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lingual_user
+      POSTGRES_PASSWORD: lingual_password
+      POSTGRES_DB: lingual_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docs/database/sql/00_init_all.sql:/docker-entrypoint-initdb.d/00_init_all.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lingual_user -d lingual_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lingual-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: lingual-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lingual-net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  lingual-net:
+    driver: bridge
