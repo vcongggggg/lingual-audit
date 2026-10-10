@@ -725,7 +725,7 @@ async function buildSprintDocx() {
                         spacing: { after: 200 },
                         children: [
                             new TextRun({
-                                text: 'Hình: Sơ đồ Lộ trình 10 Tuần & Phân bổ 3 Luồng Phát triển Song song của LINGUAL (MCS 2026)',
+                                text: 'Hình: Sơ đồ Lộ trình 10 Tuần & 4 Sprint Phát triển Dự án LINGUAL (MCS 2026)',
                                 italics: true,
                                 size: 18,
                                 font: 'Calibri',
@@ -801,6 +801,52 @@ async function buildSprintDocx() {
                         size: 21, // 10.5pt
                         font: 'Calibri',
                         color: '2D3748'
+                    })
+                ]
+            }));
+            continue;
+        }
+
+        // 7.1. Xử lý ảnh Markdown: ![alt](path)
+        const imgMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+        if (imgMatch) {
+            const altText = imgMatch[1];
+            const relPath = imgMatch[2];
+            const resolvedImgPath = path.resolve(path.dirname(mdPath), relPath);
+            if (fs.existsSync(resolvedImgPath)) {
+                console.log(`Nhúng ảnh từ Markdown: ${resolvedImgPath} (${altText})`);
+                let imgHeight = 170;
+                if (resolvedImgPath.includes('matrix')) {
+                    imgHeight = 162;
+                }
+                bodyChildren.push(new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 180, after: 100 },
+                    children: [
+                        new ImageRun({
+                            data: fs.readFileSync(resolvedImgPath),
+                            transformation: { width: 580, height: imgHeight },
+                            type: 'png'
+                        })
+                    ]
+                }));
+            }
+            continue;
+        }
+
+        // 7.2. Xử lý Chú thích ảnh (Caption dạng *Hình: ...* hoặc *Figure: ...*)
+        if ((trimmed.startsWith('*Hình:') || trimmed.startsWith('*Figure:')) && trimmed.endsWith('*')) {
+            const capText = cleanRawText(trimmed.replace(/^\*|\*$/g, '').trim());
+            bodyChildren.push(new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 0, after: 200 },
+                children: [
+                    new TextRun({
+                        text: capText,
+                        italics: true,
+                        size: 18, // 9pt
+                        font: 'Calibri',
+                        color: '718096'
                     })
                 ]
             }));
@@ -958,8 +1004,19 @@ async function buildSprintDocx() {
 
     console.log(`Đang đóng gói file Word: ${outPath}...`);
     const buffer = await Packer.toBuffer(doc);
-    fs.writeFileSync(outPath, buffer);
-    console.log(`🎉 XUẤT FILE WORD THÀNH CÔNG! Kích thước: ${buffer.length} bytes`);
+    try {
+        fs.writeFileSync(outPath, buffer);
+        console.log(`🎉 XUẤT FILE WORD THÀNH CÔNG! Kích thước: ${buffer.length} bytes`);
+    } catch (e) {
+        if (e.code === 'EBUSY' || e.code === 'EPERM') {
+            const tempOut = outPath.replace('.docx', '_updated.docx');
+            fs.writeFileSync(tempOut, buffer);
+            console.log(`⚠️ File đang bị mở trong Word/WPS Office! Đã lưu bản cập nhật tại: ${tempOut}`);
+            console.log(`👉 Hãy đóng file ${path.basename(outPath)} trong Word/WPS rồi chạy lại để ghi đè.`);
+        } else {
+            throw e;
+        }
+    }
     return outPath;
 }
 
