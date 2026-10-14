@@ -1,4 +1,4 @@
-namespace Lingual.Shared;
+namespace Lingual.SharedKernel;
 
 public abstract class BaseEntity
 {

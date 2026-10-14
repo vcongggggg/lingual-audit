@@ -11,12 +11,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lingual.Shared\Lingual.Shared.csproj" />
+    <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
+    <ProjectReference Include="..\Lingual.Persistence\Lingual.Persistence.csproj" />
+    <ProjectReference Include="..\Lingual.Infrastructure\Lingual.Infrastructure.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Identity\Lingual.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Identity.Contracts\Lingual.Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Learning\Lingual.Modules.Learning.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Learning.Contracts\Lingual.Modules.Learning.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Gamification\Lingual.Modules.Gamification.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Gamification.Contracts\Lingual.Modules.Gamification.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.MezonBot\Lingual.Modules.MezonBot.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.AITutor\Lingual.Modules.AITutor.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
   </ItemGroup>
 
 </Project>
