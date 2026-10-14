@@ -2,6 +2,7 @@ using Lingual.Infrastructure;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Infrastructure.RateLimiter;
 using Lingual.Modules.Gamification;
+using Lingual.Modules.MezonBot;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,9 @@ builder.Services.AddSignalR();
 
 // Health Checks
 builder.Services.AddHealthChecks();
+
+// Mezon Bot Module (Mezon.Net.Sdk 1.7.0)
+builder.Services.AddMezonBotModule(builder.Configuration);
 
 // CORS for Next.js Web App & Mezon Client
 builder.Services.AddCors(options =>
