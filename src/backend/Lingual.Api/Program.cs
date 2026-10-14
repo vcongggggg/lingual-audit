@@ -3,12 +3,18 @@ using Lingual.Infrastructure.Endpoint;
 using Lingual.Infrastructure.RateLimiter;
 using Lingual.Modules.Gamification;
 
+using Lingual.Modules.Identity;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Add Identity Module (Database, JWT Bearer Authentication, Mezon SSO OAuth Client)
+builder.AddIdentityModule();
 
 // Add Infrastructure services (Versioning, Swagger, Redis, RateLimiting, Serilog, FluentValidation, MediatR, Exception Handler)
 builder.AddInfrastructure(
     typeof(Program).Assembly,
-    typeof(GameHub).Assembly
+    typeof(GameHub).Assembly,
+    Lingual.Modules.Identity.AssemblyReference.Assembly
 );
 
 // Add services to the container.
@@ -56,3 +62,5 @@ app.MapHealthChecks("/health");
 app.MapHub<GameHub>("/hubs/game");
 
 app.Run();
+
+public partial class Program { }
