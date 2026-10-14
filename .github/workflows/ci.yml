@@ -1,0 +1,48 @@
+name: CI Build & Test
+
+on:
+  push:
+    branches: [ "main", "sprint*", "feature/**" ]
+  pull_request:
+    branches: [ "main", "sprint*" ]
+
+jobs:
+  build-dotnet:
+    name: Build .NET Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore src/backend/Lingual.sln
+
+      - name: Build solution
+        run: dotnet build src/backend/Lingual.sln --no-restore --configuration Release
+
+  build-frontend:
+    name: Build Next.js Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: src/web-app/package.json
+
+      - name: Install dependencies
+        working-directory: src/web-app
+        run: npm ci
+
+      - name: Build Next.js App
+        working-directory: src/web-app
+        run: npm run build

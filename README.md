@@ -4,7 +4,6 @@
 [![Organizer](https://img.shields.io/badge/Organizer-NCC%2B%20%7C%20Mezon-06b6d4?style=for-the-badge)](https://mezon.ai)
 [![Project](https://img.shields.io/badge/Project-Lingual_Language_Learning-10b981?style=for-the-badge)](#)
 [![Milestone](https://img.shields.io/badge/Milestone-M1:_PRD_&_Schema_22_Tables-f59e0b?style=for-the-badge)](#)
-[![Build](https://img.shields.io/badge/Build-Passing-22c55e?style=for-the-badge)](#)
 
 > **Dự án:** LINGUAL — Social & Gamified Language Learning Platform on Mezon  
 > **Đơn vị:** Team 05 — Khoa Công nghệ Thông tin, Trường Đại học Bách Khoa – Đại học Đà Nẵng  
@@ -24,8 +23,8 @@
 | Thành viên | Tài khoản | Vai trò chính | Trọng tâm Phụ trách |
 | :--- | :---: | :---: | :--- |
 | **Ngô Văn Công** | `cong.ngovan` | **Project Lead / Realtime & AI** | Kiến trúc hệ thống Modular Monolith, tích hợp Bot Mezon Gateway, SignalR GameHub thi đấu thời gian thực, AI Tutor LingLing (Google Gemini API). |
-| **Nguyễn Quang Minh** | `minh.nguyen` | **Backend & Database Lead** | Thiết kế CSDL 9 module (22 bảng Core MVP), Entity Framework Core 8, thuật toán Spaced Repetition (SRS SM-2), logic chuỗi Streak & sổ cái XP Ledger. |
-| **Nguyễn Hữu Trí** | `tri.nguyen` | **Frontend & QA Lead** | Giao diện Next.js 14 App Router, Webview nhúng Mezon, tương tác Flashcard 3D, chuẩn hóa bộ dữ liệu 500 từ vựng A1-A2, xây dựng Test Plan & kiểm thử hệ thống. |
+| **Nguyễn Công Minh** | `minh.nguyen` | **Backend & Database Lead** | Thiết kế CSDL 9 module (22 bảng Core MVP), Entity Framework Core 8, thuật toán Spaced Repetition (SRS SM-2), logic chuỗi Streak & sổ cái XP Ledger. |
+| **Phan Phước Trí** | `tri.nguyen` | **Frontend & QA Lead** | Giao diện Next.js 14 App Router, Webview nhúng Mezon, tương tác Flashcard 3D, chuẩn hóa bộ dữ liệu 500 từ vựng A1-A2, xây dựng Test Plan & kiểm thử hệ thống. |
 
 ---
 

@@ -29,35 +29,99 @@ public class MezonBotWorker : BackgroundService
             return;
         }
 
-        try
-        {
-            _logger.LogInformation("🚀 [MezonBot] Đang khởi tạo kết nối Mezon.Net.Sdk 1.7.0 cho BotId: {BotId}...", botId);
+        var retryCount = 0;
+        const int baseDelaySeconds = 5;
+        const int maxDelaySeconds = 60;
 
-            var clientOptions = new MezonClientOptions(botId, _options.Token);
-            _client = new SdkClient(clientOptions);
-
-            _client.ChannelMessageReceived += OnChannelMessageReceivedAsync;
-
-            await _client.LoginAsync();
-            _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
-
-            // Chờ đến khi service dừng
-            await Task.Delay(Timeout.Infinite, stoppingToken);
-        }
-        catch (OperationCanceledException)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation("🛑 [MezonBot] Nhận tín hiệu dừng service.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi kết nối hoặc xử lý sự kiện Mezon Bot");
-        }
-        finally
-        {
-            if (_client != null)
+            var sessionClosedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Task OnConnectedAsync()
             {
-                await _client.DisposeAsync();
-                _logger.LogInformation("🔌 [MezonBot] Đã giải phóng kết nối MezonClient.");
+                _logger.LogInformation("✅ [MezonBot] Kết nối Gateway Mezon thành công/đã phục hồi!");
+                retryCount = 0;
+                return Task.CompletedTask;
+            }
+
+            Task OnDisconnectedAsync(Exception? ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [MezonBot] Mất kết nối tới Gateway Mezon. Kích hoạt chu trình tái kết nối...");
+                sessionClosedTcs.TrySetResult(true);
+                return Task.CompletedTask;
+            }
+
+            Task OnReconnectingAsync(Exception? ex)
+            {
+                _logger.LogInformation("🔄 [MezonBot] SDK đang cố gắng tự tái kết nối Gateway Mezon...");
+                return Task.CompletedTask;
+            }
+
+            try
+            {
+                _logger.LogInformation("🚀 [MezonBot] Đang khởi tạo kết nối Mezon.Net.Sdk 1.7.0 cho BotId: {BotId}...", botId);
+
+                var clientOptions = new MezonClientOptions(botId, _options.Token);
+                _client = new SdkClient(clientOptions);
+
+                _client.Connected += OnConnectedAsync;
+                _client.Disconnected += OnDisconnectedAsync;
+                _client.Reconnecting += OnReconnectingAsync;
+                _client.ChannelMessageReceived += OnChannelMessageReceivedAsync;
+
+                await _client.LoginAsync();
+                _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
+
+                retryCount = 0;
+
+                // Chờ cho đến khi phiên kết nối bị ngắt hoặc dịch vụ nhận lệnh dừng
+                using (stoppingToken.Register(() => sessionClosedTcs.TrySetCanceled()))
+                {
+                    await sessionClosedTcs.Task;
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("🛑 [MezonBot] Nhận tín hiệu dừng service.");
+                break;
+            }
+            catch (Exception ex)
+            {
+                retryCount++;
+                var delaySeconds = Math.Min(baseDelaySeconds * (int)Math.Pow(2, Math.Min(retryCount - 1, 4)), maxDelaySeconds);
+                _logger.LogError(ex, "❌ [MezonBot] Lỗi Gateway hoặc mất kết nối Mezon Bot (Lần {RetryCount}). Thử kết nối lại sau {Delay}s...", retryCount, delaySeconds);
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+            finally
+            {
+                if (_client != null)
+                {
+                    try
+                    {
+                        _client.Connected -= OnConnectedAsync;
+                        _client.Disconnected -= OnDisconnectedAsync;
+                        _client.Reconnecting -= OnReconnectingAsync;
+                        _client.ChannelMessageReceived -= OnChannelMessageReceivedAsync;
+                        await _client.DisposeAsync();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        _logger.LogDebug(disposeEx, "Lỗi khi giải phóng MezonClient cũ.");
+                    }
+                    finally
+                    {
+                        _client = null;
+                        _logger.LogInformation("🔌 [MezonBot] Đã dọn dẹp phiên kết nối MezonClient.");
+                    }
+                }
             }
         }
     }
