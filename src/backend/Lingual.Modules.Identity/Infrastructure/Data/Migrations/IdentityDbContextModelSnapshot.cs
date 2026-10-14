@@ -22,17 +22,74 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Lingual.Modules.Identity.Domain.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("Metadata")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_logs");
+
+                    b.HasIndex("ActorId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_logs_actor_id_created_at");
+
+                    b.HasIndex("EntityType", "EntityId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_logs_entity_type_entity_id_created_at");
+
+                    b.ToTable("audit_logs", (string)null);
+                });
+
             modelBuilder.Entity("Lingual.Modules.Identity.Domain.LearnerProfile", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 423, DateTimeKind.Utc).AddTicks(7913))
-                        .HasColumnName("created_date");
+                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 45, 57, 404, DateTimeKind.Utc).AddTicks(9101))
+                        .HasColumnName("created_at");
 
                     b.Property<short?>("DailyCommitmentMinutes")
                         .HasColumnType("smallint")
@@ -60,18 +117,11 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("proficiency_level");
 
-                    b.Property<DateTime?>("UpdateDate")
+                    b.Property<DateTime?>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 424, DateTimeKind.Utc).AddTicks(501))
-                        .HasColumnName("update_date");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValue(new Guid("7fe91903-926d-4a91-af7c-8433234cb522"))
-                        .HasColumnName("version");
+                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 45, 57, 404, DateTimeKind.Utc).AddTicks(9538))
+                        .HasColumnName("updated_at");
 
                     b.HasKey("UserId")
                         .HasName("pk_learner_profiles");
@@ -107,12 +157,6 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("correct_count");
 
-                    b.Property<DateTime>("CreatedDate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 426, DateTimeKind.Utc).AddTicks(3381))
-                        .HasColumnName("created_date");
-
                     b.Property<short>("QuestionCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("smallint")
@@ -133,22 +177,9 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasDefaultValue("in_progress")
                         .HasColumnName("status");
 
-                    b.Property<DateTime?>("UpdateDate")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 426, DateTimeKind.Utc).AddTicks(5925))
-                        .HasColumnName("update_date");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValue(new Guid("cdf8f7c7-e44d-42f2-9636-16b69c9ecdc4"))
-                        .HasColumnName("version");
 
                     b.HasKey("Id")
                         .HasName("pk_placement_tests");
@@ -171,11 +202,11 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("avatar_url");
 
-                    b.Property<DateTime>("CreatedDate")
+                    b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 427, DateTimeKind.Utc).AddTicks(5998))
-                        .HasColumnName("created_date");
+                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 45, 57, 405, DateTimeKind.Utc).AddTicks(5426))
+                        .HasColumnName("created_at");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -229,18 +260,11 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasDefaultValue("Asia/Ho_Chi_Minh")
                         .HasColumnName("timezone");
 
-                    b.Property<DateTime?>("UpdateDate")
+                    b.Property<DateTime?>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 9, 44, 14, 427, DateTimeKind.Utc).AddTicks(6931))
-                        .HasColumnName("update_date");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValue(new Guid("6915426e-6aef-4ffc-ba03-b9af591414a5"))
-                        .HasColumnName("version");
+                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 45, 57, 405, DateTimeKind.Utc).AddTicks(5709))
+                        .HasColumnName("updated_at");
 
                     b.HasKey("Id")
                         .HasName("pk_users");
@@ -250,6 +274,17 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                         .HasDatabaseName("ix_users_mezon_user_id");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.Identity.Domain.AuditLog", b =>
+                {
+                    b.HasOne("Lingual.Modules.Identity.Domain.User", "Actor")
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_audit_logs_users_actor_id");
+
+                    b.Navigation("Actor");
                 });
 
             modelBuilder.Entity("Lingual.Modules.Identity.Domain.LearnerProfile", b =>

@@ -1,8 +1,8 @@
-using Lingual.SharedKernel.Entities;
+using Lingual.SharedKernel.Events;
 
 namespace Lingual.Modules.Identity.Domain;
 
-public class PlacementTest : EntityBase
+public class PlacementTest : HasDomainEventsBase
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }

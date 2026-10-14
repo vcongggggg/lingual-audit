@@ -10,6 +10,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
     public DbSet<User> Users => Set<User>();
     public DbSet<LearnerProfile> LearnerProfiles => Set<LearnerProfile>();
     public DbSet<PlacementTest> PlacementTests => Set<PlacementTest>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

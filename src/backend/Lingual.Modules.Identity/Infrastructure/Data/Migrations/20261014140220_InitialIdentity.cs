@@ -25,9 +25,8 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                     role = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "learner"),
                     last_seen_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     deleted_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    created_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 427, DateTimeKind.Utc).AddTicks(5998)),
-                    update_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 427, DateTimeKind.Utc).AddTicks(6931)),
-                    version = table.Column<Guid>(type: "uuid", nullable: false, defaultValue: new Guid("6915426e-6aef-4ffc-ba03-b9af591414a5"))
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValue: new DateTime(2026, 10, 14, 14, 2, 19, 877, DateTimeKind.Utc).AddTicks(8684)),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValue: new DateTime(2026, 10, 14, 14, 2, 19, 877, DateTimeKind.Utc).AddTicks(8917))
                 },
                 constraints: table =>
                 {
@@ -44,9 +43,8 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                     proficiency_level = table.Column<string>(type: "character varying(2)", maxLength: 2, nullable: true),
                     placement_status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false, defaultValue: "pending"),
                     onboarding_completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    created_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 423, DateTimeKind.Utc).AddTicks(7913)),
-                    update_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 424, DateTimeKind.Utc).AddTicks(501)),
-                    version = table.Column<Guid>(type: "uuid", nullable: false, defaultValue: new Guid("7fe91903-926d-4a91-af7c-8433234cb522"))
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValue: new DateTime(2026, 10, 14, 14, 2, 19, 877, DateTimeKind.Utc).AddTicks(1991)),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValue: new DateTime(2026, 10, 14, 14, 2, 19, 877, DateTimeKind.Utc).AddTicks(2408))
                 },
                 constraints: table =>
                 {
@@ -71,10 +69,7 @@ namespace Lingual.Modules.Identity.Infrastructure.Data.Migrations
                     assessed_level = table.Column<string>(type: "character varying(2)", maxLength: 2, nullable: true),
                     answers_detail = table.Column<string>(type: "jsonb", nullable: false, defaultValue: "[]"),
                     started_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
-                    completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    created_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 426, DateTimeKind.Utc).AddTicks(3381)),
-                    update_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValue: new DateTime(2026, 10, 14, 9, 44, 14, 426, DateTimeKind.Utc).AddTicks(5925)),
-                    version = table.Column<Guid>(type: "uuid", nullable: false, defaultValue: new Guid("cdf8f7c7-e44d-42f2-9636-16b69c9ecdc4"))
+                    completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {

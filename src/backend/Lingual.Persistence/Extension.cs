@@ -26,6 +26,7 @@ public static class Extension
             options.UseNpgsql(connString, sqlOptions =>
                 {
                     sqlOptions.MigrationsAssembly(typeof(TDbContext).Assembly.FullName);
+                    sqlOptions.MigrationsHistoryTable($"__EFMigrationsHistory_{typeof(TDbContext).Name.Replace("DbContext", "")}");
                     sqlOptions.EnableRetryOnFailure(15, TimeSpan.FromSeconds(30),
                         null);
                 })
@@ -64,5 +65,59 @@ public static class Extension
         );
 
         return services;
+    }
+
+    public static async Task<bool> WaitForDatabaseAsync<TDbContext>(this IServiceProvider serviceProvider, int maxRetries = 15, int delaySeconds = 2)
+        where TDbContext : DbContext
+    {
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<TDbContext>();
+
+        Console.WriteLine("Connecting to database...");
+        for (var i = 1; i <= maxRetries; i++)
+        {
+            try
+            {
+                if (await context.Database.CanConnectAsync())
+                {
+                    Console.WriteLine("Successfully connected to PostgreSQL database!");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Attempt {i}/{maxRetries}] Waiting for database... ({ex.Message})");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+        }
+
+        return false;
+    }
+
+    public static async Task MigrateDbContextAsync<TDbContext>(this IServiceProvider serviceProvider, string moduleName)
+        where TDbContext : DbContext
+    {
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<TDbContext>();
+
+        Console.WriteLine($"\n--> Checking migrations for [{moduleName}]...");
+        var pendingMigrations = (await context.Database.GetPendingMigrationsAsync()).ToList();
+
+        if (pendingMigrations.Count == 0)
+        {
+            Console.WriteLine($"    [{moduleName}] is already up to date. (0 pending)");
+            return;
+        }
+
+        Console.WriteLine($"    Found {pendingMigrations.Count} pending migration(s) for [{moduleName}]:");
+        foreach (var migration in pendingMigrations)
+        {
+            Console.WriteLine($"      * {migration}");
+        }
+
+        Console.WriteLine($"    Applying migrations for [{moduleName}]...");
+        await context.Database.MigrateAsync();
+        Console.WriteLine($"    Successfully applied migrations for [{moduleName}]!");
     }
 }

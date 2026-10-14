@@ -36,9 +36,9 @@ public sealed class AuditableEntityInterceptor : SaveChangesInterceptor
                     r.TargetEntry.State is EntityState.Added or EntityState.Modified))
                 continue;
 
-            if (entry.State == EntityState.Added) entry.Entity.CreatedDate = DateTime.UtcNow;
+            if (entry.State == EntityState.Added) entry.Entity.CreatedAt = DateTime.UtcNow;
 
-            entry.Entity.UpdateDate = DateTime.UtcNow;
+            entry.Entity.UpdatedAt = DateTime.UtcNow;
         }
     }
 }

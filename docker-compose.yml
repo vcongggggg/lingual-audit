@@ -35,6 +35,41 @@ services:
     networks:
       - lingual-net
 
+  migration-api:
+    build:
+      context: .
+      dockerfile: src/backend/Lingual.Api/Dockerfile
+    container_name: lingual_migration_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lingual_db;Username=lingual_user;Password=lingual_password
+    networks:
+      - lingual-net
+    command: ["--migrate"]
+
+  api:
+    build:
+      context: .
+      dockerfile: src/backend/Lingual.Api/Dockerfile
+    container_name: lingual_api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration-api:
+        condition: service_completed_successfully
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lingual_db;Username=lingual_user;Password=lingual_password
+      - Redis__ConnectionString=redis:6379
+    networks:
+      - lingual-net
+
 volumes:
   postgres_data:
     driver: local

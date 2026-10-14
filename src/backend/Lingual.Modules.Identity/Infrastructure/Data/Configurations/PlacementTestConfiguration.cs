@@ -1,16 +1,13 @@
 using Lingual.Modules.Identity.Domain;
-using Lingual.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lingual.Modules.Identity.Infrastructure.Data.Configurations;
 
-public class PlacementTestConfiguration : BaseConfiguration<PlacementTest>
+public class PlacementTestConfiguration : IEntityTypeConfiguration<PlacementTest>
 {
-    public override void Configure(EntityTypeBuilder<PlacementTest> builder)
+    public void Configure(EntityTypeBuilder<PlacementTest> builder)
     {
-        base.Configure(builder);
-
         builder.ToTable("placement_tests");
 
         builder.HasKey(p => p.Id);

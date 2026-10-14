@@ -9,14 +9,10 @@ public abstract class BaseConfiguration<TEntity> : IEntityTypeConfiguration<TEnt
 {
     public virtual void Configure(EntityTypeBuilder<TEntity> builder)
     {
-        builder.Property(e => e.CreatedDate)
+        builder.Property(e => e.CreatedAt)
             .HasDefaultValue(DateTime.UtcNow);
 
-        builder.Property(e => e.UpdateDate)
+        builder.Property(e => e.UpdatedAt)
             .HasDefaultValue(DateTime.UtcNow);
-
-        builder.Property(e => e.Version)
-            .HasDefaultValue(Guid.NewGuid())
-            .IsConcurrencyToken();
     }
 }
