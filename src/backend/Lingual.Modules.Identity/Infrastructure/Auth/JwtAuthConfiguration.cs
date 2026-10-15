@@ -10,9 +10,9 @@ public static class JwtAuthConfiguration
 {
     public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        var secretKey = configuration["Jwt:Key"] 
-            ?? configuration["JWT_SECRET"] 
-            ?? "LingualSuperSecretKeyForDevelopment2026McsStudioAuth!";
+        var secretKey = configuration["Jwt:Key"]
+            ?? configuration["JWT_SECRET"]
+            ?? "";
         var issuer = configuration["Jwt:Issuer"] ?? "Lingual.Api";
         var audience = configuration["Jwt:Audience"] ?? "Lingual.Clients";
 
