@@ -15,6 +15,10 @@ using Lingual.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load local overrides if present (gitignored, individual developer settings)
+builder.Configuration
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Add Domain Modules (Database, Persistence & Business Services)
 builder.AddIdentityModule();
 builder.AddLearningModule();

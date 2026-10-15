@@ -53,20 +53,22 @@ public static class JwtAuthConfiguration
                     }
                     return Task.CompletedTask;
                 },
-                OnTokenValidated = async context =>
+                OnTokenValidated = context =>
                 {
                     var jti = context.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value
                            ?? context.Principal?.FindFirst("jti")?.Value;
 
                     if (!string.IsNullOrEmpty(jti))
                     {
-                        var revocationService = context.HttpContext.RequestServices.GetService<Services.ITokenRevocationService>();
-                        if (revocationService != null && await revocationService.IsRevokedAsync(jti))
+                        var memoryCache = context.HttpContext.RequestServices.GetService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+                        if (memoryCache != null && memoryCache.TryGetValue($"revoked_token:{jti}", out _))
                         {
                             context.Fail("Token đã bị thu hồi (người dùng đã đăng xuất).");
                         }
                     }
+                    return Task.CompletedTask;
                 }
+
             };
         });
 

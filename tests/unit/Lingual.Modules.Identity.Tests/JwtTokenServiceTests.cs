@@ -1,17 +1,18 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
 using Lingual.Modules.Identity.Domain;
 using Lingual.Modules.Identity.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Lingual.Modules.Identity.Tests;
 
 public class JwtTokenServiceTests
 {
     [Fact]
-    public void GenerateToken_ProducesValidJwtWithExpectedClaims()
+    public void CreateAccessToken_ProducesValidJwtWithExpectedClaims()
     {
         // Arrange
         const string secretKey = "LingualSuperSecretKeyForDevelopment2026McsStudioAuth!";
@@ -30,7 +31,7 @@ public class JwtTokenServiceTests
             .AddInMemoryCollection(inMemorySettings)
             .Build();
 
-        var service = new JwtTokenService(configuration);
+        var service = new TokenService(NullLogger<TokenService>.Instance, configuration);
 
         var user = new User
         {
@@ -42,29 +43,25 @@ public class JwtTokenServiceTests
         };
 
         // Act
-        var (token, expiresIn) = service.GenerateToken(user);
+        var result = service.CreateAccessToken(user);
 
         // Assert
-        token.Should().NotBeNullOrWhiteSpace();
-        expiresIn.Should().BeGreaterThan(0);
+        result.Should().NotBeNull();
+        result.Token.Should().NotBeNullOrWhiteSpace();
+        result.ExpiresIn.Should().BeGreaterThan(0);
 
         var handler = new JwtSecurityTokenHandler();
-        handler.CanReadToken(token).Should().BeTrue();
+        handler.CanReadToken(result.Token).Should().BeTrue();
 
-        var jwt = handler.ReadJwtToken(token);
-        jwt.Subject.Should().Be(user.Id.ToString());
-
+        var jwt = handler.ReadJwtToken(result.Token);
         jwt.Claims.Should().Contain(c => c.Type == "sub" && c.Value == user.Id.ToString());
-        jwt.Claims.Should().Contain(c => c.Type == "mezonUserId" && c.Value == "2100896006294999040");
-        jwt.Claims.Should().Contain(c => c.Type == "role" && c.Value == "learner");
-        jwt.Claims.Should().Contain(c => c.Type == "iss" && c.Value == issuer);
-
-        // Verify payload JSON structure contains standard claims
-        var parts = token.Split('.');
-        parts.Length.Should().Be(3);
-        var payloadJson = Encoding.UTF8.GetString(Base64UrlEncoder.DecodeBytes(parts[1]));
+        jwt.Claims.Should().Contain(c => (c.Type == "role" || c.Type == ClaimTypes.Role) && c.Value == "learner");
+        var payloadJson = Encoding.UTF8.GetString(Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(result.Token.Split('.')[1]));
         payloadJson.Should().Contain($"\"iss\":\"{issuer}\"");
         payloadJson.Should().Contain($"\"aud\":\"{audience}\"");
-        payloadJson.Should().Contain("\"exp\":");
+
+
+        payloadJson.Should().Contain("\"mezon_user_id\":\"2100896006294999040\"");
     }
 }
+

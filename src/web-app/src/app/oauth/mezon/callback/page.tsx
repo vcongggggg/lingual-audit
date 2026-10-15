@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { loginWithMezon } from '@/lib/api';
@@ -15,8 +15,12 @@ function MezonCallbackContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [userInfo, setUserInfo] = useState<{ displayName: string; role: string } | null>(null);
+  const hasExchangedRef = useRef(false);
 
   useEffect(() => {
+    if (hasExchangedRef.current) return;
+    hasExchangedRef.current = true;
+
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const errorParam = searchParams.get('error');
@@ -34,8 +38,6 @@ function MezonCallbackContent() {
       return;
     }
 
-    let isSubscribed = true;
-
     async function handleExchange() {
       try {
         const savedRedirectUri =
@@ -49,8 +51,6 @@ function MezonCallbackContent() {
           redirectUri: savedRedirectUri,
         });
 
-        if (!isSubscribed) return;
-
         login(result);
         setUserInfo({
           displayName: result.user.displayName,
@@ -63,7 +63,6 @@ function MezonCallbackContent() {
           router.push('/auth');
         }, 1500);
       } catch (err: unknown) {
-        if (!isSubscribed) return;
         const message = err instanceof Error ? err.message : 'Đổi mã xác thực thất bại.';
         setStatus('error');
         setErrorMessage(message);
@@ -71,10 +70,6 @@ function MezonCallbackContent() {
     }
 
     handleExchange();
-
-    return () => {
-      isSubscribed = false;
-    };
   }, [searchParams, login, router]);
 
   return (

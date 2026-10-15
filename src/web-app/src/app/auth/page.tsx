@@ -38,7 +38,7 @@ interface ApiLogItem {
 }
 
 export default function AuthTestPage() {
-  const { user, token, isAuthenticated, login, logout, loading } = useAuth();
+  const { user, token, isAuthenticated, login, logout, loading, updateUser } = useAuth();
 
   // Test state
   const [logs, setLogs] = useState<ApiLogItem[]>([]);
@@ -147,7 +147,10 @@ export default function AuthTestPage() {
     setActionLoading('verify-active');
     const startTime = performance.now();
     try {
-      const data = await getCurrentUser();
+      const data = (await getCurrentUser()) as { avatarUrl?: string; name?: string } | undefined;
+      if (data?.avatarUrl && data.avatarUrl !== user?.avatarUrl) {
+        updateUser({ avatarUrl: data.avatarUrl });
+      }
 
       addLog({
         method: 'GET',
@@ -314,9 +317,28 @@ export default function AuthTestPage() {
               <div className="p-6 bg-slate-900/90 border border-emerald-500/30 rounded-2xl shadow-xl space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg">
-                      {user.displayName.charAt(0).toUpperCase()}
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden border border-emerald-500/40 bg-emerald-500/20 flex-shrink-0 flex items-center justify-center">
+                      {user.avatarUrl ? (
+                        <img
+                          src={user.avatarUrl}
+                          alt={user.displayName}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                            const fallback = document.getElementById(`avatar-fallback-${user.id}`);
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        id={`avatar-fallback-${user.id}`}
+                        className={`text-emerald-400 font-bold text-lg ${user.avatarUrl ? 'hidden' : 'flex'}`}
+                      >
+                        {user.displayName.charAt(0).toUpperCase()}
+                      </span>
                     </div>
+
                     <div>
                       <h2 className="text-lg font-bold text-white flex items-center gap-2">
                         {user.displayName}
@@ -345,7 +367,16 @@ export default function AuthTestPage() {
                       {user.preferredLocale || 'vi-VN'} • {user.timezone || 'Asia/Ho_Chi_Minh'}
                     </span>
                   </div>
+                  {user.avatarUrl && (
+                    <div className="p-2.5 bg-slate-950/60 rounded-lg border border-slate-800 col-span-2">
+                      <span className="text-slate-500 block">Avatar URL:</span>
+                      <a href={user.avatarUrl} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline break-all">
+                        {user.avatarUrl}
+                      </a>
+                    </div>
+                  )}
                 </div>
+
 
                 {/* Token Box */}
                 {token && (

@@ -1,7 +1,8 @@
 using Lingual.Modules.Identity.Contracts.DTOs;
-using Lingual.SharedKernel;
 using Lingual.SharedKernel.Shared;
 
 namespace Lingual.Modules.Identity.Features.Auth.LoginWithMezon;
 
-public record LoginWithMezonCommand(LoginWithMezonRequest Request) : ICommand<ApiResponse<AuthResultDto>>;
+
+public record LoginWithMezonCommand(MezonAuthRequest Request) : ICommand<MezonCallbackResult>;
+

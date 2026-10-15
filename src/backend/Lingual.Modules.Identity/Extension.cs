@@ -19,14 +19,13 @@ public static class Extension
 
         // 2. Token, Cache & Auth Services
         services.AddMemoryCache();
-        services.AddSingleton<IJwtTokenService, JwtTokenService>();
-        services.AddSingleton<ITokenRevocationService, TokenRevocationService>();
+        services.AddHttpContextAccessor();
+        services.AddSingleton<ITokenService, TokenService>();
 
         // 3. Mezon SSO OAuth 2.0 Client
-        services.AddHttpClient<IMezonAuthService, MezonAuthService>(client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(15);
-        });
+        services.AddHttpClient();
+        services.AddScoped<IMezonAuthService, MezonAuthService>();
+
 
         // 4. JWT Authentication (supports API Bearer & SignalR query string)
         services.AddJwtAuthentication(configuration);

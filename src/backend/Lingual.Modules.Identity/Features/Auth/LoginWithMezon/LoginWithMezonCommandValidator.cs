@@ -10,8 +10,12 @@ public class LoginWithMezonCommandValidator : AbstractValidator<LoginWithMezonCo
             .NotNull()
             .WithMessage("Request body is required.");
 
-        RuleFor(x => x.Request)
-            .Must(r => !string.IsNullOrWhiteSpace(r.EffectiveToken) || !string.IsNullOrWhiteSpace(r.MezonUserId))
-            .WithMessage("Either an authentication token or a Mezon user ID is required.");
+        RuleFor(x => x.Request.Code)
+            .NotEmpty()
+            .WithMessage("Authorization code is required.");
+
+        RuleFor(x => x.Request.State)
+            .NotEmpty()
+            .WithMessage("OAuth state is required.");
     }
 }
