@@ -21,6 +21,7 @@ public class GeminiAITutorService : IAITutorService
         "Quy tắc phản hồi:\n" +
         "1. Nếu câu tiếng Anh của học viên đã chuẩn và tự nhiên: Đánh dấu is_correct: true, giữ nguyên câu hoặc gợi ý cách diễn đạt nâng cao hơn trong corrected_text, khen ngợi và giải thích ngắn gọn.\n" +
         "2. Nếu câu có lỗi (chia thì, giới từ, mạo từ, chính tả, cấu trúc): Đánh dấu is_correct: false, sửa lại câu chính xác trong corrected_text, giải thích rõ quy tắc ngữ pháp bằng tiếng Việt đơn giản, dễ nhớ trong explanation, và cung cấp mẹo ghi nhớ thực tế trong tips.\n" +
+        "3. Nếu học viên chỉ gửi một từ vựng, cụm từ hoặc chủ đề ngữ pháp (ví dụ: 'past tense', 'passive voice', 'conditional sentences') thay vì câu hoàn chỉnh: Đánh dấu is_correct: true, cung cấp dạng thức chuẩn hoặc câu ví dụ tiêu biểu trong corrected_text, giải thích định nghĩa và cách dùng bằng tiếng Việt trong explanation, và chia sẻ mẹo ghi nhớ trong tips.\n" +
         "BẮT BUỘC chỉ trả về định dạng JSON hợp lệ với đúng 4 trường sau:\n" +
         "{\n" +
         "  \"is_correct\": true/false,\n" +
@@ -55,8 +56,6 @@ public class GeminiAITutorService : IAITutorService
             );
         }
 
-        var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{_options.Model}:generateContent?key={_options.ApiKey}";
-
         var userContent = $"Học viên gửi câu tiếng Anh: \"{request.Text.Trim()}\"";
         if (!string.IsNullOrWhiteSpace(request.Context))
         {
@@ -85,60 +84,97 @@ public class GeminiAITutorService : IAITutorService
             }
         };
 
-        try
+        // Danh sách các model để failover khi model chính gặp sự cố
+        var candidateModels = new List<string>
         {
-            _logger.LogInformation("🤖 [GeminiAITutor] Đang phân tích câu '{Text}' bằng model {Model}...", request.Text, _options.Model);
+            _options.Model,
+            "gemini-flash-lite-latest",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite-preview"
+        }.Where(m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-            var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("❌ [GeminiAITutor] Gọi Gemini API thất bại (HTTP {StatusCode}): {Error}", response.StatusCode, errorBody);
-                return CreateFallbackResponse(request.Text, "Máy chủ AI tạm thời bận hoặc gặp sự cố kết nối. Bạn hãy thử lại sau ít giây nhé!");
-            }
-
-            var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
-            var rawJsonText = result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
-
-            if (string.IsNullOrWhiteSpace(rawJsonText))
-            {
-                _logger.LogWarning("⚠️ [GeminiAITutor] Gemini trả về nội dung rỗng.");
-                return CreateFallbackResponse(request.Text, "LingLing chưa thể phân tích câu này. Bạn hãy thử diễn đạt lại nhé!");
-            }
-
-            // Làm sạch chuỗi JSON nếu có bao quanh bởi markdown code blocks
-            var cleanJson = CleanJsonString(rawJsonText);
-            var parsed = JsonSerializer.Deserialize<GeminiAnalysisJsonModel>(cleanJson, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (parsed == null)
-            {
-                return CreateFallbackResponse(request.Text, "Không thể giải mã kết quả phản hồi từ mô hình AI.");
-            }
-
-            _logger.LogInformation("✅ [GeminiAITutor] Phân tích hoàn tất: IsCorrect={IsCorrect}, Corrected='{Corrected}'",
-                parsed.IsCorrect, parsed.CorrectedText);
-
-            return new GrammarAnalysisResponse(
-                IsCorrect: parsed.IsCorrect,
-                OriginalText: request.Text,
-                CorrectedText: parsed.CorrectedText ?? request.Text,
-                Explanation: parsed.Explanation ?? "Không có giải thích chi tiết.",
-                Tips: parsed.Tips ?? "Hãy tiếp tục luyện tập đều đặn mỗi ngày!"
-            );
-        }
-        catch (OperationCanceledException)
+        foreach (var model in candidateModels)
         {
-            _logger.LogInformation("🛑 [GeminiAITutor] Yêu cầu phân tích bị hủy.");
-            throw;
+            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent?key={_options.ApiKey}";
+            const int maxAttemptsPerModel = 2; // Tối đa 2 lần thử cho mỗi model
+
+            for (var attempt = 1; attempt <= maxAttemptsPerModel; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("🤖 [GeminiAITutor] Đang phân tích câu '{Text}' bằng model {Model} (Lần thử {Attempt})...",
+                        request.Text, model, attempt);
+
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
+                        var rawJsonText = result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+
+                        if (string.IsNullOrWhiteSpace(rawJsonText))
+                        {
+                            _logger.LogWarning("⚠️ [GeminiAITutor] Model {Model} trả về nội dung rỗng.", model);
+                            break; // Chuyển sang model dự phòng tiếp theo
+                        }
+
+                        var cleanJson = CleanJsonString(rawJsonText);
+                        var parsed = JsonSerializer.Deserialize<GeminiAnalysisJsonModel>(cleanJson, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
+                        if (parsed != null)
+                        {
+                            _logger.LogInformation("✅ [GeminiAITutor] Phân tích hoàn tất bằng model {Model}: IsCorrect={IsCorrect}, Corrected='{Corrected}'",
+                                model, parsed.IsCorrect, parsed.CorrectedText);
+
+                            return new GrammarAnalysisResponse(
+                                IsCorrect: parsed.IsCorrect,
+                                OriginalText: request.Text,
+                                CorrectedText: parsed.CorrectedText ?? request.Text,
+                                Explanation: parsed.Explanation ?? "Không có giải thích chi tiết.",
+                                Tips: parsed.Tips ?? "Hãy tiếp tục luyện tập đều đặn mỗi ngày!"
+                            );
+                        }
+                    }
+
+                    var statusCode = (int)response.StatusCode;
+                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning("⚠️ [GeminiAITutor] Model {Model} thất bại (HTTP {StatusCode}): {Error}",
+                        model, statusCode, errorBody);
+
+                    // Nếu 503 (Server Busy) hoặc 429 (Rate Limit): Backoff rồi thử lại chính model này
+                    if ((statusCode == 503 || statusCode == 429) && attempt < maxAttemptsPerModel)
+                    {
+                        var delayMs = 1200 * attempt;
+                        _logger.LogInformation("⏳ [GeminiAITutor] Tự động thử lại model {Model} sau {DelayMs}ms...", model, delayMs);
+                        await Task.Delay(delayMs, cancellationToken);
+                        continue;
+                    }
+
+                    // Nếu mã lỗi khác hoặc đã hết lần thử -> thoát vòng lặp để chuyển model dự phòng tiếp theo
+                    break;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation("🛑 [GeminiAITutor] Yêu cầu phân tích bị hủy.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Lỗi mạng khi gọi model {Model} (Lần thử {Attempt})", model, attempt);
+                    if (attempt < maxAttemptsPerModel)
+                    {
+                        await Task.Delay(1000, cancellationToken);
+                        continue;
+                    }
+                    break; // Chuyển sang model dự phòng tiếp theo
+                }
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ [GeminiAITutor] Ngoại lệ khi phân tích ngữ pháp với Gemini API");
-            return CreateFallbackResponse(request.Text, "Đã xảy ra lỗi trong quá trình xử lý câu hỏi của bạn.");
-        }
+
+        _logger.LogError("❌ [GeminiAITutor] Đã thử tất cả các model dự phòng và retry nhưng đều không thành công.");
+        return CreateFallbackResponse(request.Text, "Máy chủ AI tạm thời bận hoặc gặp sự cố kết nối. Bạn hãy thử lại sau ít giây nhé!");
     }
 
     private static string CleanJsonString(string text)
