@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Mezon.Net.Sdk;
 using Mezon.Net.Client;
 using Mezon.Net.Models;
+using Lingual.Modules.AITutor.Contracts;
+using Lingual.Modules.AITutor.Contracts.DTOs;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
 namespace Lingual.Modules.MezonBot;
@@ -12,12 +15,17 @@ public class MezonBotWorker : BackgroundService
 {
     private readonly ILogger<MezonBotWorker> _logger;
     private readonly MezonBotOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
     private SdkClient? _client;
 
-    public MezonBotWorker(ILogger<MezonBotWorker> logger, IOptions<MezonBotOptions> options)
+    public MezonBotWorker(
+        ILogger<MezonBotWorker> logger,
+        IOptions<MezonBotOptions> options,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = logger;
         _options = options.Value;
+        _scopeFactory = scopeFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -157,6 +165,7 @@ public class MezonBotWorker : BackgroundService
                               "Các câu lệnh khả dụng:\n" +
                               "• `/ping`: Kiểm tra trạng thái hoạt động của Bot\n" +
                               "• `/learn`: Mở mini-app học từ vựng thẻ 3D (Spaced Repetition SM-2)\n" +
+                              "• `/ask <câu>`: Trợ lý AI LingLing phân tích & sửa ngữ pháp tiếng Anh\n" +
                               "• `/help`: Hiển thị danh sách câu lệnh hỗ trợ";
                 await ReplyToChannelAsync(data.ChannelId, helpMsg);
             }
@@ -164,13 +173,62 @@ public class MezonBotWorker : BackgroundService
             {
                 var learnMsg = "📚 **Học Từ Vựng Tiếng Anh Cùng LINGUAL**\n\n" +
                                "👉 Bắt đầu phiên ôn tập thẻ ghi nhớ Flashcard 3D và thuật toán lặp lại ngắt quãng SM-2 tại Mini-App Clan!\n" +
-                               "💡 Gõ `/quiz` để tham gia đấu vui từ vựng nhanh trong kênh Clan.";
+                               "💡 Gõ `/quiz` để tham gia đấu vui từ vựng nhanh trong kênh Clan.\n" +
+                               "🦉 Gõ `/ask <câu tiếng Anh>` để nhờ Mascot LingLing sửa ngữ pháp ngay!";
                 await ReplyToChannelAsync(data.ChannelId, learnMsg);
+            }
+            else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
+            {
+                var prefixLength = text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ? 4 : 6;
+                var query = text[prefixLength..].Trim();
+
+                if (string.IsNullOrWhiteSpace(query))
+                {
+                    await ReplyToChannelAsync(data.ChannelId, "🦉 **LingLing:** Bạn hãy nhập câu tiếng Anh cần kiểm tra sau lệnh `/ask` nhé!\n*Ví dụ:* `/ask I go to school yesterday`");
+                    return;
+                }
+
+                await HandleAskGrammarAsync(data.ChannelId, query);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý tin nhắn sự kiện");
+        }
+    }
+
+    private async Task HandleAskGrammarAsync(long channelId, string userQuery)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+
+            if (aiTutor == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.");
+                return;
+            }
+
+            var analysis = await aiTutor.AnalyzeGrammarAsync(new GrammarAnalysisRequest(userQuery));
+
+            var statusLine = analysis.IsCorrect
+                ? "🌟 **Đánh giá:** Tuyệt vời! Câu của bạn đã chuẩn xác và tự nhiên!"
+                : $"💡 **Câu chuẩn gợi ý:** **{analysis.CorrectedText}**";
+
+            var reply = $"🦉 **LingLing AI Tutor phân tích:**\n\n" +
+                        $"📝 **Câu của bạn:** `{analysis.OriginalText}`\n" +
+                        $"{statusLine}\n\n" +
+                        $"📖 **Giải thích:**\n{analysis.Explanation}\n\n" +
+                        $"🎯 **Mẹo ghi nhớ:**\n{analysis.Tips}";
+
+            await ReplyToChannelAsync(channelId, reply);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /ask cho channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "🦉 **LingLing:** Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
         }
     }
 

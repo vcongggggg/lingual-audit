@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
     <ProjectReference Include="..\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

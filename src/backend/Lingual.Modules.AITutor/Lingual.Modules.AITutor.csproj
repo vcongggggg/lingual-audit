@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
     <ProjectReference Include="..\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
   </ItemGroup>
