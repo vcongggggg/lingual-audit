@@ -1,0 +1,352 @@
+{
+  "info": {
+    "_postman_id": "a5e9f81d-8421-4f10-912b-3a7b6059d48b",
+    "name": "LinguaMezon API - Sprint 1 (Milestone 2)",
+    "description": "Bộ Postman Collection phục vụ kiểm thử tích hợp (Integration Test) cho Sprint 1: Mezon SSO OAuth2, JWT Bearer, Thuật toán SRS SM-2, Tra cứu Từ vựng và Chatbot AI LingLing v0.1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{bearerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. System & Health",
+      "description": "Kiểm tra tình trạng hoạt động của ASP.NET Core API Host, PostgreSQL và Redis.",
+      "item": [
+        {
+          "name": "Health Check Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[Health] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[Health] Response time is below 500ms\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});",
+                  "",
+                  "pm.test(\"[Health] System status is Healthy\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"Healthy\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Kiểm tra endpoint liveness/readiness của backend."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Identity & Mezon SSO (SP1-02)",
+      "description": "Xác thực qua Mezon OAuth Handshake, cấp phát và quản lý JWT Bearer token.",
+      "item": [
+        {
+          "name": "Mezon SSO Handshake (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[Auth] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[Auth] Response has valid JWT token & User profile\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data).to.have.property(\"accessToken\");",
+                  "    pm.expect(res.data.user).to.have.property(\"id\");",
+                  "    ",
+                  "    // Tự động trích xuất và lưu vào Environment Variables",
+                  "    pm.environment.set(\"bearerToken\", res.data.accessToken);",
+                  "    pm.environment.set(\"userId\", res.data.user.id);",
+                  "    pm.environment.set(\"userDisplayName\", res.data.user.displayName);",
+                  "    console.log(\"✅ Đã lưu JWT Token và User ID vào Environment:\", res.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appId\": \"{{mezonAppId}}\",\n  \"authCode\": \"{{mezonAuthCode}}\",\n  \"clanId\": \"clan-bk-05\",\n  \"clientTimestamp\": 1776240000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mezon-sso",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "mezon-sso"]
+            },
+            "description": "Nhận authorization code từ Webview/Mezon Bot, sinh JWT Bearer token và lưu tự động vào biến `bearerToken`."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User Profile (/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[User] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[User] Profile matches authenticated user\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.data.id).to.eql(pm.environment.get(\"userId\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "me"]
+            },
+            "description": "Lấy thông tin tài khoản người dùng từ Claims trong JWT Token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03. Curriculum & Vocabularies (SP1-01)",
+      "description": "Tra cứu kho từ vựng 500 từ A1-A2, phiên âm IPA và ví dụ song ngữ.",
+      "item": [
+        {
+          "name": "Get Vocabularies List",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[Curriculum] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[Curriculum] Returns non-empty vocabulary list\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.data.items).to.be.an(\"array\").that.is.not.empty;",
+                  "    ",
+                  "    // Lưu từ vựng đầu tiên để test endpoint SRS Review",
+                  "    pm.environment.set(\"testVocabularyId\", res.data.items[0].id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/curriculum/vocabularies?page=1&pageSize=20&level=A2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "curriculum", "vocabularies"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "level",
+                  "value": "A2"
+                }
+              ]
+            },
+            "description": "Lấy danh sách từ vựng phân trang có lọc theo cấp độ CEFR."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04. SRS Learning & SM-2 (SP1-03 / SP1-06)",
+      "description": "Quản lý thẻ ôn tập ngắt quãng SM-2 (bảng srs_cards) và ghi nhận kết quả đánh giá 4 nút.",
+      "item": [
+        {
+          "name": "Get Due SRS Cards Queue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[SRS] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[SRS] Queue returns array of flashcards\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.data).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/srs/due-cards?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "srs", "due-cards"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Lấy hàng đợi các từ vựng đã đến hạn ôn tập (next_due_at <= now())."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit SM-2 Flashcard Review (Good - Rating 4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[SM-2] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[SM-2] SRS state updated correctly\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.repetitions).to.be.at.least(1);",
+                  "    pm.expect(res.data.easeFactor).to.be.at.least(1.30);",
+                  "    pm.expect(res.data).to.have.property(\"nextDueAt\");",
+                  "    pm.expect(res.data).to.have.property(\"xpAwarded\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vocabularyId\": \"{{testVocabularyId}}\",\n  \"rating\": \"good\",\n  \"quality\": 4,\n  \"timeSpentMs\": 4200,\n  \"idempotencyKey\": \"idem-{{$guid}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/srs/review",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "srs", "review"]
+            },
+            "description": "Gửi kết quả đánh giá 4 nút (again, hard, good, easy) từ Webview Flashcard 3D về backend để cập nhật srs_cards và cộng XP Ledger."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05. AI Tutor LingLing v0.1 (SP1-04)",
+      "description": "Hỏi đáp và sửa lỗi ngữ pháp tiếng Anh thời gian thực với Google Gemini API.",
+      "item": [
+        {
+          "name": "Chat with LingLing (Grammar Check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"[AI] Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"[AI] Response contains constructive grammar feedback\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.data).to.have.property(\"reply\");",
+                  "    pm.expect(res.data.reply).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "",
+                  "pm.test(\"[AI] Response latency is acceptable (< 3000ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I has been study English for 2 years.\",\n  \"mode\": \"grammar_correction\",\n  \"targetLevel\": \"A2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "ai", "chat"]
+            },
+            "description": "Gửi câu người học viết để Mascot AI LingLing phân tích và sửa lỗi sai ngữ pháp."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+

@@ -1,0 +1,52 @@
+{
+  "id": "e9812f31-823a-4421-9988-51fbb60d9230",
+  "name": "LinguaMezon - Local Dev",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "bearerToken",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "userDisplayName",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "mezonAppId",
+      "value": "mezon-lingual-dev-2026",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "mezonAuthCode",
+      "value": "mock_oauth_authcode_sprint1_test",
+      "type": "secret",
+      "enabled": true
+    },
+    {
+      "key": "testVocabularyId",
+      "value": "vocab-01",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_at": "2026-10-15T09:00:00.000Z",
+  "_postman_exported_using": "Postman/11.0.0"
+}
+

@@ -234,6 +234,7 @@ export default function FlashcardStudy({
   const [recentXpPopup, setRecentXpPopup] = useState<number | null>(null);
   const [reviewedCardsCount, setReviewedCardsCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number>(() => Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
 
@@ -322,6 +323,7 @@ export default function FlashcardStudy({
   const handleSm2Review = useCallback(async (rating: Sm2Rating) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setReviewError(null);
 
     const timeSpentMs = Date.now() - startTime;
     const sm2Result = calculateSm2(currentCardSrs, rating);
@@ -348,6 +350,18 @@ export default function FlashcardStudy({
       idempotency_key: `${currentVocab.id}-${Date.now()}`,
     };
 
+    // Persist first so a failed request never advances the learner's session.
+    if (onReviewSubmit) {
+      try {
+        await onReviewSubmit(payload);
+      } catch (err) {
+        console.error("Lỗi khi gửi kết quả SRS lên server:", err);
+        setReviewError("Chưa lưu được kết quả. Hãy thử gửi lại.");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // Update Local SRS State
     setSrsDeckState((prev) => ({
       ...prev,
@@ -367,14 +381,7 @@ export default function FlashcardStudy({
     setXpGainedSession((prev) => prev + earnedXp);
     setReviewedCardsCount((prev) => prev + 1);
 
-    // Invoke external API prop if supplied
-    if (onReviewSubmit) {
-      try {
-        await onReviewSubmit(payload);
-      } catch (err) {
-        console.error("Lỗi khi gửi kết quả SRS lên server:", err);
-      }
-    } else {
+    if (!onReviewSubmit) {
       // Default log to console for development verification
       console.log("🚀 [SM-2 Review Payload Ready For Backend]:", payload);
     }
@@ -420,6 +427,12 @@ export default function FlashcardStudy({
       if (e.code === "Space") {
         e.preventDefault();
         handleToggleFlip();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        setIsFlipped(false);
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        setIsFlipped(true);
       } else if (e.code === "KeyR") {
         e.preventDefault();
         handlePronounce();
@@ -443,6 +456,7 @@ export default function FlashcardStudy({
     setReviewedCardsCount(0);
     setXpGainedSession(0);
     setStartTime(Date.now());
+    setReviewError(null);
   };
 
   // ============================================================================
@@ -535,6 +549,7 @@ export default function FlashcardStudy({
       </button>
 
       <div className={`study-review ${isFlipped ? "is-ready" : ""}`} aria-label="Đánh giá mức độ ghi nhớ">
+        {reviewError && <p className="study-audio-note" role="alert">{reviewError}</p>}
         <div className="study-review-heading"><span>{isFlipped ? "Bạn nhớ từ này thế nào?" : "Lật thẻ để chọn mức ghi nhớ"}</span>{recentXpPopup ? <span>+{recentXpPopup} XP</span> : <span className="study-shortcuts"><Keyboard aria-hidden="true" /> Phím 1–4</span>}</div>
         <div className="study-rating-grid">
           {([

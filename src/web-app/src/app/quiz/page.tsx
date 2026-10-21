@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import LOCAL_QUIZ_BANK from "@/data/quiz-bank-300.json";
 import {
   HelpCircle,
   Clock,
@@ -41,187 +42,16 @@ export interface QuizQuestion {
   points: number;
 }
 
-// Sample initial 20 questions loaded from the 300-question bank
-const INITIAL_QUIZ_SAMPLE: QuizQuestion[] = [
-  {
-    id: "quiz-01",
-    sort_order: 1,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "She showed remarkable ________ by reviewing 30 flashcards every morning without missing a single day.",
-    options: [
-      { key: "A", text: "perseverance", is_correct: true },
-      { key: "B", text: "hesitation", is_correct: false },
-      { key: "C", text: "reluctance", is_correct: false },
-      { key: "D", text: "negligence", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (perseverance - sự kiên trì). Ngữ cảnh 'reviewing flashcards every morning without missing a single day' (học mỗi sáng không bỏ sót ngày nào) thể hiện tính bền chí, kiên trì.",
-    points: 10,
-  },
-  {
-    id: "quiz-02",
-    sort_order: 2,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "In order to win the Clan War, all members need to ________ closely and share vocabulary strategies.",
-    options: [
-      { key: "A", text: "compete", is_correct: false },
-      { key: "B", text: "collaborate", is_correct: true },
-      { key: "C", text: "hesitate", is_correct: false },
-      { key: "D", text: "isolate", is_correct: false },
-    ],
-    correct_answer: "B",
-    explanation: "Đáp án đúng là B (collaborate - hợp tác, cộng tác). 'Collaborate closely' nghĩa là làm việc và phối hợp chặt chẽ với nhau để đạt mục tiêu chung của bang hội.",
-    points: 10,
-  },
-  {
-    id: "quiz-03",
-    sort_order: 3,
-    level: "B2",
-    difficulty: 3,
-    question_type: "multiple_choice",
-    prompt: "The team leader was ________ in checking every translation error, ensuring the deck was 100% accurate.",
-    options: [
-      { key: "A", text: "meticulous", is_correct: true },
-      { key: "B", text: "careless", is_correct: false },
-      { key: "C", text: "superficial", is_correct: false },
-      { key: "D", text: "indifferent", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (meticulous - tỉ mỉ, kỹ lưỡng). Việc 'kiểm tra từng lỗi dịch thuật để đạt 100% chính xác' thể hiện sự cẩn thận đến từng chi tiết nhỏ.",
-    points: 10,
-  },
-  {
-    id: "quiz-04",
-    sort_order: 4,
-    level: "A2",
-    difficulty: 1,
-    question_type: "multiple_choice",
-    prompt: "Learning a new foreign language is a wonderful way to broaden your ________.",
-    options: [
-      { key: "A", text: "horizons", is_correct: true },
-      { key: "B", text: "boundaries", is_correct: false },
-      { key: "C", text: "limitations", is_correct: false },
-      { key: "D", text: "barriers", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (horizons). Thành ngữ cố định phổ biến: 'broaden one's horizons' (mở rộng tầm mắt, hiểu biết và thế giới quan).",
-    points: 10,
-  },
-  {
-    id: "quiz-05",
-    sort_order: 5,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "Don't ________ until tomorrow what you can review today, or you will risk losing your 14-day streak!",
-    options: [
-      { key: "A", text: "put off", is_correct: true },
-      { key: "B", text: "put on", is_correct: false },
-      { key: "C", text: "put out", is_correct: false },
-      { key: "D", text: "put up", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (put off - trì hoãn, hoãn lại = postpone). Tục ngữ: 'Đừng để việc hôm nay đến ngày mai mới làm'.",
-    points: 10,
-  },
-  {
-    id: "quiz-06",
-    sort_order: 6,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "Consistent daily practice plays a ________ role in retaining vocabulary in long-term memory.",
-    options: [
-      { key: "A", text: "crucial", is_correct: true },
-      { key: "B", text: "trivial", is_correct: false },
-      { key: "C", text: "minor", is_correct: false },
-      { key: "D", text: "negligible", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (crucial - cốt lõi, có tính quyết định). Collocation chuẩn: 'play a crucial role in sth'.",
-    points: 10,
-  },
-  {
-    id: "quiz-07",
-    sort_order: 7,
-    level: "A2",
-    difficulty: 1,
-    question_type: "multiple_choice",
-    prompt: "She speaks English so ________ that native speakers often mistake her for an American resident.",
-    options: [
-      { key: "A", text: "fluently", is_correct: true },
-      { key: "B", text: "harshly", is_correct: false },
-      { key: "C", text: "clumsily", is_correct: false },
-      { key: "D", text: "vaguely", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (fluently - trôi chảy, lưu loát). Bổ nghĩa cho động từ 'speaks English'.",
-    points: 10,
-  },
-  {
-    id: "quiz-08",
-    sort_order: 8,
-    level: "B2",
-    difficulty: 3,
-    question_type: "multiple_choice",
-    prompt: "Applying the Spaced Repetition (SRS SM-2) algorithm was a major ________ that boosted users' retention rate by 40%.",
-    options: [
-      { key: "A", text: "breakdown", is_correct: false },
-      { key: "B", "text": "breakthrough", is_correct: true },
-      { key: "C", text: "setback", is_correct: false },
-      { key: "D", text: "drawback", is_correct: false },
-    ],
-    correct_answer: "B",
-    explanation: "Đáp án đúng là B (breakthrough - bước đột phá). 'Boosted retention rate by 40%' chỉ một thành tựu tích cực vượt bậc.",
-    points: 10,
-  },
-  {
-    id: "quiz-09",
-    sort_order: 9,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "If you want to reach Level 20 this season, you must ________ a steady study habit every evening.",
-    options: [
-      { key: "A", text: "maintain", is_correct: true },
-      { key: "B", text: "abandon", is_correct: false },
-      { key: "C", text: "interrupt", is_correct: false },
-      { key: "D", text: "neglect", is_correct: false },
-    ],
-    correct_answer: "A",
-    explanation: "Đáp án đúng là A (maintain - duy trì, giữ vững thói quen). Collocation: 'maintain a habit'.",
-    points: 10,
-  },
-  {
-    id: "quiz-10",
-    sort_order: 10,
-    level: "B1",
-    difficulty: 2,
-    question_type: "multiple_choice",
-    prompt: "Junior developers always ________ senior mentors for their exceptional expertise and patient guidance.",
-    options: [
-      { key: "A", text: "look down on", is_correct: false },
-      { key: "B", text: "look up to", is_correct: true },
-      { key: "C", text: "look out for", is_correct: false },
-      { key: "D", text: "look into", is_correct: false },
-    ],
-    correct_answer: "B",
-    explanation: "Đáp án đúng là B (look up to - ngưỡng mộ, kính trọng = admire).",
-    points: 10,
-  },
-];
-
 // ============================================================================
 // 2. MAIN QUIZ PRACTICE COMPONENT
 // ============================================================================
 
 export default function QuizPracticePage() {
   // Session Configuration States
-  const questions = INITIAL_QUIZ_SAMPLE;
+  const [selectedMode, setSelectedMode] = useState<"sprint10" | "clan20" | "marathon">("sprint10");
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [questionSource, setQuestionSource] = useState<"api" | "local">("api");
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -231,7 +61,31 @@ export default function QuizPracticePage() {
   const [comboStreak, setComboStreak] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [wrongAnswersList, setWrongAnswersList] = useState<{ question: QuizQuestion; yourChoice: string }[]>([]);
-  const [selectedMode, setSelectedMode] = useState<"sprint10" | "clan20" | "marathon">("sprint10");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadQuestions = async () => {
+      setIsLoadingQuestions(true);
+      try {
+        const response = await fetch(`/api/quizzes?mode=${selectedMode}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Quiz API returned ${response.status}`);
+        const data = (await response.json()) as { questions?: QuizQuestion[] };
+        if (!Array.isArray(data.questions) || data.questions.length === 0) throw new Error("Quiz API returned no questions");
+        setQuestions(data.questions);
+        setQuestionSource("api");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("Could not load quiz questions from API; using local bank.", error);
+        const limit = selectedMode === "sprint10" ? 10 : selectedMode === "clan20" ? 20 : 300;
+        setQuestions((LOCAL_QUIZ_BANK as QuizQuestion[]).slice(0, limit));
+        setQuestionSource("local");
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingQuestions(false);
+      }
+    };
+    void loadQuestions();
+    return () => controller.abort();
+  }, [selectedMode]);
 
   const currentQuestion = questions[currentIndex] || questions[0];
 
@@ -320,6 +174,10 @@ export default function QuizPracticePage() {
   // ============================================================================
   // RENDER: RESULTS SCREEN (KẾT THÚC BÀI THI)
   // ============================================================================
+  if (isLoadingQuestions || !currentQuestion) {
+    return <main className="quiz-page min-h-screen flex items-center justify-center p-6" role="status">Đang tải câu hỏi...</main>;
+  }
+
   if (isCompleted) {
     const percentage = Math.round((score / questions.length) * 100);
 
@@ -636,7 +494,7 @@ export default function QuizPracticePage() {
 
       {/* Footer */}
       <footer className="w-full max-w-xl mx-auto pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500 z-10">
-        <span>Ngân hàng 300 câu hỏi trắc nghiệm CEFR A1-B2</span>
+        <span>{questionSource === "api" ? "Đã tải câu hỏi từ Quiz API" : "Đang dùng ngân hàng câu hỏi dự phòng trên thiết bị"} · Ngân hàng CEFR A1-B2</span>
         <span>LinguaMezon • Quiz Clan</span>
       </footer>
     </div>
