@@ -378,6 +378,22 @@ export default function LeaderboardPage() {
   const [badgeFilter, setBadgeFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(false);
   const [quizXp, setQuizXp] = useState(0);
+  const [redisRankings, setRedisRankings] = useState<{ rank: number; user_id: string; name: string; xp: number }[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/leaderboard", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json() as { entries?: typeof redisRankings };
+        if (active && Array.isArray(data.entries)) setRedisRankings(data.entries);
+      } catch { /* retain the last leaderboard snapshot while offline */ }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
   useEffect(() => {
     const syncQuizProgress = () => {
@@ -417,8 +433,12 @@ export default function LeaderboardPage() {
   }, [selectedBadge]);
 
   // Active ranking data
+  const livePersonalRankings: LeaderboardEntry[] = redisRankings.map((entry) => ({
+    id: entry.user_id, rank: entry.rank, previousRank: entry.rank, name: entry.name,
+    avatar: "", level: 1, wordsLearned: 0, xp: entry.xp, isCurrentUser: entry.user_id === "lingual-local-demo-user",
+  }));
   const currentList = activeTab === "personal"
-    ? PERSONAL_RANKINGS.map((entry) => entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry)
+    ? (timeRange === "alltime" && livePersonalRankings.length ? livePersonalRankings : PERSONAL_RANKINGS.map((entry) => entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry))
     : CLAN_RANKINGS;
   const topThree = currentList.slice(0, 3);
   const restList = currentList.slice(3);

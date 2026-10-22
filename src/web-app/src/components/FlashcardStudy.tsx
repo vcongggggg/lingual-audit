@@ -173,6 +173,7 @@ export default function FlashcardStudy({
   const [startTime, setStartTime] = useState<number>(() => Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
   const [databaseVocabulary, setDatabaseVocabulary] = useState<VocabularyItem[]>([]);
+  const reviewIdempotencyKeys = useRef<Record<string, string>>({});
   const [isLoadingVocabulary, setIsLoadingVocabulary] = useState(!vocabularyList);
   const [vocabularyLoadError, setVocabularyLoadError] = useState<string | null>(null);
 
@@ -284,7 +285,8 @@ export default function FlashcardStudy({
       ease_factor: sm2Result.ease_factor,
       next_due_at: sm2Result.next_due_at.toISOString(),
       time_spent_ms: timeSpentMs,
-      idempotency_key: `${currentVocab.id}-${Date.now()}`,
+      idempotency_key: reviewIdempotencyKeys.current[`${currentVocab.id}:${rating}`] ??
+        (reviewIdempotencyKeys.current[`${currentVocab.id}:${rating}`] = `${currentVocab.id}-${rating}-${crypto.randomUUID()}`),
     };
 
     // Persist first so a failed request never advances the learner's session.

@@ -61,6 +61,8 @@ export default function QuizPracticePage() {
   const [comboStreak, setComboStreak] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [wrongAnswersList, setWrongAnswersList] = useState<{ question: QuizQuestion; yourChoice: string }[]>([]);
+  const answersRef = useRef<{ questionId: string; selectedKey: string | null; isCorrect: boolean }[]>([]);
+  const [attemptSaveError, setAttemptSaveError] = useState<string | null>(null);
   const quizSessionId = useRef(crypto.randomUUID());
   const savedSessionId = useRef<string | null>(null);
 
@@ -74,6 +76,14 @@ export default function QuizPracticePage() {
       correctAnswers: score,
       totalQuestions: questions.length,
     });
+    setAttemptSaveError(null);
+    void fetch("/api/quiz-attempts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idempotencyKey: quizSessionId.current, xp: totalXp, answers: answersRef.current }),
+    }).then((response) => {
+      if (!response.ok) throw new Error("Could not save quiz attempt");
+    }).catch(() => setAttemptSaveError("Could not save this quiz session. Check the connection and retry the session."));
   }, [isCompleted, questions.length, score, totalXp]);
 
   useEffect(() => {
@@ -108,6 +118,7 @@ export default function QuizPracticePage() {
     setIsAnswered(true);
 
     const isCorrect = !isTimeout && key === currentQuestion.correct_answer;
+    answersRef.current.push({ questionId: currentQuestion.id, selectedKey: isTimeout ? null : key, isCorrect });
     if (isCorrect) {
       const xpEarned = 10 + Math.min(15, comboStreak * 3);
       setScore((prev) => prev + 1);
@@ -156,6 +167,8 @@ export default function QuizPracticePage() {
     setComboStreak(0);
     setIsCompleted(false);
     setWrongAnswersList([]);
+    answersRef.current = [];
+    setAttemptSaveError(null);
   };
 
   // Switch Quiz Mode
@@ -220,6 +233,7 @@ export default function QuizPracticePage() {
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Bạn đã nỗ lực ôn tập kho trắc nghiệm từ vựng chuẩn bị cho Clan War.
           </p>
+          {attemptSaveError && <p role="alert" className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs text-rose-300">{attemptSaveError}</p>}
 
           {/* Scorecards */}
           <div className="grid grid-cols-3 gap-2.5 w-full my-6">
