@@ -1,0 +1,20 @@
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+# Bật Polling cho Next.js Watchpack để nhận diện file thay đổi qua Docker mount trên Windows
+ENV WATCHPACK_POLLING=true
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=development
+ENV PORT=3000
+
+# Cấu hình npm retry và timeout cao phòng khi mạng chập chờn
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000
+
+EXPOSE 3000
+
+# Chạy npm install khi container khởi động (tránh làm gãy bước Docker Image Build)
+# sau đó khởi chạy Next.js development server
+CMD ["sh", "-c", "npm install --no-audit --no-fund && npm run dev"]

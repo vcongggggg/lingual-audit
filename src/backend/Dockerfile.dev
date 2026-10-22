@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS development
+
+WORKDIR /app
+
+# Cấu hình Polling File Watcher để Docker trên Windows nhận diện thay đổi file ngay lập tức
+ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+ENV DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS=http://0.0.0.0:5000
+
+# Copy solution và csproj trước để cache restore
+COPY Lingual.sln ./
+COPY Lingual.Api/*.csproj ./Lingual.Api/
+COPY Lingual.Shared/*.csproj ./Lingual.Shared/
+COPY Lingual.Modules.Identity/*.csproj ./Lingual.Modules.Identity/
+COPY Lingual.Modules.Learning/*.csproj ./Lingual.Modules.Learning/
+COPY Lingual.Modules.Gamification/*.csproj ./Lingual.Modules.Gamification/
+COPY Lingual.Modules.MezonBot/*.csproj ./Lingual.Modules.MezonBot/
+COPY Lingual.Modules.AITutor/*.csproj ./Lingual.Modules.AITutor/
+
+RUN dotnet restore Lingual.sln
+
+# Mở cổng API
+EXPOSE 5000
+
+# Khởi chạy dotnet watch: Tự động hot-reload / rebuild lại ngay khi có file .cs hoặc appsettings thay đổi
+CMD ["dotnet", "watch", "run", "--project", "Lingual.Api/Lingual.Api.csproj", "--non-interactive", "--no-launch-profile"]
+
