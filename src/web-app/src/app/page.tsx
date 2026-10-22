@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { readQuizProgress } from "@/lib/quiz-progress";
 import {
   Trophy,
   Flame,
@@ -376,6 +377,25 @@ export default function LeaderboardPage() {
   const [activeBarDay, setActiveBarDay] = useState<DailyProgress | null>(WEEKLY_PROGRESS_DATA[6]);
   const [badgeFilter, setBadgeFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(false);
+  const [quizXp, setQuizXp] = useState(0);
+
+  useEffect(() => {
+    const syncQuizProgress = () => {
+      const since = timeRange === "weekly" ? 7 : timeRange === "monthly" ? 30 : Infinity;
+      const cutoff = Date.now() - since * 24 * 60 * 60 * 1000;
+      const xp = readQuizProgress()
+        .filter((record) => new Date(record.completedAt).getTime() >= cutoff)
+        .reduce((total, record) => total + record.xp, 0);
+      setQuizXp(xp);
+    };
+    syncQuizProgress();
+    window.addEventListener("storage", syncQuizProgress);
+    window.addEventListener("lingual:quiz-progress", syncQuizProgress);
+    return () => {
+      window.removeEventListener("storage", syncQuizProgress);
+      window.removeEventListener("lingual:quiz-progress", syncQuizProgress);
+    };
+  }, [timeRange]);
 
   const handleShareBadge = async () => {
     if (!selectedBadge) return;
@@ -397,10 +417,13 @@ export default function LeaderboardPage() {
   }, [selectedBadge]);
 
   // Active ranking data
-  const currentList = activeTab === "personal" ? PERSONAL_RANKINGS : CLAN_RANKINGS;
+  const currentList = activeTab === "personal"
+    ? PERSONAL_RANKINGS.map((entry) => entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry)
+    : CLAN_RANKINGS;
   const topThree = currentList.slice(0, 3);
   const restList = currentList.slice(3);
   const currentUser = currentList.find((item) => item.isCurrentUser);
+  const personalUserXp = (PERSONAL_RANKINGS.find((item) => item.isCurrentUser)?.xp ?? 0) + quizXp;
 
   // Statistics calculation
   const totalWeeklyWords = WEEKLY_PROGRESS_DATA.reduce((acc, curr) => acc + curr.words, 0);
@@ -488,7 +511,7 @@ export default function LeaderboardPage() {
                 <div className="h-3 w-[1px] bg-slate-700" />
                 <div className="flex items-center gap-1 text-cyan-400 font-bold text-xs md:text-sm">
                   <Zap className="w-4 h-4 fill-cyan-400" />
-                  <span>2,680 XP</span>
+                  <span>{personalUserXp.toLocaleString()} XP</span>
                 </div>
               </div>
             </div>

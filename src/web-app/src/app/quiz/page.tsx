@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import LOCAL_QUIZ_BANK from "@/data/quiz-bank-300.json";
+import { saveQuizProgress } from "@/lib/quiz-progress";
 import {
   HelpCircle,
   Clock,
@@ -61,6 +62,20 @@ export default function QuizPracticePage() {
   const [comboStreak, setComboStreak] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [wrongAnswersList, setWrongAnswersList] = useState<{ question: QuizQuestion; yourChoice: string }[]>([]);
+  const quizSessionId = useRef(crypto.randomUUID());
+  const savedSessionId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isCompleted || savedSessionId.current === quizSessionId.current) return;
+    savedSessionId.current = quizSessionId.current;
+    saveQuizProgress({
+      id: quizSessionId.current,
+      completedAt: new Date().toISOString(),
+      xp: totalXp,
+      correctAnswers: score,
+      totalQuestions: questions.length,
+    });
+  }, [isCompleted, questions.length, score, totalXp]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -132,6 +147,8 @@ export default function QuizPracticePage() {
 
   // Restart Quiz
   const handleRestart = () => {
+    quizSessionId.current = crypto.randomUUID();
+    savedSessionId.current = null;
     setCurrentIndex(0);
     setSelectedKey(null);
     setIsAnswered(false);

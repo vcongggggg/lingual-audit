@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LayoutDashboard, NotebookTabs } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/", label: "BXH & ti\u1ebfn \u0111\u1ed9", icon: Trophy },
   { href: "/learn", label: "Flashcard", icon: BookOpen },
   { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
 ];
