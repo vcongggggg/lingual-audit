@@ -5,8 +5,22 @@ import { BookOpen } from "lucide-react";
 
 export default function LearnPage() {
   const saveReview = async (payload: SrsReviewPayload) => {
-    const response = await fetch("/api/reviews", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-    if (!response.ok) throw new Error("Failed to save review");
+    const response = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        vocabularyId: payload.vocabulary_id,
+        rating: payload.rating,
+        quality: payload.quality,
+        repetitions: payload.repetitions,
+        intervalDays: payload.interval_days,
+        easeFactor: payload.ease_factor,
+        nextDueAt: payload.next_due_at,
+        timeSpentMs: payload.time_spent_ms,
+        idempotencyKey: payload.idempotency_key,
+      }),
+    });
+    if (!response.ok) throw new Error(`Failed to save review (HTTP ${response.status})`);
   };
   return (
     <main className="learn-page">
