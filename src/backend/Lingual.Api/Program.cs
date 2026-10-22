@@ -45,6 +45,12 @@ builder.Services.AddSignalR();
 // Health Checks
 builder.Services.AddHealthChecks();
 
+// Mezon Bot Module (Mezon.Net.Sdk 1.7.0)
+builder.Services.AddMezonBotModule(builder.Configuration);
+
+// AI Tutor Module (Google Gemini API)
+builder.Services.AddAITutorModule(builder.Configuration);
+
 // CORS for Next.js Web App & Mezon Client
 builder.Services.AddCors(options =>
 {
