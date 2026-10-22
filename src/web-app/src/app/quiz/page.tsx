@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import LOCAL_QUIZ_BANK from "@/data/quiz-bank-300.json";
 import { saveQuizProgress } from "@/lib/quiz-progress";
 import {
   HelpCircle,
@@ -51,8 +50,8 @@ export default function QuizPracticePage() {
   // Session Configuration States
   const [selectedMode, setSelectedMode] = useState<"sprint10" | "clan20" | "marathon">("sprint10");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [questionSource, setQuestionSource] = useState<"api" | "local">("api");
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedKey, setSelectedKey] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -87,13 +86,12 @@ export default function QuizPracticePage() {
         const data = (await response.json()) as { questions?: QuizQuestion[] };
         if (!Array.isArray(data.questions) || data.questions.length === 0) throw new Error("Quiz API returned no questions");
         setQuestions(data.questions);
-        setQuestionSource("api");
+        setQuestionLoadError(null);
       } catch (error) {
         if (controller.signal.aborted) return;
-        console.error("Could not load quiz questions from API; using local bank.", error);
-        const limit = selectedMode === "sprint10" ? 10 : selectedMode === "clan20" ? 20 : 300;
-        setQuestions((LOCAL_QUIZ_BANK as QuizQuestion[]).slice(0, limit));
-        setQuestionSource("local");
+        console.error("Could not load quiz questions from database.", error);
+        setQuestions([]);
+        setQuestionLoadError("Không tải được câu hỏi từ cơ sở dữ liệu. Hãy kiểm tra kết nối rồi thử tải lại.");
       } finally {
         if (!controller.signal.aborted) setIsLoadingQuestions(false);
       }
@@ -191,8 +189,15 @@ export default function QuizPracticePage() {
   // ============================================================================
   // RENDER: RESULTS SCREEN (KẾT THÚC BÀI THI)
   // ============================================================================
-  if (isLoadingQuestions || !currentQuestion) {
-    return <main className="quiz-page min-h-screen flex items-center justify-center p-6" role="status">Đang tải câu hỏi...</main>;
+  if (isLoadingQuestions) {
+    return <main className="quiz-page min-h-screen flex items-center justify-center p-6" role="status">Đang tải câu hỏi từ cơ sở dữ liệu...</main>;
+  }
+
+  if (questionLoadError || !currentQuestion) {
+    return <main className="quiz-page min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center" role="alert">
+      <p>{questionLoadError ?? "Cơ sở dữ liệu chưa có câu hỏi phù hợp."}</p>
+      <button type="button" onClick={() => window.location.reload()} className="rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white">Thử lại</button>
+    </main>;
   }
 
   if (isCompleted) {
@@ -511,7 +516,7 @@ export default function QuizPracticePage() {
 
       {/* Footer */}
       <footer className="w-full max-w-xl mx-auto pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500 z-10">
-        <span>{questionSource === "api" ? "Đã tải câu hỏi từ Quiz API" : "Đang dùng ngân hàng câu hỏi dự phòng trên thiết bị"} · Ngân hàng CEFR A1-B2</span>
+        <span>Đã tải câu hỏi từ PostgreSQL · Ngân hàng CEFR A1-A2</span>
         <span>LinguaMezon • Quiz Clan</span>
       </footer>
     </div>

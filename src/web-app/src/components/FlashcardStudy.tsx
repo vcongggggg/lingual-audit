@@ -146,72 +146,7 @@ export function calculateSm2(
 }
 
 // ============================================================================
-// 3. MOCK VOCABULARY DATA (A1-A2 CURRICULUM ON MEZON)
-// ============================================================================
-
-const MOCK_VOCABULARY_LIST: VocabularyItem[] = [
-  {
-    id: "vocab-01",
-    term: "Perseverance",
-    normalized_term: "perseverance",
-    source_language: "en",
-    target_language: "vi",
-    ipa: "/ˌpɜː.sɪˈvɪə.rəns/",
-    part_of_speech: "noun",
-    meaning: "Tính kiên trì, sự bền chí, quyết tâm theo đuổi mục tiêu dù gặp muôn vàn khó khăn.",
-    image_url: "https://images.unsplash.com/photo-1519834785169-98be25ec3f84?w=600&auto=format&fit=crop&q=80",
-    examples: [
-      {
-        source_text: "Through hard work and perseverance, she finally conquered the IELTS 8.0.",
-        target_text: "Nhờ làm việc chăm chỉ và sự kiên trì bền bỉ, cô ấy cuối cùng đã chinh phục được IELTS 8.0.",
-      },
-      {
-        source_text: "His perseverance in learning 20 words every day on Mezon inspired the whole clan.",
-        target_text: "Sự kiên trì học 20 từ mỗi ngày trên Mezon của anh ấy đã truyền cảm hứng cho cả bang hội.",
-      },
-    ],
-    collocations: ["show perseverance", "remarkable perseverance", "rewarded for perseverance"],
-  },
-  {
-    id: "vocab-02",
-    term: "Eloquent",
-    normalized_term: "eloquent",
-    source_language: "en",
-    target_language: "vi",
-    ipa: "/ˈel.ə.kwənt/",
-    part_of_speech: "adjective",
-    meaning: "Hùng biện, lưu loát, có tài ăn nói thuyết phục và truyền cảm hứng.",
-    image_url: "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=600&auto=format&fit=crop&q=80",
-    examples: [
-      {
-        source_text: "The student gave an eloquent presentation about AI in language education.",
-        target_text: "Bạn sinh viên đã có một bài thuyết trình hùng biện đầy thuyết phục về AI trong giáo dục ngôn ngữ.",
-      },
-    ],
-    collocations: ["eloquent speaker", "eloquent speech", "eloquent testimony"],
-  },
-  {
-    id: "vocab-03",
-    term: "Meticulous",
-    normalized_term: "meticulous",
-    source_language: "en",
-    target_language: "vi",
-    ipa: "/məˈtɪk.jə.ləs/",
-    part_of_speech: "adjective",
-    meaning: "Tỉ mỉ, cẩn thận từng li từng tí, chú ý đến từng chi tiết nhỏ nhất.",
-    image_url: "https://images.unsplash.com/photo-1455849318743-b2233052fcff?w=600&auto=format&fit=crop&q=80",
-    examples: [
-      {
-        source_text: "He kept meticulous records of every SRS flashcard he reviewed.",
-        target_text: "Anh ấy ghi chép tỉ mỉ từng thẻ flashcard SRS mà mình đã ôn tập.",
-      },
-    ],
-    collocations: ["meticulous research", "meticulous attention to detail", "meticulous planning"],
-  },
-];
-
-// ============================================================================
-// 4. MAIN 3D FLASHCARD COMPONENT
+// 3. MAIN 3D FLASHCARD COMPONENT
 // ============================================================================
 
 interface FlashcardStudyProps {
@@ -221,7 +156,7 @@ interface FlashcardStudyProps {
 }
 
 export default function FlashcardStudy({
-  vocabularyList = MOCK_VOCABULARY_LIST,
+  vocabularyList,
   onFinishSession,
   onReviewSubmit,
 }: FlashcardStudyProps) {
@@ -237,39 +172,41 @@ export default function FlashcardStudy({
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number>(() => Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
+  const [databaseVocabulary, setDatabaseVocabulary] = useState<VocabularyItem[]>([]);
+  const [isLoadingVocabulary, setIsLoadingVocabulary] = useState(!vocabularyList);
+  const [vocabularyLoadError, setVocabularyLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (vocabularyList) return;
+    const controller = new AbortController();
+    const loadVocabulary = async () => {
+      setIsLoadingVocabulary(true);
+      try {
+        const response = await fetch("/api/vocabulary?limit=50", { signal: controller.signal });
+        if (!response.ok) throw new Error(`Vocabulary API returned ${response.status}`);
+        const data = (await response.json()) as { words?: VocabularyItem[] };
+        if (!Array.isArray(data.words) || data.words.length === 0) throw new Error("No vocabulary rows found in database");
+        setDatabaseVocabulary(data.words);
+        setVocabularyLoadError(null);
+        setCurrentIndex(0);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("Could not load vocabulary from database.", error);
+        setVocabularyLoadError("Could not load vocabulary from the database.");
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingVocabulary(false);
+      }
+    };
+    void loadVocabulary();
+    return () => controller.abort();
+  }, [vocabularyList]);
+
+  const cards = vocabularyList ?? databaseVocabulary;
 
   // Mock initial SRS states for the deck
-  const [srsDeckState, setSrsDeckState] = useState<Record<string, SrsCardState>>({
-    "vocab-01": {
-      user_id: "user-current",
-      vocabulary_id: "vocab-01",
-      repetitions: 1,
-      interval_days: 1.0,
-      ease_factor: 2.5,
-      next_due_at: new Date().toISOString(),
-      lapses: 0,
-    },
-    "vocab-02": {
-      user_id: "user-current",
-      vocabulary_id: "vocab-02",
-      repetitions: 0,
-      interval_days: 0,
-      ease_factor: 2.5,
-      next_due_at: new Date().toISOString(),
-      lapses: 0,
-    },
-    "vocab-03": {
-      user_id: "user-current",
-      vocabulary_id: "vocab-03",
-      repetitions: 3,
-      interval_days: 6.0,
-      ease_factor: 2.6,
-      next_due_at: new Date().toISOString(),
-      lapses: 0,
-    },
-  });
+  const [srsDeckState, setSrsDeckState] = useState<Record<string, SrsCardState>>({});
 
-  const currentVocab = vocabularyList[currentIndex] || vocabularyList[0];
+  const currentVocab = cards[currentIndex] || cards[0] || { id: "", term: "", normalized_term: "", source_language: "en", target_language: "vi", meaning: "", examples: [] };
   const currentCardSrs = useMemo(() => srsDeckState[currentVocab.id] || {
     user_id: "user-current",
     vocabulary_id: currentVocab.id,
@@ -393,7 +330,7 @@ export default function FlashcardStudy({
       setIsSubmitting(false);
       setStartTime(Date.now());
 
-      if (currentIndex + 1 < vocabularyList.length) {
+      if (currentIndex + 1 < cards.length) {
         setCurrentIndex((prev) => prev + 1);
       } else {
         setIsCompleted(true);
@@ -414,7 +351,7 @@ export default function FlashcardStudy({
     onReviewSubmit,
     reviewedCardsCount,
     startTime,
-    vocabularyList.length,
+    cards.length,
     xpGainedSession,
   ]);
 
@@ -479,9 +416,12 @@ export default function FlashcardStudy({
   }
 
   // Active study card
-  const progressPercent = vocabularyList.length ? Math.round(((currentIndex + 1) / vocabularyList.length) * 100) : 0;
+  if (isLoadingVocabulary && !vocabularyList) return <div className="study-empty" role="status">Loading vocabulary from the database...</div>;
+  if (vocabularyLoadError && !vocabularyList) return <div className="study-empty" role="alert">{vocabularyLoadError}</div>;
 
-  if (!vocabularyList.length) {
+  const progressPercent = cards.length ? Math.round(((currentIndex + 1) / cards.length) * 100) : 0;
+
+  if (!cards.length) {
     return <div className="study-empty" role="status"><BookOpen aria-hidden="true" /><h2>Chưa có thẻ để ôn</h2><p>Danh sách từ vựng hiện đang trống.</p></div>;
   }
 
@@ -496,10 +436,10 @@ export default function FlashcardStudy({
   return (
     <section className="study-shell" aria-label="Phiên ôn từ vựng">
       <div className="study-progress-row">
-        <div className="study-progress-copy"><span>Tiến độ phiên học</span><strong>{currentIndex + 1}<span> / {vocabularyList.length}</span></strong></div>
+        <div className="study-progress-copy"><span>Tiến độ phiên học</span><strong>{currentIndex + 1}<span> / {cards.length}</span></strong></div>
         <span className="study-progress-percent">{progressPercent}%</span>
       </div>
-      <div className="study-progress-track" role="progressbar" aria-label="Tiến độ phiên học" aria-valuemin={0} aria-valuemax={vocabularyList.length} aria-valuenow={currentIndex + 1}>
+      <div className="study-progress-track" role="progressbar" aria-label="Tiến độ phiên học" aria-valuemin={0} aria-valuemax={cards.length} aria-valuenow={currentIndex + 1}>
         <span style={{ width: `${progressPercent}%` }} />
       </div>
 
@@ -513,7 +453,7 @@ export default function FlashcardStudy({
                 {currentVocab.cefr_level && <span className="study-level">{currentVocab.cefr_level}</span>}
                 <span className="study-pos">{currentVocab.part_of_speech || "Vocabulary"}</span>
               </div>
-              <span className="study-card-index">{String(currentIndex + 1).padStart(2, "0")} <span>/ {String(vocabularyList.length).padStart(2, "0")}</span></span>
+              <span className="study-card-index">{String(currentIndex + 1).padStart(2, "0")} <span>/ {String(cards.length).padStart(2, "0")}</span></span>
             </div>
             <div className="study-word-block">
               <span className="study-eyebrow">Từ vựng tiếng Anh</span>

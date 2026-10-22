@@ -1,4 +1,7 @@
 services:
+  # =========================================================================
+  # 1. DATABASE: POSTGRESQL 16
+  # =========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: lingual-postgres
@@ -12,14 +15,19 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docs/database/sql/00_init_all.sql:/docker-entrypoint-initdb.d/00_init_all.sql:ro
+      - ./docs/database/sql/seed_vocabulary_a1_a2_500.sql:/docker-entrypoint-initdb.d/01_seed_vocabulary.sql:ro
+      - ./docs/database/sql/seed_quiz_bank_300.sql:/docker-entrypoint-initdb.d/02_seed_quiz_questions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lingual_user -d lingual_db"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - lingual-net
 
+  # =========================================================================
+  # 2. CACHE & REALTIME LEADERBOARD: REDIS 7
+  # =========================================================================
   redis:
     image: redis:7-alpine
     container_name: lingual-redis
@@ -30,17 +38,85 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - lingual-net
 
+  # =========================================================================
+  # 3. BACKEND API: ASP.NET CORE 8 (TỰ ĐỘNG REBUILD KHI CODE .CS ĐỔI)
+  # =========================================================================
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile.dev
+    container_name: lingual-backend-dev
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=1
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lingual_db;Username=lingual_user;Password=lingual_password
+      - ConnectionStrings__Redis=redis:6379
+    volumes:
+      # Mount thư mục mã nguồn từ máy chủ để lắng nghe file thay đổi
+      - ./src/backend:/app
+      # Tách riêng bin và obj để tránh xung đột binary giữa Windows host và Linux container
+      - backend_api_bin:/app/Lingual.Api/bin
+      - backend_api_obj:/app/Lingual.Api/obj
+      - backend_shared_bin:/app/Lingual.Shared/bin
+      - backend_shared_obj:/app/Lingual.Shared/obj
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lingual-net
+
+  # =========================================================================
+  # 4. FRONTEND: NEXT.JS 16 (TỰ ĐỘNG FAST-REFRESH KHI CODE .TSX/.CSS ĐỔI)
+  # =========================================================================
+  frontend:
+    build:
+      context: ./src/web-app
+      dockerfile: Dockerfile.dev
+    container_name: lingual-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - WATCHPACK_POLLING=true
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      - LINGUAL_API_URL=http://backend:5000
+    volumes:
+      # Mount thư mục giao diện để cập nhật ngay khi sửa code
+      - ./src/web-app:/app
+      # Tách riêng node_modules và .next của container
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
+    depends_on:
+      - backend
+    networks:
+      - lingual-net
+
+# =========================================================================
+# VOLUMES & NETWORKS
+# =========================================================================
 volumes:
   postgres_data:
     driver: local
   redis_data:
     driver: local
+  backend_api_bin:
+  backend_api_obj:
+  backend_shared_bin:
+  backend_shared_obj:
+  frontend_node_modules:
+  frontend_next_cache:
 
 networks:
   lingual-net:

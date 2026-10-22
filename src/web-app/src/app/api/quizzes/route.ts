@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import quizBank from "@/data/quiz-bank-300.json";
 
 const questionCounts = { sprint10: 10, clan20: 20, marathon: 300 } as const;
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("mode") ?? "sprint10";
   if (!(mode in questionCounts)) {
     return NextResponse.json({ error: "mode must be sprint10, clan20, or marathon" }, { status: 400 });
   }
 
   const limit = questionCounts[mode as keyof typeof questionCounts];
-  const questions = quizBank.slice(0, limit);
-  return NextResponse.json({ mode, total: questions.length, questions });
+  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  try {
+    const response = await fetch(`${apiBase}/api/v1/content/quizzes?limit=${limit}`, { cache: "no-store" });
+    if (!response.ok) {
+      return NextResponse.json({ error: "Quiz database is unavailable" }, { status: response.status });
+    }
+    const data = (await response.json()) as { total: number; questions: unknown[] };
+    return NextResponse.json({ mode, ...data });
+  } catch {
+    return NextResponse.json({ error: "Could not connect to the quiz database" }, { status: 503 });
+  }
 }
