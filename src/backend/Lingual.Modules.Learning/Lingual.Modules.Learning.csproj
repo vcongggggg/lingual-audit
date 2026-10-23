@@ -7,7 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
+    <ProjectReference Include="..\Lingual.Persistence\Lingual.Persistence.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Learning.Contracts\Lingual.Modules.Learning.Contracts.csproj" />
   </ItemGroup>
 

@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.AITutor.Con
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.MezonBot.Contracts", "Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj", "{28886C94-0661-4EB6-AF1E-4243684115F4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lingual.Modules.Identity.Tests", "..\..\tests\unit\Lingual.Modules.Identity.Tests\Lingual.Modules.Identity.Tests.csproj", "{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -209,6 +211,18 @@ Global
 		{28886C94-0661-4EB6-AF1E-4243684115F4}.Release|x64.Build.0 = Release|Any CPU
 		{28886C94-0661-4EB6-AF1E-4243684115F4}.Release|x86.ActiveCfg = Release|Any CPU
 		{28886C94-0661-4EB6-AF1E-4243684115F4}.Release|x86.Build.0 = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|x64.Build.0 = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Debug|x86.Build.0 = Debug|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|x64.ActiveCfg = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|x64.Build.0 = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|x86.ActiveCfg = Release|Any CPU
+		{45E8C2BB-F16B-4769-9CBC-17BD6E001FA5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

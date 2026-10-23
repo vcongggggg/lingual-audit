@@ -1,0 +1,18 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=lingual_db;Username=lingual_user;Password=YOUR_LOCAL_DB_PASSWORD"
+  },
+  "Jwt": {
+    "Key": "GENERATE_A_RANDOM_SECRET_KEY"
+  },
+  "MezonOAuth2": {
+    "ClientId": "YOUR_MEZON_OAUTH_CLIENT_ID",
+    "ClientSecret": "YOUR_MEZON_OAUTH_CLIENT_SECRET",
+    "RedirectUri": "http://localhost:3000/oauth/mezon/callback"
+  },
+  "Mezon": {
+    "AppId": "YOUR_MEZON_BOT_OR_APP_ID",
+    "ClanId": "YOUR_CLAN_ID",
+    "DefaultChannelId": "YOUR_CHANNEL_ID"
+  }
+}
