@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lingual — Học tiếng Anh mỗi ngày (Mockup 3: Sổ tay giấy & Linh vật LingLing)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF5EA;
+    --paper-2:#F1E9D6;
+    --card:#FFFDF6;
+    --ink:#211A13;
+    --ink-soft:#6B5F4E;
+    --red:#D64027;
+    --red-dark:#A82E1C;
+    --teal:#0F766E;
+    --amber:#F2A93B;
+    --line:2px solid var(--ink);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Be Vietnam Pro',sans-serif;
+    background:var(--paper);
+    background-image:radial-gradient(#211a1314 1px, transparent 1px);
+    background-size:22px 22px;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+  /* ---------- header ---------- */
+  header{border-bottom:var(--line);background:var(--paper);position:sticky;top:0;z-index:50}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:72px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:24px;letter-spacing:-.5px}
+  .logo-mark{width:34px;height:34px;background:var(--red);border:var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;box-shadow:3px 3px 0 var(--ink)}
+  .nav-links{display:flex;gap:28px;font-weight:600;font-size:15px}
+  .nav-links a{color:var(--ink);text-decoration:none;position:relative}
+  .nav-links a:hover{color:var(--red)}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:15px;padding:12px 22px;border:var(--line);border-radius:12px;cursor:pointer;text-decoration:none;transition:transform .12s ease, box-shadow .12s ease;background:#fff;color:var(--ink);box-shadow:4px 4px 0 var(--ink)}
+  .btn:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink)}
+  .btn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-ink{background:var(--ink);color:#fff}
+
+  /* ---------- hero ---------- */
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;padding:72px 0 56px}
+  .eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:var(--red);margin-bottom:20px}
+  .eyebrow::before{content:"";width:34px;height:3px;background:var(--red)}
+  h1{font-size:clamp(40px,5.4vw,68px);line-height:1.08;font-weight:900;letter-spacing:-1.5px;margin-bottom:20px}
+  h1 .hl{position:relative;white-space:nowrap}
+  h1 .hl::after{content:"";position:absolute;left:-4px;right:-4px;bottom:6px;height:14px;background:var(--amber);z-index:-1;transform:rotate(-1deg)}
+  .lede{font-size:18px;line-height:1.7;color:var(--ink-soft);max-width:46ch;margin-bottom:32px}
+  .cta-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:36px}
+  .proof{display:flex;gap:28px;font-size:14px;color:var(--ink-soft)}
+  .proof b{display:block;font-size:22px;color:var(--ink);font-weight:900}
+
+  /* flashcard stack visual */
+  .stage{position:relative;height:460px}
+  .fcard{position:absolute;width:300px;background:var(--card);border:var(--line);border-radius:20px;box-shadow:8px 8px 0 var(--ink);padding:28px;text-align:center}
+  .fcard .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;background:var(--paper-2);border:2px solid var(--ink);border-radius:999px;padding:4px 12px;margin-bottom:16px}
+  .fcard .word{font-size:40px;font-weight:900;letter-spacing:-1px;margin-bottom:6px}
+  .fcard .phon{font-size:14px;color:var(--ink-soft);margin-bottom:14px}
+  .fcard .mean{font-size:20px;font-weight:700;color:var(--teal)}
+  .fcard.c1{top:40px;left:40px;transform:rotate(-6deg);z-index:1}
+  .fcard.c2{top:90px;left:110px;transform:rotate(3deg);z-index:2;background:var(--paper-2)}
+  .fcard.c3{top:36px;left:170px;transform:rotate(-2deg);z-index:3}
+  .stamp{position:absolute;bottom:36px;right:30px;z-index:4;width:130px;height:130px;border:3px solid var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;transform:rotate(-12deg);color:var(--red);font-weight:900;font-size:15px;letter-spacing:2px;text-transform:uppercase;background:#faf5eaee;text-align:center;line-height:1.5}
+  .tape{position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-3deg);width:110px;height:28px;background:#f2a93b99;border-left:2px dashed #211a1355;border-right:2px dashed #211a1355;z-index:5}
+
+  /* LingLing mascot (asset gốc từ UI cũ) */
+  .mascot{animation:mascot-float 3.4s ease-in-out infinite;filter:drop-shadow(0 10px 18px rgba(33,26,19,.18))}
+  .mascot img{width:100%;height:auto;display:block;user-select:none;pointer-events:none}
+  @keyframes mascot-float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+  @media (prefers-reduced-motion:reduce){.mascot{animation:none}}
+  .mascot-hero{position:absolute;top:-10px;right:-10px;width:125px;z-index:6}
+  .say{position:absolute;top:80px;right:75px;z-index:6;max-width:210px;background:var(--card);border:var(--line);border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.6;box-shadow:4px 4px 0 var(--ink)}
+  .say::after{content:"";position:absolute;top:-8px;right:36px;width:14px;height:14px;background:var(--card);border-left:var(--line);border-top:var(--line);transform:rotate(45deg)}
+  .say b{color:var(--red)}
+  .mascot-streak{width:140px;flex-shrink:0}
+  .streak-mascot-wrap{display:flex;align-items:center;gap:36px}
+  .mascot-cta{position:absolute;bottom:-6px;right:34px;width:96px;transform:rotate(6deg)}
+
+  /* ticker */
+  .ticker{border-top:var(--line);border-bottom:var(--line);background:var(--ink);color:var(--paper);overflow:hidden;white-space:nowrap;padding:14px 0}
+  .ticker span{display:inline-block;font-weight:700;font-size:15px;letter-spacing:1px;padding:0 26px}
+  .ticker .dot{color:var(--amber)}
+
+  /* features */
+  .section{padding:80px 0}
+  .sec-head{margin-bottom:44px}
+  .sec-head h2{font-size:clamp(30px,3.6vw,44px);font-weight:900;letter-spacing:-1px;margin-bottom:12px}
+  .sec-head p{color:var(--ink-soft);font-size:17px;max-width:60ch;line-height:1.7}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+  .feat{background:var(--card);border:var(--line);border-radius:18px;box-shadow:6px 6px 0 var(--ink);padding:30px;transition:transform .15s ease}
+  .feat:hover{transform:translate(-3px,-3px)}
+  .feat .num{font-size:15px;font-weight:900;color:var(--red);letter-spacing:2px;margin-bottom:14px}
+  .feat h3{font-size:21px;font-weight:800;margin-bottom:10px;letter-spacing:-.3px}
+  .feat p{font-size:15px;line-height:1.7;color:var(--ink-soft)}
+  .feat .go{display:inline-block;margin-top:18px;font-weight:800;font-size:14px;color:var(--ink);text-decoration:none;border-bottom:3px solid var(--amber)}
+  .feat .go:hover{color:var(--red)}
+
+  /* streak strip */
+  .strip{background:var(--teal);border-top:var(--line);border-bottom:var(--line);color:#fff;padding:56px 0}
+  .strip-inner{display:grid;grid-template-columns:1fr;gap:40px;align-items:center}
+  .strip h2{font-size:clamp(28px,3.4vw,40px);font-weight:900;letter-spacing:-.8px;margin-bottom:14px}
+  .strip p{font-size:16px;line-height:1.7;opacity:.92;max-width:44ch}
+  .week{display:flex;gap:10px;margin-top:16px}
+  .day{width:56px;height:72px;background:#fffdf6;border:2px solid var(--ink);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;color:var(--ink);box-shadow:4px 4px 0 #211a1366}
+  .day small{font-size:10px;letter-spacing:1px;color:var(--ink-soft)}
+  .day.done{background:var(--amber)}
+  .day.today{outline:3px solid #fff;outline-offset:2px}
+
+  /* cta + footer */
+  .cta-box{background:var(--card);border:var(--line);border-radius:24px;box-shadow:10px 10px 0 var(--ink);padding:56px;text-align:center;position:relative;overflow:hidden}
+  .cta-box h2{font-size:clamp(30px,4vw,48px);font-weight:900;letter-spacing:-1px;margin-bottom:14px}
+  .cta-box p{color:var(--ink-soft);font-size:17px;margin-bottom:30px}
+  footer{border-top:var(--line);margin-top:80px;padding:32px 0 44px;font-size:14px;color:var(--ink-soft)}
+  .foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr;padding:48px 0}
+    .stage{height:400px}
+    .grid3{grid-template-columns:1fr}
+    .streak-mascot-wrap{flex-direction:column;align-items:flex-start}
+    .nav-links{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo"><span class="logo-mark">L</span> Lingual</div>
+    <nav class="nav-links">
+      <a href="#curriculum">Lộ trình học</a>
+      <a href="#dictionary">Từ điển</a>
+      <a href="#games">Game</a>
+      <a href="#ielts">Luyện IELTS</a>
+    </nav>
+    <a class="btn btn-red" href="/login">Bắt đầu học →</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Nền tảng học tiếng Anh · SM-2</div>
+      <h1>Học tiếng Anh<br><span class="hl">đều đặn mỗi ngày,</span><br>nhớ lâu thật sự.</h1>
+      <p class="lede">Lingual kết hợp bài học ngắn, thẻ ghi nhớ lặp lại ngắt quãng (SM-2), trò chơi và luyện thi IELTS — tất cả bằng tiếng Việt, thân thiện và hoàn toàn không xao nhãng.</p>
+      <div class="cta-row">
+        <a class="btn btn-red" href="/register">Bắt đầu miễn phí →</a>
+        <a class="btn" href="#curriculum">Xem lộ trình học</a>
+      </div>
+      <div class="proof">
+        <div><b>SM-2</b>Thuật toán SuperMemo</div>
+        <div><b>4</b>Chế độ game</div>
+        <div><b>VI → EN</b>Cặp ngôn ngữ đầu tiên</div>
+      </div>
+    </div>
+    <div class="stage" aria-hidden="true">
+      <div class="fcard c1">
+        <div class="tape"></div>
+        <div class="tag">Danh từ · B1</div>
+        <div class="word">Environment</div>
+        <div class="phon">/ɪnˈvaɪrənmənt/</div>
+        <div class="mean">Môi trường sống</div>
+      </div>
+      <div class="fcard c2">
+        <div class="tag">Động từ · A2</div>
+        <div class="word">Achieve</div>
+        <div class="phon">/əˈtʃiːv/</div>
+        <div class="mean">Đạt được</div>
+      </div>
+      <div class="fcard c3">
+        <div class="tape"></div>
+        <div class="tag">Tính từ · B2</div>
+        <div class="word">Substantial</div>
+        <div class="phon">/səbˈstænʃl/</div>
+        <div class="mean">Đáng kể</div>
+      </div>
+      <div class="stamp">Ôn tập<br>đúng lúc</div>
+
+      <!-- LingLing Mascot Hero Integration -->
+      <div class="mascot mascot-hero">
+        <img src="apps/web/public/mascot/cow_greet_heart.png" alt="LingLing Mascot Chào mừng">
+      </div>
+      <div class="say">
+        <b>LingLing:</b> Hôm nay ôn 5 từ thôi là đủ giữ streak rồi! Cố lên nhé!
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="ticker" aria-hidden="true">
+  <span>Hello <span class="dot">✦</span> Xin chào</span><span>Perseverance <span class="dot">✦</span> Sự kiên trì</span><span>Journey <span class="dot">✦</span> Hành trình</span><span>Knowledge <span class="dot">✦</span> Kiến thức</span><span>Bridge <span class="dot">✦</span> Cây cầu</span><span>Hello <span class="dot">✦</span> Xin chào</span><span>Perseverance <span class="dot">✦</span> Sự kiên trì</span><span>Journey <span class="dot">✦</span> Hành trình</span>
+</div>
+
+<div class="wrap">
+  <section class="section" id="curriculum">
+    <div class="sec-head">
+      <h2>Mọi thứ bạn cần, gói trong một sổ tay.</h2>
+      <p>Không lan man. Mỗi tính năng phục vụ một việc duy nhất: giúp bạn học xong bài hôm nay và quay lại vào ngày mai.</p>
+    </div>
+    <div class="grid3">
+      <div class="feat">
+        <div class="num">01</div>
+        <h3>Thẻ ghi nhớ SM-2</h3>
+        <p>Thuật toán SuperMemo tính đúng ngày bạn sắp quên một từ và nhắc ôn trước khi điều đó xảy ra. Ôn ít, nhớ lâu.</p>
+        <a class="go" href="/srs">Mở bộ thẻ →</a>
+      </div>
+      <div class="feat">
+        <div class="num">02</div>
+        <h3>Game Center</h3>
+        <p>Bốn trò chơi tốc độ — nối từ, xếp câu, gõ nhanh, điền từ — biến mười phút rảnh thành một trận đấu với chính mình.</p>
+        <a class="go" href="/games">Chơi ngay →</a>
+      </div>
+      <div class="feat">
+        <div class="num">03</div>
+        <h3>Luyện thi IELTS</h3>
+        <p>Đề đọc–nghe theo kỹ năng, chấm điểm theo thang band chuẩn quốc tế, và bài thi thử bấm giờ như phòng thi thật.</p>
+        <a class="go" href="/ielts">Vào phòng thi →</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="strip">
+  <div class="wrap">
+    <div class="streak-mascot-wrap">
+      <div class="mascot mascot-streak">
+        <img src="apps/web/public/mascot/cow_salute.png" alt="LingLing Chúc mừng Streak">
+      </div>
+      <div>
+        <h2>Chuỗi ngày học là tài sản.</h2>
+        <p>Mỗi ngày học xong, bạn thắp thêm một ô. Bỏ một ngày, chuỗi vẫn được bảo vệ bằng "đóng băng streak" — vì ai cũng có hôm bận.</p>
+        <div class="week" aria-hidden="true">
+          <div class="day done"><small>T2</small>✓</div>
+          <div class="day done"><small>T3</small>✓</div>
+          <div class="day done"><small>T4</small>✓</div>
+          <div class="day done"><small>T5</small>✓</div>
+          <div class="day today"><small>T6</small>•</div>
+          <div class="day"><small>T7</small></div>
+          <div class="day"><small>CN</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <section class="section">
+    <div class="cta-box">
+      <h2>Sẵn sàng cho ngày đầu tiên?</h2>
+      <p>Không cần thẻ tín dụng. Không quảng cáo. Chỉ có bài học đầu tiên đang chờ.</p>
+      <a class="btn btn-ink" href="/register" style="font-size:17px;padding:16px 34px">Tạo tài khoản miễn phí →</a>
+      
+      <!-- LingLing Mascot CTA -->
+      <div class="mascot mascot-cta">
+        <img src="apps/web/public/mascot/cow_wink_kiss.png" alt="LingLing Nháy mắt">
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap foot">
+    <div><b style="color:var(--ink)">Lingual</b> — Học tiếng Anh mỗi ngày, nhớ lâu thật sự.</div>
+    <div>Thiết kế "Sổ tay giấy" độc bản · Lingual 2026</div>
+  </div>
+</footer>
+
+</body>
+</html>
