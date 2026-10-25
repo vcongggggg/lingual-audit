@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppNavigation from "@/components/AppNavigation";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,15 +20,22 @@ export const metadata: Metadata = {
   description: "Không gian học từ vựng tiếng Anh cùng LinguaMezon.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="vi"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="app-body">
-        <AppNavigation />
-        <div className="app-route-content">{children}</div>
+      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
+        <AuthProvider>
+          <AppNavigation />
+          <div className="app-route-content">{children}</div>
+        </AuthProvider>
+      </body>
       </body>
     </html>
   );
