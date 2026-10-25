@@ -36,7 +36,6 @@ export default function RootLayout({
           <div className="app-route-content">{children}</div>
         </AuthProvider>
       </body>
-      </body>
     </html>
   );
 }
