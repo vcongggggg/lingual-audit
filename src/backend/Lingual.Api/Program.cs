@@ -12,6 +12,7 @@ using Lingual.Modules.Learning.Infrastructure.Data;
 using Lingual.Modules.MezonBot;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
 using Lingual.Persistence;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
