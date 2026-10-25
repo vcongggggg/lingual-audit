@@ -1,0 +1,10 @@
+name: LinguaMezon - Local Dev
+values:
+  - key: baseUrl
+    value: 'http://127.0.0.1:5000'
+  - key: testVocabularyId
+    value: ''
+  - key: testQuestionId
+    value: ''
+  - key: testCorrectAnswer
+    value: ''

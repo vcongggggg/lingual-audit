@@ -1,0 +1,3 @@
+$kind: collection
+description: Kiểm tra tình trạng hoạt động của ASP.NET Core API Host, PostgreSQL và Redis.
+order: 1000

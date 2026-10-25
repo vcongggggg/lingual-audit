@@ -4,43 +4,25 @@
   "values": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000",
+      "value": "http://127.0.0.1:5000",
       "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "bearerToken",
-      "value": "",
-      "type": "secret",
-      "enabled": true
-    },
-    {
-      "key": "userId",
-      "value": "",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "userDisplayName",
-      "value": "",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "mezonAppId",
-      "value": "mezon-lingual-dev-2026",
-      "type": "default",
-      "enabled": true
-    },
-    {
-      "key": "mezonAuthCode",
-      "value": "mock_oauth_authcode_sprint1_test",
-      "type": "secret",
       "enabled": true
     },
     {
       "key": "testVocabularyId",
-      "value": "vocab-01",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "testQuestionId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "testCorrectAnswer",
+      "value": "",
       "type": "default",
       "enabled": true
     }

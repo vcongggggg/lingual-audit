@@ -1,0 +1,4 @@
+$kind: collection
+name: 04. SRS Learning & SM-2 (SP1-03 / SP1-06)
+description: Quản lý thẻ ôn tập ngắt quãng SM-2 (bảng srs_cards) và ghi nhận kết quả đánh giá 4 nút.
+order: 4000

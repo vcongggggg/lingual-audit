@@ -1,0 +1,22 @@
+$kind: http-request
+description: Kiểm tra endpoint liveness/readiness của backend.
+url: "{{baseUrl}}/health"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("[Health] Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("[Health] Response time is below 500ms", function () {
+          pm.expect(pm.response.responseTime).to.be.below(500);
+      });
+
+      pm.test("[Health] Response is not empty", function () {
+          pm.expect(pm.response.text()).to.not.be.empty;
+      });
+    language: text/javascript
+order: 1000

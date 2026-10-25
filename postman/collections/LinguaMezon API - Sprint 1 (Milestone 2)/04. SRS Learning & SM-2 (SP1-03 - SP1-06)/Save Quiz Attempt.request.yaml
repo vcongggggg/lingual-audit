@@ -1,0 +1,26 @@
+$kind: http-request
+name: Save Quiz Attempt
+url: "{{baseUrl}}/api/v1/content/quiz-attempts"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "answers": [
+        { "questionId": "{{testQuestionId}}", "selectedKey": "A", "isCorrect": true }
+      ],
+      "xp": 20,
+      "idempotencyKey": "quiz-{{$guid}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Quiz attempt saved", function () {
+          pm.response.to.have.status(200);
+          const body = pm.response.json();
+          pm.expect(body.saved).to.eql(true);
+          pm.expect(body.correct_answers).to.be.a("number");
+      });

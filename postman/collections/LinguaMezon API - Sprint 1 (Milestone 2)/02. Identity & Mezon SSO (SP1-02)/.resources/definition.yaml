@@ -1,0 +1,3 @@
+$kind: collection
+description: Xác thực qua Mezon OAuth Handshake, cấp phát và quản lý JWT Bearer token.
+order: 2000
