@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Lingual.Shared\Lingual.Shared.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Learning\Lingual.Modules.Learning.csproj" />
   </ItemGroup>
 

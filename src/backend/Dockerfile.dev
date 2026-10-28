@@ -11,11 +11,18 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:5000
 # Copy solution và csproj trước để cache restore
 COPY Lingual.sln ./
 COPY Lingual.Api/*.csproj ./Lingual.Api/
-COPY Lingual.Shared/*.csproj ./Lingual.Shared/
+COPY Lingual.SharedKernel/*.csproj ./Lingual.SharedKernel/
+COPY Lingual.Persistence/*.csproj ./Lingual.Persistence/
+COPY Lingual.Infrastructure/*.csproj ./Lingual.Infrastructure/
+COPY Lingual.Modules.Identity.Contracts/*.csproj ./Lingual.Modules.Identity.Contracts/
 COPY Lingual.Modules.Identity/*.csproj ./Lingual.Modules.Identity/
+COPY Lingual.Modules.Learning.Contracts/*.csproj ./Lingual.Modules.Learning.Contracts/
 COPY Lingual.Modules.Learning/*.csproj ./Lingual.Modules.Learning/
+COPY Lingual.Modules.Gamification.Contracts/*.csproj ./Lingual.Modules.Gamification.Contracts/
 COPY Lingual.Modules.Gamification/*.csproj ./Lingual.Modules.Gamification/
+COPY Lingual.Modules.MezonBot.Contracts/*.csproj ./Lingual.Modules.MezonBot.Contracts/
 COPY Lingual.Modules.MezonBot/*.csproj ./Lingual.Modules.MezonBot/
+COPY Lingual.Modules.AITutor.Contracts/*.csproj ./Lingual.Modules.AITutor.Contracts/
 COPY Lingual.Modules.AITutor/*.csproj ./Lingual.Modules.AITutor/
 
 RUN dotnet restore Lingual.sln

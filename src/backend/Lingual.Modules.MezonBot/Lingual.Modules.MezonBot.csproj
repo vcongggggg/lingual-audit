@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lingual.Shared\Lingual.Shared.csproj" />
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
     <ProjectReference Include="..\Lingual.Persistence\Lingual.Persistence.csproj" />
     <ProjectReference Include="..\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
