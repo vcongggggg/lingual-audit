@@ -1,0 +1,34 @@
+{
+  "id": "e9812f31-823a-4421-9988-51fbb60d9230",
+  "name": "LinguaMezon - Local Dev",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "testVocabularyId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "testQuestionId",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "testCorrectAnswer",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_at": "2026-10-15T09:00:00.000Z",
+  "_postman_exported_using": "Postman/11.0.0"
+}
+

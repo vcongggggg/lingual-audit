@@ -1,0 +1,18 @@
+$kind: http-request
+name: Get Vocabulary
+url: "{{baseUrl}}/api/v1/content/vocabulary?limit=20&source_language=en&target_language=vi"
+method: GET
+queryParams:
+  limit: "20"
+  source_language: en
+  target_language: vi
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Vocabulary returns 200 and words array", function () {
+          pm.response.to.have.status(200);
+          pm.expect(pm.response.json().words).to.be.an("array");
+      });
+      const words = pm.response.json().words;
+      if (words && words.length) pm.environment.set("testVocabularyId", words[0].id);

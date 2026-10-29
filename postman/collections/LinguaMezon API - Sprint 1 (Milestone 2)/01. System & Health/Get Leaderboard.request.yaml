@@ -1,0 +1,14 @@
+$kind: http-request
+name: Get Leaderboard
+url: "{{baseUrl}}/api/v1/content/leaderboard?limit=20"
+method: GET
+queryParams:
+  limit: "20"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Leaderboard returns entries array", function () {
+          pm.response.to.have.status(200);
+          pm.expect(pm.response.json().entries).to.be.an("array");
+      });

@@ -1,0 +1,16 @@
+{
+  "project_name": "MezonCampusStudio2026",
+  "version": "1.0.0",
+  "owner": "Ngo Van Cong",
+  "default_clan_prefix": "!",
+  "rate_limit": {
+    "window_seconds": 60,
+    "max_requests": 30
+  },
+  "features": {
+    "enable_bot": true,
+    "enable_web_channel_app": true,
+    "enable_ai_agent": true,
+    "enable_telegram_notifications": true
+  }
+}

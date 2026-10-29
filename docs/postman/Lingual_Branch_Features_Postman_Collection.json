@@ -1,0 +1,70 @@
+{
+  "info": {
+    "_postman_id": "690593e3-6c95-4e83-bda9-bd67a3888f1e",
+    "name": "Lingual API - Branch-only features (manual)",
+    "description": "Manual requests for implementations found in origin/minh/feat/database-migration-and-mezon-sso and origin/cong/feature/bot-mezon-ai-tutor. These routes are not registered in the currently checked-out API branch. Mezon OAuth and AI provider credentials are required.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" },
+    { "key": "mezonCode", "value": "" },
+    { "key": "mezonState", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Mezon SSO (origin/minh/feat/database-migration-and-mezon-sso)",
+      "description": "Requires the SSO branch to be checked out and valid Mezon OAuth configuration/code/state.",
+      "item": [
+        {
+          "name": "Get Mezon authorize URL",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/auth/mezon/authorize" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Authorize endpoint responds successfully', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Exchange Mezon authorization code",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"code\": \"{{mezonCode}}\",\n  \"state\": \"{{mezonState}}\",\n  \"redirectUri\": \"\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/mezon" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Mezon code exchange succeeds', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json(); if (body.accessToken || body.token) pm.collectionVariables.set('accessToken', body.accessToken || body.token); if (body.refreshToken) pm.collectionVariables.set('refreshToken', body.refreshToken);"
+          ] } }]
+        },
+        {
+          "name": "Get authenticated user",
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/api/v1/auth/me" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Current-user endpoint returns 200', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Refresh access token",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/refresh" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Refresh succeeds with a valid refresh token', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Logout",
+          "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/logout" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Logout succeeds for authenticated user', () => pm.response.to.have.status(200));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "AI grammar tutor (origin/cong/feature/bot-mezon-ai-tutor)",
+      "description": "Requires the AI tutor branch and a configured AI provider.",
+      "item": [
+        {
+          "name": "Grammar check",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"text\": \"I has been studying English for two years.\",\n  \"context\": \"The learner is practicing present perfect.\"\n}" }, "url": "{{baseUrl}}/api/v1/ai/grammar-check" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Grammar check returns analysis fields', () => { pm.response.to.have.status(200); pm.expect(body).to.have.all.keys('isCorrect','originalText','correctedText','explanation','tips'); });"
+          ] } }]
+        },
+        {
+          "name": "Reject empty grammar input",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"text\": \" \"\n}" }, "url": "{{baseUrl}}/api/v1/ai/grammar-check" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Empty text returns 400', () => pm.response.to.have.status(400));"] } }]
+        }
+      ]
+    }
+  ]
+}

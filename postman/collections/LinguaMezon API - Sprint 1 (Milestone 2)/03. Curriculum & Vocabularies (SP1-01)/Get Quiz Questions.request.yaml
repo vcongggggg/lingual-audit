@@ -1,0 +1,15 @@
+$kind: http-request
+name: Get Quiz Questions
+url: "{{baseUrl}}/api/v1/content/quizzes?limit=10&level=A1"
+method: GET
+queryParams:
+  limit: "10"
+  level: A1
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Quiz questions returns 200 and questions array", function () {
+          pm.response.to.have.status(200);
+          pm.expect(pm.response.json().questions).to.be.an("array");
+      });

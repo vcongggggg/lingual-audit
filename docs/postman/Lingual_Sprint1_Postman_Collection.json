@@ -1,0 +1,166 @@
+{
+  "info": {
+    "_postman_id": "a5e9f81d-8421-4f10-912b-3a7b6059d48b",
+    "name": "Lingual API - Active Branch Test Suite",
+    "description": "Runnable tests for routes implemented in the checked-out API branch. Run requests in order after starting PostgreSQL and Redis. Branch-only endpoints are in Lingual_Branch_Features_Postman_Collection.json.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" },
+    { "key": "testVocabularyId", "value": "" },
+    { "key": "testQuestionId", "value": "" },
+    { "key": "testCorrectAnswer", "value": "" },
+    { "key": "reviewIdempotencyKey", "value": "" },
+    { "key": "quizIdempotencyKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - System",
+      "item": [
+        {
+          "name": "Health check",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Health returns 200', () => pm.response.to.have.status(200));",
+            "pm.test('Health body is Healthy', () => pm.expect(pm.response.text().trim()).to.eql('Healthy'));"
+          ] } }]
+        },
+        {
+          "name": "Swagger OpenAPI document (Development only)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/swagger/v1/swagger.json" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Swagger document returns 200', () => pm.response.to.have.status(200));",
+            "pm.test('Swagger document identifies API v1', () => pm.expect(pm.response.json().info.version).to.eql('v1'));"
+          ] } }]
+        },
+        {
+          "name": "Weather forecast sample controller",
+          "request": { "method": "GET", "url": "{{baseUrl}}/WeatherForecast" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Weather forecast returns five items', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.have.length(5); });",
+            "pm.test('Weather item has expected fields', () => pm.expect(pm.response.json()[0]).to.have.all.keys('date', 'temperatureC', 'temperatureF', 'summary'));"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Vocabulary and quizzes",
+      "item": [
+        {
+          "name": "List vocabulary (English to Vietnamese)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/vocabulary?limit=20&source_language=en&target_language=vi" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Vocabulary returns total and words', () => { pm.response.to.have.status(200); pm.expect(body.total).to.eql(body.words.length); pm.expect(body.words).to.be.an('array').that.is.not.empty; });",
+            "pm.test('Vocabulary item schema is present', () => pm.expect(body.words[0]).to.have.all.keys('id','term','normalized_term','source_language','target_language','ipa','part_of_speech','meaning','pronunciation_audio_url','image_url','examples'));",
+            "pm.environment.set('testVocabularyId', body.words[0].id);"
+          ] } }]
+        },
+        {
+          "name": "Vocabulary limit is clamped to 1..500 (limit=0)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/vocabulary?limit=0" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Zero limit is clamped to one row', () => { pm.response.to.have.status(200); pm.expect(body.words.length).to.be.at.most(1); });"
+          ] } }]
+        },
+        {
+          "name": "List quiz questions (A1)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/quizzes?limit=10&level=A1" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('A1 quiz list returns total and questions', () => { pm.response.to.have.status(200); pm.expect(body.total).to.eql(body.questions.length); pm.expect(body.questions).to.be.an('array'); });",
+            "if (body.questions && body.questions.length) { pm.environment.set('testQuestionId', body.questions[0].id); pm.environment.set('testCorrectAnswer', body.questions[0].correct_answer || 'A'); }"
+          ] } }]
+        },
+        {
+          "name": "Quiz limit is clamped to 1..300 (limit=0)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/quizzes?limit=0" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Zero limit is clamped to one question', () => { pm.response.to.have.status(200); pm.expect(body.questions.length).to.be.at.most(1); });"
+          ] } }]
+        },
+        {
+          "name": "Quiz filter accepts a level with no matches",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/quizzes?limit=10&level=Z9" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Unknown level returns an empty successful result', () => { pm.response.to.have.status(200); pm.expect(body.total).to.eql(0); pm.expect(body.questions).to.be.empty; });"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Review persistence and idempotency",
+      "item": [
+        {
+          "name": "Create review (Good)",
+          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.collectionVariables.set('reviewIdempotencyKey', 'postman-review-' + pm.variables.replaceIn('{{$guid}}'));"
+          ] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Valid review is saved and awards Good XP', () => { pm.response.to.have.status(200); pm.expect(body.saved).to.eql(true); pm.expect(body.xp).to.eql(20); });"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"vocabularyId\": \"{{testVocabularyId}}\",\n  \"rating\": \"good\",\n  \"quality\": 4,\n  \"repetitions\": 1,\n  \"intervalDays\": 1,\n  \"easeFactor\": 2.5,\n  \"nextDueAt\": \"{{$isoTimestamp}}\",\n  \"timeSpentMs\": 4200,\n  \"idempotencyKey\": \"{{reviewIdempotencyKey}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/reviews" }
+        },
+        {
+          "name": "Repeat same review (must not award XP twice)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"vocabularyId\": \"{{testVocabularyId}}\",\n  \"rating\": \"good\",\n  \"quality\": 4,\n  \"repetitions\": 1,\n  \"intervalDays\": 1,\n  \"easeFactor\": 2.5,\n  \"nextDueAt\": \"{{$isoTimestamp}}\",\n  \"timeSpentMs\": 4200,\n  \"idempotencyKey\": \"{{reviewIdempotencyKey}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/reviews" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Duplicate review is acknowledged without XP', () => { pm.response.to.have.status(200); pm.expect(body.saved).to.eql(true); pm.expect(body.xp).to.eql(0); });"
+          ] } }]
+        },
+        {
+          "name": "Reject invalid review payload",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"vocabularyId\": \"not-a-guid\",\n  \"rating\": \"great\",\n  \"quality\": 9,\n  \"repetitions\": -1,\n  \"intervalDays\": -1,\n  \"easeFactor\": 1.0,\n  \"nextDueAt\": \"{{$isoTimestamp}}\",\n  \"timeSpentMs\": 100,\n  \"idempotencyKey\": \"invalid-review-{{$guid}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/reviews" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Invalid review returns 400', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('Invalid review payload'); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Quiz attempts and leaderboard",
+      "item": [
+        {
+          "name": "Create quiz attempt",
+          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('quizIdempotencyKey', 'postman-quiz-' + pm.variables.replaceIn('{{$guid}}'));" ] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Attempt is saved with one correct answer', () => { pm.response.to.have.status(200); pm.expect(body.saved).to.eql(true); pm.expect(body.correct_answers).to.eql(1); pm.expect(body.xp).to.eql(20); });"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{testQuestionId}}\", \"selectedKey\": \"{{testCorrectAnswer}}\", \"isCorrect\": true }\n  ],\n  \"xp\": 20,\n  \"idempotencyKey\": \"{{quizIdempotencyKey}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/quiz-attempts" }
+        },
+        {
+          "name": "Repeat quiz attempt (must not award XP twice)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{testQuestionId}}\", \"selectedKey\": \"{{testCorrectAnswer}}\", \"isCorrect\": true }\n  ],\n  \"xp\": 20,\n  \"idempotencyKey\": \"{{quizIdempotencyKey}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/quiz-attempts" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Duplicate attempt is acknowledged without XP', () => { pm.response.to.have.status(200); pm.expect(body.saved).to.eql(true); pm.expect(body.xp).to.eql(0); });"
+          ] } }]
+        },
+        {
+          "name": "Reject quiz attempt with empty answers",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"answers\": [],\n  \"xp\": 20,\n  \"idempotencyKey\": \"invalid-quiz-{{$guid}}\"\n}" }, "url": "{{baseUrl}}/api/v1/content/quiz-attempts" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Empty answer list returns 400', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('Invalid quiz attempt'); });"] } }]
+        },
+        {
+          "name": "Get leaderboard (top 20)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/leaderboard?limit=20" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Leaderboard returns timestamp and entries', () => { pm.response.to.have.status(200); pm.expect(body.updated_at).to.be.a('string'); pm.expect(body.entries).to.be.an('array'); });",
+            "pm.test('Leaderboard entries have rank, user, name and XP', () => { if (body.entries.length) pm.expect(body.entries[0]).to.have.all.keys('rank','user_id','name','xp'); });"
+          ] } }]
+        },
+        {
+          "name": "Leaderboard limit is clamped to 1..100 (limit=0)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/content/leaderboard?limit=0" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const body = pm.response.json();",
+            "pm.test('Zero limit returns at most one row', () => { pm.response.to.have.status(200); pm.expect(body.entries.length).to.be.at.most(1); });"
+          ] } }]
+        }
+      ]
+    }
+  ]
+}

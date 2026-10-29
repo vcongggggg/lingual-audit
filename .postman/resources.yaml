@@ -1,0 +1,11 @@
+# Use this workspace to collaborate
+workspace:
+  id: 94b92cfb-da8e-45fa-8817-68be3b124a4a
+
+localResources:
+  collections:
+    - ../docs/postman/Lingual_Sprint1_Postman_Collection.json
+
+cloudResources:
+  collections:
+    ../postman/collections/LinguaMezon API - Sprint 1 (Milestone 2): b9584459-e848-4ca7-b4fc-838b6d3282a5
