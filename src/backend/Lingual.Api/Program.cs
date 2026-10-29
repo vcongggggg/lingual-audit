@@ -2,14 +2,14 @@ using Lingual.Infrastructure;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Infrastructure.RateLimiter;
 using Lingual.Modules.AITutor;
-using Lingual.Modules.Gamification;
-using Lingual.Modules.Identity;
-using Lingual.Modules.Learning;
-using Lingual.Modules.MezonBot;
 using Lingual.Modules.AITutor.Infrastructure.Data;
+using Lingual.Modules.Gamification;
 using Lingual.Modules.Gamification.Infrastructure.Data;
+using Lingual.Modules.Identity;
 using Lingual.Modules.Identity.Infrastructure.Data;
+using Lingual.Modules.Learning;
 using Lingual.Modules.Learning.Infrastructure.Data;
+using Lingual.Modules.MezonBot;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
 using Lingual.Persistence;
 
@@ -19,14 +19,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration
     .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
-// Add Domain Modules (Database, Persistence & Business Services)
+// Register domain modules
 builder.AddIdentityModule();
 builder.AddLearningModule();
 builder.AddGamificationModule();
 builder.AddMezonBotModule();
 builder.AddAITutorModule();
 
-// Add Infrastructure services (Versioning, Swagger, Redis, RateLimiting, Serilog, FluentValidation, MediatR, Exception Handler)
+// Register infrastructure services
 builder.AddInfrastructure(
     typeof(Program).Assembly,
     Lingual.Modules.Identity.AssemblyReference.Assembly,
@@ -35,9 +35,18 @@ builder.AddInfrastructure(
     Lingual.Modules.MezonBot.AssemblyReference.Assembly,
     Lingual.Modules.AITutor.AssemblyReference.Assembly
 );
-
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "LINGUAL API - Mezon Campus Studio 2026",
+        Version = "v1",
+        Description = "Modular Monolith Backend API for Lingual Social Language Learning Platform"
+    });
+});
 
 // Realtime SignalR
 builder.Services.AddSignalR();
@@ -89,24 +98,29 @@ if (args.Contains("--migrate"))
     Console.WriteLine("\n==========================================================");
     Console.WriteLine("  All module migrations applied successfully!");
     Console.WriteLine("==========================================================");
-    Environment.Exit(0);
+
+    return;
 }
 
-// Configure the HTTP request pipeline via Infrastructure
-// 1. Exception Handler, Serilog Request Logging, Swagger UI
+// Configure the HTTP request pipeline
 app.UseInfrastructure();
 
-// 2. CORS (đặt trước Auth và RateLimiting để response lỗi hoặc preflight luôn có đủ headers)
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "LINGUAL API v1");
+        c.RoutePrefix = string.Empty;
+    });
+}
+
 app.UseCors("AllowFrontend");
 
-// 3. Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
-
-// 4. Rate Limiting (chạy sau Auth để nhận diện được user ID từ token)
 app.UseRateLimiting();
 
-// 5. Endpoint & Hub mapping
 app.MapControllers();
 app.MapEndpoints();
 app.MapHealthChecks("/health");

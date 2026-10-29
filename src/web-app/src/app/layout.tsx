@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import AppNavigation from "@/components/AppNavigation";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 
@@ -14,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lingual - Mezon OAuth 2.0 Auth Test",
-  description: "Lingual Campus Studio authentication test interface with Mezon OAuth 2.0",
+  title: "LinguaMezon | Học từ vựng",
+  description: "Không gian học từ vựng tiếng Anh cùng LinguaMezon.",
 };
 
 export default function RootLayout({
@@ -29,7 +31,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <AppNavigation />
+          <div className="app-route-content">{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );
