@@ -8,6 +8,7 @@ using Mezon.Net.Models;
 using Mezon.Net.Sdk.Builders;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
+using Lingual.Modules.MezonBot.Services;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
 namespace Lingual.Modules.MezonBot;
@@ -170,6 +171,11 @@ public class MezonBotWorker : BackgroundService
             {
                 await HandleLearnCommandAsync(data.ChannelId);
             }
+            else if (text.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                await HandleQuizCommandAsync(data.ChannelId, senderId);
+            }
             else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
             {
@@ -198,6 +204,7 @@ public class MezonBotWorker : BackgroundService
             .SetTitle("🤖 LINGUAL BOT — TRỢ LÝ HỌC NGÔN NGỮ")
             .SetDescription("Chào mừng bạn đến với **LINGUAL** trên nền tảng Mezon Campus Studio 2026!")
             .AddField("📚 Học tập & Luyện ngữ pháp", "• `/ask <câu>`: Mascot AI LingLing phân tích & sửa ngữ pháp\n• `/learn`: Mở Flashcard 3D ngắt quãng SRS SM-2", false)
+            .AddField("🏆 Đấu trường & Minigame Clan", "• `/quiz`: Bắt đầu minigame đố vui từ vựng 30s tranh tài cùng Clan", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• `/ping`: Kiểm tra kết nối Bot & Gateway Mezon\n• `/help`: Xem menu hướng dẫn sử dụng", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
@@ -223,7 +230,7 @@ public class MezonBotWorker : BackgroundService
             .SetTitle("📚 HỌC TỪ VỰNG TIẾNG ANH CÙNG LINGUAL")
             .SetDescription("Bắt đầu phiên ôn tập thẻ ghi nhớ **Flashcard 3D** với thuật toán ngắt quãng **Spaced Repetition SM-2**!")
             .AddField("💡 Mẹo nhỏ", "Gõ `/ask <câu tiếng Anh>` bất kỳ lúc nào để nhờ Mascot LingLing giải thích ngữ pháp hoặc từ mới.", false)
-            .AddField("⚔️ Đấu trường Clan", "Chế độ 1vs1 Word Duel giữa các thành viên Clan sắp ra mắt trong Sprint 2!", false)
+            .AddField("⚔️ Đấu trường Clan", "Gõ `/quiz` để bắt đầu minigame đố vui từ vựng 30s tranh điểm XP cho Clan!", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
 
@@ -238,6 +245,135 @@ public class MezonBotWorker : BackgroundService
             .Build();
 
         await ReplyToChannelWithContentAsync(channelId, content);
+    }
+
+    private async Task HandleQuizCommandAsync(long channelId, string? senderId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
+
+            if (await quizService.HasActiveSessionAsync(channelId))
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ **Đang có một câu đố Clan đang diễn ra!**\nHãy nhanh tay bấm chọn đáp án cho câu hỏi hiện tại trên kênh nhé!");
+                return;
+            }
+
+            const int durationSeconds = 30;
+            var session = await quizService.StartSessionAsync(channelId, senderId, durationSeconds);
+
+            if (session == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Không thể khởi tạo câu đố vào lúc này. Vui lòng thử lại sau ít phút!");
+                return;
+            }
+
+            var optionsText = string.Join("\n", session.Options.Select(o => $"**{o.Key}.** {o.Text}"));
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor("#F59E0B") // Amber / Golden
+                .SetTitle("🏆 CLAN VOCABULARY QUIZ — ĐỐ VUI TỪ VỰNG")
+                .SetDescription("⚡ Nhanh tay chọn đáp án chính xác để ghi điểm danh dự cho Clan của bạn!\n⏱️ **Thời gian trả lời:** 30 giây\n🥇 **Người đúng & nhanh nhất:** +15 XP | Đúng tiếp theo: +5 XP")
+                .AddField("📝 Câu hỏi", $"**{session.QuestionPrompt}**", false)
+                .AddField("🎯 Các lựa chọn", optionsText, false)
+                .AddField("📊 Thông tin", $"Trình độ: **{session.Level ?? "A1-A2"}** • Độ khó: **{session.Difficulty ?? 1}/5**", false)
+                .SetFooter("Bấm nút tương ứng bên dưới để trả lời (mỗi người chỉ được bấm 1 lần) • LINGUAL Clan", "")
+                .Build();
+
+            var buttonBuilder = new ButtonBuilder();
+            foreach (var opt in session.Options)
+            {
+                var customId = $"btn_quiz_{session.SessionId}_{opt.Key}";
+                // Nút A dùng primary (1), các nút khác secondary (2)
+                var style = opt.Key == "A" ? 1 : 2;
+                buttonBuilder.AddButton(customId, $"{opt.Key}. {opt.Text}", style, false, "", "");
+            }
+
+            var content = new MessageContentBuilder()
+                .SetText("🔥 **Một câu đố từ vựng Clan vừa xuất hiện!** Bấm nút chọn đáp án ngay:")
+                .AddEmbed(embed)
+                .AddActionRow(buttonBuilder.BuildComponents())
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, content);
+
+            // Khởi chạy đồng hồ đếm ngược 30 giây trong background để tự động tổng kết phiên
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(durationSeconds));
+                    await ConcludeQuizAsync(channelId, session.SessionId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ [MezonBot] Lỗi khi tự động kết thúc phiên Clan Quiz {SessionId}", session.SessionId);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz cho channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi bắt đầu câu đố Clan. Vui lòng thử lại!");
+        }
+    }
+
+    private async Task ConcludeQuizAsync(long channelId, Guid sessionId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
+
+            var result = await quizService.ConcludeSessionAsync(sessionId);
+            if (result == null)
+            {
+                return;
+            }
+
+            var embedBuilder = new MessageEmbedBuilder();
+
+            if (!string.IsNullOrWhiteSpace(result.WinnerUsername))
+            {
+                var seconds = (result.WinningResponseMs ?? 0) / 1000.0;
+                embedBuilder
+                    .SetColor("#10B981") // Emerald Green - Vinh quang
+                    .SetTitle("🏁 KẾT THÚC CÂU ĐỐ CLAN — BẢNG VÀNG QUÁN QUÂN")
+                    .SetDescription($"🎉 Chúc mừng **{result.WinnerUsername}** đã xuất sắc trả lời đúng và nhanh nhất trong **{seconds:F2} giây**!")
+                    .AddField("🥇 Người chiến thắng", $"**{result.WinnerUsername}** (+15 XP)", true)
+                    .AddField("⏱️ Tốc độ phản xạ", $"{seconds:F2}s", true);
+            }
+            else
+            {
+                embedBuilder
+                    .SetColor("#64748B") // Slate Gray
+                    .SetTitle("🏁 KẾT THÚC CÂU ĐỐ CLAN — HẾT GIỜ")
+                    .SetDescription("⏱️ Đã hết 30 giây! Chưa có thành viên nào trả lời đúng câu hỏi này. Cùng ôn tập lại để bứt phá ở câu đố sau nhé!");
+            }
+
+            embedBuilder
+                .AddField("🎯 Đáp án chính xác", $"**{result.CorrectKey}. {result.CorrectText}**", false)
+                .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
+                .AddField("📊 Thống kê phiên", $"Tổng người tham gia: **{result.TotalResponses}** | Trả lời đúng: **{result.CorrectResponses}** / {result.TotalResponses}", false)
+                .SetFooter("LINGUAL Clan Quiz • Gõ /quiz để bắt đầu phiên mới!", "");
+
+            var buttons = new ButtonBuilder()
+                .AddButton("btn_open_miniapp", "🚀 Luyện Flashcard 3D", 1, false, "", "")
+                .BuildComponents();
+
+            var content = new MessageContentBuilder()
+                .SetText("📢 **Tổng kết kết quả minigame Đố vui Clan:**")
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttons)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi tổng kết Clan Quiz {SessionId}", sessionId);
+        }
     }
 
     private async Task HandleAskGrammarAsync(long channelId, string userQuery)
@@ -311,7 +447,20 @@ public class MezonBotWorker : BackgroundService
 
             _logger.LogInformation("🔘 [MezonBot] Người dùng bấm nút {ButtonId} tại Channel {ChannelId}", buttonId, channelId);
 
-            if (buttonId == "btn_save_flashcard")
+            if (buttonId.StartsWith("btn_quiz_"))
+            {
+                // Format: btn_quiz_{sessionId}_{key}
+                var parts = buttonId.Split('_');
+                if (parts.Length >= 4 && Guid.TryParse(parts[2], out var sessionId))
+                {
+                    var selectedKey = parts[3];
+                    var mezonUserId = data.UserId.ToString();
+                    var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
+
+                    await HandleQuizButtonClickAsync(channelId, sessionId, mezonUserId, username, selectedKey);
+                }
+            }
+            else if (buttonId == "btn_save_flashcard")
             {
                 await ReplyToChannelAsync(channelId, "💾 **LingLing:** Đã lưu mẫu câu và phân tích ngữ pháp này vào sổ tay Flashcard SRS của bạn!");
             }
@@ -327,6 +476,51 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý sự kiện click button");
+        }
+    }
+
+    private async Task HandleQuizButtonClickAsync(
+        long channelId,
+        Guid sessionId,
+        string mezonUserId,
+        string username,
+        string selectedKey)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
+
+            var result = await quizService.SubmitAnswerAsync(sessionId, channelId, mezonUserId, username, selectedKey);
+
+            if (result.Status == QuizSubmissionStatus.AlreadyAnswered)
+            {
+                await ReplyToChannelAsync(channelId, $"⚠️ **{username}**: Bạn đã gửi câu trả lời cho câu đố này rồi! Mỗi thành viên chỉ được bấm 1 lần.");
+            }
+            else if (result.Status == QuizSubmissionStatus.SessionExpired)
+            {
+                await ReplyToChannelAsync(channelId, $"⏰ **{username}**: Phiên đố vui này đã hết thời gian nhận đáp án!");
+            }
+            else if (result.Status == QuizSubmissionStatus.Success)
+            {
+                if (result.IsWinner)
+                {
+                    var seconds = result.ResponseMs / 1000.0;
+                    await ReplyToChannelAsync(channelId, $"⚡ **{username}** đã trả lời ĐÚNG thần tốc trong **{seconds:F2}s**! Đang dẫn đầu bảng (+15 XP) 🥇");
+                }
+                else if (result.IsCorrect)
+                {
+                    await ReplyToChannelAsync(channelId, $"✅ **{username}** chọn đúng đáp án **{selectedKey}** (+5 XP)!");
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, $"❌ **{username}** chọn đáp án **{selectedKey}** (chưa chính xác). Hãy đợi tổng kết nhé!");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý trả lời Quiz {SessionId} từ User {UserId}", sessionId, mezonUserId);
         }
     }
 
@@ -374,4 +568,3 @@ public class MezonBotWorker : BackgroundService
         }
     }
 }
-
