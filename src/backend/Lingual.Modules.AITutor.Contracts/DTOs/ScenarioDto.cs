@@ -9,3 +9,4 @@ public record ScenarioDto(
     string CharacterRole,
     string GreetingMessage
 );
+
