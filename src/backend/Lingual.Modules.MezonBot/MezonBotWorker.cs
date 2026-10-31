@@ -176,6 +176,14 @@ public class MezonBotWorker : BackgroundService
                 var senderId = data.SenderId.ToString();
                 await HandleQuizCommandAsync(data.ChannelId, senderId);
             }
+            else if (text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
+            {
+                var prefixLength = text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ? 9 : 9;
+                var query = text[prefixLength..].Trim();
+                var senderId = data.SenderId.ToString();
+                await HandleRoleplayCommandAsync(data.ChannelId, senderId, query);
+            }
             else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
             {
@@ -203,14 +211,15 @@ public class MezonBotWorker : BackgroundService
             .SetColor("#3B82F6") // Blue Accent
             .SetTitle("🤖 LINGUAL BOT — TRỢ LÝ HỌC TIẾNG ANH")
             .SetDescription("Chào mừng bạn đến với LINGUAL trên nền tảng Mezon Campus Studio 2026!")
-            .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Nhờ trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
+            .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
             .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
 
         var buttons = new ButtonBuilder()
-            .AddButton("btn_open_miniapp", "🚀 Học từ vựng", 1, false, "", "")
+            .AddButton("btn_roleplay_menu", "🎭 Luyện Roleplay", 1, false, "", "")
+            .AddButton("btn_open_miniapp", "🚀 Học từ vựng", 2, false, "", "")
             .AddButton("btn_guide_ask", "🦉 Hướng dẫn /ask", 2, false, "", "")
             .BuildComponents();
 
@@ -472,10 +481,160 @@ public class MezonBotWorker : BackgroundService
             {
                 await ReplyToChannelAsync(channelId, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
             }
+            else if (buttonId == "btn_roleplay_menu")
+            {
+                await HandleRoleplayCommandAsync(channelId, data.UserId.ToString(), string.Empty);
+            }
+            else if (buttonId.StartsWith("btn_roleplay_select_"))
+            {
+                var scenarioCode = buttonId["btn_roleplay_select_".Length..];
+                await HandleRoleplayScenarioSelectedAsync(channelId, scenarioCode);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý sự kiện click button");
+        }
+    }
+
+    private async Task HandleRoleplayCommandAsync(long channelId, string senderId, string query)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+            if (aiTutor == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.");
+                return;
+            }
+
+            var scenarios = await aiTutor.GetAvailableScenariosAsync();
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                var embed = new MessageEmbedBuilder()
+                    .SetColor("#8B5CF6")
+                    .SetTitle("🎭 LINGLING ROLEPLAY — ĐÓNG VAI GIAO TIẾP TÌNH HUỐNG")
+                    .SetDescription("Chọn một tình huống thực tế bên dưới để bắt đầu luyện giao tiếp tiếng Anh phản xạ cùng trợ lý LingLing:")
+                    .AddField("☕ Quán Cà phê (A1-A2)", "Luyện gọi cà phê/trà, chọn size, loại sữa và thanh toán với Barista tại London.", false)
+                    .AddField("✈️ Sân bay Quốc tế (A2-B1)", "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành tại Heathrow.", false)
+                    .AddField("💼 Phỏng vấn xin việc (B1-B2)", "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh và định hướng.", false)
+                    .SetFooter("Bấm nút bên dưới để chọn tình huống • LINGUAL Roleplay", "")
+                    .Build();
+
+                var buttons = new ButtonBuilder()
+                    .AddButton("btn_roleplay_select_cafe_order", "☕ Quán Cà phê", 2, false, "", "")
+                    .AddButton("btn_roleplay_select_airport_checkin", "✈️ Sân bay", 2, false, "", "")
+                    .AddButton("btn_roleplay_select_job_interview", "💼 Phỏng vấn", 2, false, "", "")
+                    .BuildComponents();
+
+                var content = new MessageContentBuilder()
+                    .SetText("🎭 Chọn tình huống đàm thoại thực tế:")
+                    .AddEmbed(embed)
+                    .AddActionRow(buttons)
+                    .Build();
+
+                await ReplyToChannelWithContentAsync(channelId, content);
+                return;
+            }
+
+            // Phân tích mã tình huống nếu người dùng gõ /roleplay <code/tên> <câu thoại>
+            var parts = query.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            string scenarioCode = "cafe_order";
+            string userMessage = query;
+
+            if (parts.Length >= 2)
+            {
+                var matched = scenarios.FirstOrDefault(s =>
+                    s.Code.Equals(parts[0], StringComparison.OrdinalIgnoreCase) ||
+                    s.Code.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase));
+
+                if (matched != null)
+                {
+                    scenarioCode = matched.Code;
+                    userMessage = parts[1];
+                }
+            }
+
+            var result = await aiTutor.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+                ScenarioCode: scenarioCode,
+                UserMessage: userMessage,
+                MezonUserId: senderId,
+                ChannelId: channelId.ToString()
+            ));
+
+            var embedBuilder = new MessageEmbedBuilder()
+                .SetColor("#10B981")
+                .SetTitle($"🎭 {result.ScenarioTitle.ToUpper()}")
+                .SetDescription($"🗣️ {result.CharacterRole}: \"{result.Reply}\"")
+                .AddField("📝 Câu của bạn", userMessage, false);
+
+            if (result.HasFeedback && !string.IsNullOrWhiteSpace(result.FeedbackCorrection))
+            {
+                embedBuilder.AddField("💡 Gợi ý chuẩn bản xứ", result.FeedbackCorrection, false);
+                if (!string.IsNullOrWhiteSpace(result.Explanation))
+                {
+                    embedBuilder.AddField("📖 Giải thích", result.Explanation, false);
+                }
+            }
+
+            embedBuilder.SetFooter($"Gõ /roleplay {scenarioCode} <câu tiếp theo> để trò chuyện tiếp nhé!", "");
+
+            var buttonsRow = new ButtonBuilder()
+                .AddButton("btn_save_flashcard", "💾 Lưu vào sổ tay", 1, false, "", "")
+                .AddButton("btn_roleplay_menu", "🔄 Đổi tình huống", 2, false, "", "")
+                .BuildComponents();
+
+            var responseContent = new MessageContentBuilder()
+                .SetText($"🦉 LingLing: Phản hồi tình huống từ {result.CharacterRole}:")
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttonsRow)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, responseContent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /roleplay cho channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
+        }
+    }
+
+    private async Task HandleRoleplayScenarioSelectedAsync(long channelId, string scenarioCode)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+            if (aiTutor == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.");
+                return;
+            }
+
+            var scenarios = await aiTutor.GetAvailableScenariosAsync();
+            var scenario = scenarios.FirstOrDefault(s => s.Code.Equals(scenarioCode, StringComparison.OrdinalIgnoreCase))
+                ?? scenarios[0];
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor("#8B5CF6")
+                .SetTitle($"🎭 TÌNH HUỐNG: {scenario.Title.ToUpper()}")
+                .SetDescription($"Trình độ gợi ý: {scenario.Level}\n\n🗣️ {scenario.CharacterRole}: \"{scenario.GreetingMessage}\"")
+                .AddField("📝 Hướng dẫn đối thoại", $"Bạn hãy nhập câu trả lời bằng cách gõ lệnh:\n/roleplay {scenario.Code} <câu tiếng Anh của bạn>\n*Ví dụ:* /roleplay {scenario.Code} I would like a coffee, please", false)
+                .SetFooter("LingLing sẽ đối đáp và sửa lỗi ngữ pháp giúp bạn • LINGUAL Roleplay", "")
+                .Build();
+
+            var content = new MessageContentBuilder()
+                .SetText($"✨ Bạn đã vào tình huống {scenario.Title}:")
+                .AddEmbed(embed)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi chọn kịch bản roleplay {ScenarioCode}", scenarioCode);
         }
     }
 

@@ -1,10 +1,16 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
+using Lingual.Modules.AITutor.Domain;
+using Lingual.Modules.AITutor.Infrastructure.Data;
 using Lingual.Modules.AITutor.Options;
 
 namespace Lingual.Modules.AITutor.Services;
@@ -13,9 +19,10 @@ public class GeminiAITutorService : IAITutorService
 {
     private readonly HttpClient _httpClient;
     private readonly GeminiOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<GeminiAITutorService> _logger;
 
-    private const string SystemPrompt =
+    private const string GrammarSystemPrompt =
         "Bạn là LingLing, chú cú linh vật kiêm gia sư tiếng Anh thông minh và nhiệt tình của nền tảng LINGUAL trên Mezon.\n" +
         "Nhiệm vụ của bạn là phân tích ngữ pháp, từ vựng và mức độ tự nhiên của câu tiếng Anh do người học gửi đến.\n" +
         "Quy tắc phản hồi:\n" +
@@ -30,13 +37,46 @@ public class GeminiAITutorService : IAITutorService
         "  \"tips\": \"...\"\n" +
         "}";
 
+    private static readonly List<ScenarioDto> PredefinedScenarios = new()
+    {
+        new ScenarioDto(
+            Guid.Parse("11111111-1111-1111-1111-111111111101"),
+            "cafe_order",
+            "Gọi đồ uống tại Quán Cà phê (London)",
+            "Luyện giao tiếp gọi cà phê/trà, chọn size, loại sữa và thanh toán với nhân viên pha chế (Barista) tại London.",
+            "A1-A2",
+            "Barista LingLing",
+            "Hi there! Welcome to The London Roast. What drink can I get started for you today?"
+        ),
+        new ScenarioDto(
+            Guid.Parse("22222222-2222-2222-2222-222222222202"),
+            "airport_checkin",
+            "Làm thủ tục tại Sân bay Quốc tế",
+            "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành tại sân bay Heathrow.",
+            "A2-B1",
+            "Ground Crew LingLing",
+            "Good morning! Welcome to London Heathrow Airport. May I see your passport and flight booking, please?"
+        ),
+        new ScenarioDto(
+            Guid.Parse("33333333-3333-3333-3333-333333333303"),
+            "job_interview",
+            "Phỏng vấn xin việc & Giới thiệu bản thân",
+            "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh và định hướng nghề nghiệp.",
+            "B1-B2",
+            "Interviewer LingLing",
+            "Hello! Welcome to our interview today. To start off, could you tell me a little bit about yourself and your background?"
+        )
+    };
+
     public GeminiAITutorService(
         HttpClient httpClient,
         IOptions<GeminiOptions> options,
+        IServiceScopeFactory scopeFactory,
         ILogger<GeminiAITutorService> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -52,7 +92,7 @@ public class GeminiAITutorService : IAITutorService
                 OriginalText: request.Text,
                 CorrectedText: request.Text,
                 Explanation: "Hệ thống AI LingLing chưa được cấu hình API Key trên máy chủ.",
-                Tips: "Vui lòng kiểm tra lại thiết lập Gemini:ApiKey trong user-secrets."
+                Tips: "Vui lòng kiểm tra lại thiết lập Gemini:ApiKey trong user-secrets hoặc appsettings.Local.json."
             );
         }
 
@@ -66,7 +106,7 @@ public class GeminiAITutorService : IAITutorService
         {
             system_instruction = new
             {
-                parts = new[] { new { text = SystemPrompt } }
+                parts = new[] { new { text = GrammarSystemPrompt } }
             },
             contents = new[]
             {
@@ -84,19 +124,12 @@ public class GeminiAITutorService : IAITutorService
             }
         };
 
-        // Danh sách các model để failover khi model chính gặp sự cố
-        var candidateModels = new List<string>
-        {
-            _options.Model,
-            "gemini-flash-lite-latest",
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite-preview"
-        }.Where(m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var candidateModels = GetCandidateModels();
 
         foreach (var model in candidateModels)
         {
             var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent?key={_options.ApiKey}";
-            const int maxAttemptsPerModel = 2; // Tối đa 2 lần thử cho mỗi model
+            const int maxAttemptsPerModel = 2;
 
             for (var attempt = 1; attempt <= maxAttemptsPerModel; attempt++)
             {
@@ -114,7 +147,7 @@ public class GeminiAITutorService : IAITutorService
                         if (string.IsNullOrWhiteSpace(rawJsonText))
                         {
                             _logger.LogWarning("⚠️ [GeminiAITutor] Model {Model} trả về nội dung rỗng.", model);
-                            break; // Chuyển sang model dự phòng tiếp theo
+                            break;
                         }
 
                         var cleanJson = CleanJsonString(rawJsonText);
@@ -137,49 +170,295 @@ public class GeminiAITutorService : IAITutorService
                             );
                         }
                     }
-
-                    var statusCode = (int)response.StatusCode;
-                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogWarning("⚠️ [GeminiAITutor] Model {Model} thất bại (HTTP {StatusCode}): {Error}",
-                        model, statusCode, errorBody);
-
-                    // Nếu 503 (Server Busy) hoặc 429 (Rate Limit): Backoff rồi thử lại chính model này
-                    if ((statusCode == 503 || statusCode == 429) && attempt < maxAttemptsPerModel)
+                    else
                     {
-                        var delayMs = 1200 * attempt;
-                        _logger.LogInformation("⏳ [GeminiAITutor] Tự động thử lại model {Model} sau {DelayMs}ms...", model, delayMs);
-                        await Task.Delay(delayMs, cancellationToken);
-                        continue;
-                    }
+                        var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                        _logger.LogWarning("⚠️ [GeminiAITutor] Model {Model} trả về HTTP {StatusCode}: {ErrorBody}",
+                            model, response.StatusCode, errorBody);
 
-                    // Nếu mã lỗi khác hoặc đã hết lần thử -> thoát vòng lặp để chuyển model dự phòng tiếp theo
-                    break;
+                        if ((int)response.StatusCode is 404 or 400)
+                        {
+                            break;
+                        }
+                    }
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                catch (Exception ex) when (attempt < maxAttemptsPerModel)
                 {
-                    _logger.LogInformation("🛑 [GeminiAITutor] Yêu cầu phân tích bị hủy.");
-                    throw;
+                    _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Lỗi kết nối khi gọi model {Model} (Lần thử {Attempt}). Đang thử lại...", model, attempt);
+                    await Task.Delay(TimeSpan.FromMilliseconds(500 * attempt), cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Lỗi mạng khi gọi model {Model} (Lần thử {Attempt})", model, attempt);
-                    if (attempt < maxAttemptsPerModel)
-                    {
-                        await Task.Delay(1000, cancellationToken);
-                        continue;
-                    }
-                    break; // Chuyển sang model dự phòng tiếp theo
+                    _logger.LogError(ex, "❌ [GeminiAITutor] Thất bại khi gọi model {Model} ở lần thử {Attempt}.", model, attempt);
+                    break;
                 }
             }
         }
 
-        _logger.LogError("❌ [GeminiAITutor] Đã thử tất cả các model dự phòng và retry nhưng đều không thành công.");
-        return CreateFallbackResponse(request.Text, "Máy chủ AI tạm thời bận hoặc gặp sự cố kết nối. Bạn hãy thử lại sau ít giây nhé!");
+        return CreateFallbackResponse(request.Text, "Mascot AI LingLing đang bận ôn tập từ vựng, tạm thời chưa phân tích được câu này.");
     }
 
-    private static string CleanJsonString(string text)
+    public async Task<IReadOnlyList<ScenarioDto>> GetAvailableScenariosAsync(CancellationToken cancellationToken = default)
     {
-        var trimmed = text.Trim();
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetService<AITutorDbContext>();
+            if (dbContext != null)
+            {
+                var dbScenarios = await dbContext.AiScenarios
+                    .Where(s => s.Status == "published")
+                    .OrderBy(s => s.Code)
+                    .ToListAsync(cancellationToken);
+
+                if (dbScenarios.Any())
+                {
+                    return dbScenarios.Select(s =>
+                    {
+                        var predefined = PredefinedScenarios.FirstOrDefault(p => p.Code == s.Code);
+                        return new ScenarioDto(
+                            s.Id,
+                            s.Code,
+                            s.Title,
+                            s.Description ?? string.Empty,
+                            s.Level ?? "A1-A2",
+                            predefined?.CharacterRole ?? "Mascot LingLing",
+                            predefined?.GreetingMessage ?? "Hi there! Let's practice English together!"
+                        );
+                    }).ToList();
+                }
+
+                // Nếu database chưa có, nạp tự động (seed) các kịch bản chuẩn
+                foreach (var p in PredefinedScenarios)
+                {
+                    dbContext.AiScenarios.Add(new AiScenario
+                    {
+                        Id = p.Id,
+                        Code = p.Code,
+                        Title = p.Title,
+                        Description = p.Description,
+                        Level = p.Level,
+                        SystemPromptKey = $"roleplay_{p.Code}",
+                        Status = "published"
+                    });
+                }
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Không thể truy vấn database cho scenarios. Dùng danh sách mặc định.");
+        }
+
+        return PredefinedScenarios;
+    }
+
+    public async Task<RoleplayTurnResponse> ProcessRoleplayTurnAsync(
+        RoleplayTurnRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var scenario = PredefinedScenarios.FirstOrDefault(s => s.Code.Equals(request.ScenarioCode, StringComparison.OrdinalIgnoreCase))
+            ?? PredefinedScenarios[0];
+
+        var conversationId = request.ConversationId ?? Guid.NewGuid();
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            return new RoleplayTurnResponse(
+                ConversationId: conversationId,
+                ScenarioCode: scenario.Code,
+                ScenarioTitle: scenario.Title,
+                CharacterRole: scenario.CharacterRole,
+                Reply: $"[Offline Mode] {scenario.CharacterRole}: That sounds great! Could you tell me more about that?",
+                HasFeedback: false,
+                FeedbackCorrection: null,
+                Explanation: null
+            );
+        }
+
+        var systemPrompt =
+            $"You are {scenario.CharacterRole}, a friendly and supportive character in an English conversation roleplay scenario.\n" +
+            $"Scenario context: {scenario.Title} - {scenario.Description}\n" +
+            $"Learner CEFR level: {scenario.Level}\n\n" +
+            "INSTRUCTIONS FOR YOUR RESPONSE:\n" +
+            "1. Reply naturally in character, speaking natural, conversational English suitable for the learner's level (2-3 sentences max). Always ask a friendly question to keep the conversation flowing.\n" +
+            "2. Analyze the learner's message for grammar mistakes, unnatural phrasing, wrong prepositions, or incorrect vocabulary.\n" +
+            "3. If the learner made a mistake, set has_feedback: true, and generate feedback_correction strictly in Vietnamese formatted as:\n" +
+            "   \"💡 Bạn nên nói: \\\"{corrected_sentence}\\\" thay vì \\\"{wrong_sentence}\\\" nhé!\"\n" +
+            "   Also provide a short explanation in Vietnamese in explanation.\n" +
+            "4. If the learner's sentence is already accurate and natural, set has_feedback: false, feedback_correction: null, explanation: null.\n\n" +
+            "OUTPUT FORMAT (STRICT JSON ONLY):\n" +
+            "{\n" +
+            "  \"reply\": \"<character reply in English>\",\n" +
+            "  \"has_feedback\": true/false,\n" +
+            "  \"feedback_correction\": \"💡 Bạn nên nói: \\\"...\\\" thay vì \\\"...\\\" nhé!\",\n" +
+            "  \"explanation\": \"<short grammar explanation in Vietnamese>\"\n" +
+            "}";
+
+        var userContent = $"Học viên gửi câu thoại: \"{request.UserMessage.Trim()}\"";
+
+        var payload = new
+        {
+            system_instruction = new
+            {
+                parts = new[] { new { text = systemPrompt } }
+            },
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new[] { new { text = userContent } }
+                }
+            },
+            generationConfig = new
+            {
+                temperature = 0.4,
+                maxOutputTokens = 1000,
+                responseMimeType = "application/json"
+            }
+        };
+
+        var candidateModels = GetCandidateModels();
+
+        foreach (var model in candidateModels)
+        {
+            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent?key={_options.ApiKey}";
+
+            try
+            {
+                _logger.LogInformation("🎭 [GeminiAITutor] Xử lý lượt Roleplay ({Scenario}) bằng model {Model}...",
+                    scenario.Code, model);
+
+                var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
+                    var rawJsonText = result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+
+                    if (!string.IsNullOrWhiteSpace(rawJsonText))
+                    {
+                        var cleanJson = CleanJsonString(rawJsonText);
+                        var parsed = JsonSerializer.Deserialize<GeminiRoleplayJsonModel>(cleanJson, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
+                        if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply))
+                        {
+                            // Lưu hội thoại vào database nếu có thể
+                            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, parsed.Reply, model, cancellationToken);
+
+                            return new RoleplayTurnResponse(
+                                ConversationId: conversationId,
+                                ScenarioCode: scenario.Code,
+                                ScenarioTitle: scenario.Title,
+                                CharacterRole: scenario.CharacterRole,
+                                Reply: parsed.Reply,
+                                HasFeedback: parsed.HasFeedback,
+                                FeedbackCorrection: parsed.FeedbackCorrection,
+                                Explanation: parsed.Explanation
+                            );
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Thử thách model {Model} cho roleplay thất bại.", model);
+            }
+        }
+
+        // Fallback response
+        return new RoleplayTurnResponse(
+            ConversationId: conversationId,
+            ScenarioCode: scenario.Code,
+            ScenarioTitle: scenario.Title,
+            CharacterRole: scenario.CharacterRole,
+            Reply: $"Thank you! I understand: \"{request.UserMessage}\". Let's continue our conversation!",
+            HasFeedback: false,
+            FeedbackCorrection: null,
+            Explanation: null
+        );
+    }
+
+    private async Task SaveConversationTurnAsync(
+        Guid conversationId,
+        Guid scenarioId,
+        string? mezonUserId,
+        string userMessage,
+        string assistantReply,
+        string modelName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetService<AITutorDbContext>();
+            if (dbContext == null)
+            {
+                return;
+            }
+
+            var userId = Guid.Empty;
+            if (!string.IsNullOrWhiteSpace(mezonUserId))
+            {
+                using var md5 = MD5.Create();
+                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
+                userId = new Guid(hash);
+            }
+
+            var conv = await dbContext.AiConversations.FirstOrDefaultAsync(c => c.Id == conversationId, cancellationToken);
+            if (conv == null)
+            {
+                var newTurn = new[]
+                {
+                    new { role = "user", text = userMessage, time = DateTime.UtcNow },
+                    new { role = "assistant", text = assistantReply, time = DateTime.UtcNow }
+                };
+
+                conv = new AiConversation
+                {
+                    Id = conversationId,
+                    UserId = userId != Guid.Empty ? userId : Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                    ScenarioId = scenarioId,
+                    ConversationType = "roleplay",
+                    Title = $"Roleplay {conversationId.ToString()[..8]}",
+                    Status = "active",
+                    Messages = JsonSerializer.Serialize(newTurn),
+                    ModelName = modelName,
+                    TotalTokens = 100,
+                    StartedAt = DateTime.UtcNow
+                };
+                dbContext.AiConversations.Add(conv);
+            }
+            else
+            {
+                conv.ModelName = modelName;
+                conv.EndedAt = DateTime.UtcNow;
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Không thể lưu lịch sử hội thoại roleplay vào database.");
+        }
+    }
+
+    private List<string> GetCandidateModels() =>
+        new List<string>
+        {
+            _options.Model,
+            "gemini-flash-lite-latest",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite-preview"
+        }.Where(m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    private static string CleanJsonString(string rawJson)
+    {
+        var trimmed = rawJson.Trim();
+
         if (trimmed.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
         {
             trimmed = trimmed["```json".Length..];
@@ -243,5 +522,20 @@ public class GeminiAITutorService : IAITutorService
 
         [JsonPropertyName("tips")]
         public string? Tips { get; set; }
+    }
+
+    private class GeminiRoleplayJsonModel
+    {
+        [JsonPropertyName("reply")]
+        public string? Reply { get; set; }
+
+        [JsonPropertyName("has_feedback")]
+        public bool HasFeedback { get; set; }
+
+        [JsonPropertyName("feedback_correction")]
+        public string? FeedbackCorrection { get; set; }
+
+        [JsonPropertyName("explanation")]
+        public string? Explanation { get; set; }
     }
 }

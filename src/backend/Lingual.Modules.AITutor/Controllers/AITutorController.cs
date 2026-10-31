@@ -28,4 +28,26 @@ public class AITutorController : ControllerBase
         var result = await _aiTutorService.AnalyzeGrammarAsync(request, cancellationToken);
         return Ok(result);
     }
+
+    [HttpGet("scenarios")]
+    public async Task<ActionResult<IReadOnlyList<ScenarioDto>>> GetScenarios(
+        CancellationToken cancellationToken)
+    {
+        var result = await _aiTutorService.GetAvailableScenariosAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("roleplay")]
+    public async Task<ActionResult<RoleplayTurnResponse>> ProcessRoleplay(
+        [FromBody] RoleplayTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.UserMessage))
+        {
+            return BadRequest(new { message = "Vui lòng nhập câu thoại tiếng Anh để tiếp tục đối thoại." });
+        }
+
+        var result = await _aiTutorService.ProcessRoleplayTurnAsync(request, cancellationToken);
+        return Ok(result);
+    }
 }
