@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
 using Mezon.Net.Sdk;
 using Mezon.Net.Client;
 using Mezon.Net.Models;
@@ -19,6 +20,17 @@ public class MezonBotWorker : BackgroundService
     private readonly MezonBotOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private SdkClient? _client;
+
+    public class UserRoleplaySession
+    {
+        public Guid ConversationId { get; set; }
+        public string ScenarioCode { get; set; } = string.Empty;
+        public DateTime LastActivity { get; set; } = DateTime.UtcNow;
+    }
+
+    public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
+
+    public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
     public MezonBotWorker(
         ILogger<MezonBotWorker> logger,
@@ -483,12 +495,16 @@ public class MezonBotWorker : BackgroundService
             }
             else if (buttonId == "btn_roleplay_menu")
             {
-                await HandleRoleplayCommandAsync(channelId, data.UserId.ToString(), string.Empty);
+                var senderId = data.UserId.ToString();
+                var sessionKey = GetRoleplaySessionKey(channelId, senderId);
+                ActiveRoleplaySessions.TryRemove(sessionKey, out _);
+                await HandleRoleplayCommandAsync(channelId, senderId, string.Empty);
             }
             else if (buttonId.StartsWith("btn_roleplay_select_"))
             {
                 var scenarioCode = buttonId["btn_roleplay_select_".Length..];
-                await HandleRoleplayScenarioSelectedAsync(channelId, scenarioCode);
+                var senderId = data.UserId.ToString();
+                await HandleRoleplayScenarioSelectedAsync(channelId, senderId, scenarioCode);
             }
         }
         catch (Exception ex)
@@ -539,27 +555,57 @@ public class MezonBotWorker : BackgroundService
                 return;
             }
 
+            var sessionKey = GetRoleplaySessionKey(channelId, senderId);
+            ActiveRoleplaySessions.TryGetValue(sessionKey, out var activeSession);
+
             // Phân tích mã tình huống nếu người dùng gõ /roleplay <code/tên> <câu thoại>
             var parts = query.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            string scenarioCode = "cafe_order";
-            string userMessage = query;
+            string scenarioCode;
+            string userMessage;
 
-            if (parts.Length >= 2)
-            {
-                var matched = scenarios.FirstOrDefault(s =>
+            var matched = parts.Length >= 2
+                ? scenarios.FirstOrDefault(s =>
                     s.Code.Equals(parts[0], StringComparison.OrdinalIgnoreCase) ||
-                    s.Code.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase));
+                    s.Code.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase))
+                : null;
 
-                if (matched != null)
+            if (matched != null)
+            {
+                scenarioCode = matched.Code;
+                userMessage = parts[1];
+            }
+            else if (activeSession != null && !string.IsNullOrWhiteSpace(activeSession.ScenarioCode))
+            {
+                scenarioCode = activeSession.ScenarioCode;
+                userMessage = query;
+            }
+            else
+            {
+                scenarioCode = "cafe_order";
+                userMessage = query;
+            }
+
+            Guid conversationId;
+            if (activeSession != null && activeSession.ScenarioCode.Equals(scenarioCode, StringComparison.OrdinalIgnoreCase))
+            {
+                conversationId = activeSession.ConversationId;
+                activeSession.LastActivity = DateTime.UtcNow;
+            }
+            else
+            {
+                conversationId = Guid.NewGuid();
+                ActiveRoleplaySessions[sessionKey] = new UserRoleplaySession
                 {
-                    scenarioCode = matched.Code;
-                    userMessage = parts[1];
-                }
+                    ConversationId = conversationId,
+                    ScenarioCode = scenarioCode,
+                    LastActivity = DateTime.UtcNow
+                };
             }
 
             var result = await aiTutor.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
                 ScenarioCode: scenarioCode,
                 UserMessage: userMessage,
+                ConversationId: conversationId,
                 MezonUserId: senderId,
                 ChannelId: channelId.ToString()
             ));
@@ -601,10 +647,19 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task HandleRoleplayScenarioSelectedAsync(long channelId, string scenarioCode)
+    private async Task HandleRoleplayScenarioSelectedAsync(long channelId, string senderId, string scenarioCode)
     {
         try
         {
+            var sessionKey = GetRoleplaySessionKey(channelId, senderId);
+            var newConvId = Guid.NewGuid();
+            ActiveRoleplaySessions[sessionKey] = new UserRoleplaySession
+            {
+                ConversationId = newConvId,
+                ScenarioCode = scenarioCode,
+                LastActivity = DateTime.UtcNow
+            };
+
             using var scope = _scopeFactory.CreateScope();
             var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
             if (aiTutor == null)

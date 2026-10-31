@@ -21,6 +21,7 @@ public class GeminiAITutorService : IAITutorService
     private readonly GeminiOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<GeminiAITutorService> _logger;
+    private static readonly object _inMemoryLock = new();
 
     private const string GrammarSystemPrompt =
         "Bạn là LingLing, chú cú linh vật kiêm gia sư tiếng Anh thông minh và nhiệt tình của nền tảng LINGUAL trên Mezon.\n" +
@@ -37,7 +38,7 @@ public class GeminiAITutorService : IAITutorService
         "  \"tips\": \"...\"\n" +
         "}";
 
-    private static readonly List<ScenarioDto> PredefinedScenarios = new()
+    public static readonly List<ScenarioDto> PredefinedScenarios = new()
     {
         new ScenarioDto(
             Guid.Parse("11111111-1111-1111-1111-111111111101"),
@@ -264,12 +265,15 @@ public class GeminiAITutorService : IAITutorService
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
+            var fallbackReply = $"[Offline Mode] {scenario.CharacterRole}: That sounds great! Could you tell me more about that?";
+            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallbackReply, "offline", cancellationToken);
+
             return new RoleplayTurnResponse(
                 ConversationId: conversationId,
                 ScenarioCode: scenario.Code,
                 ScenarioTitle: scenario.Title,
                 CharacterRole: scenario.CharacterRole,
-                Reply: $"[Offline Mode] {scenario.CharacterRole}: That sounds great! Could you tell me more about that?",
+                Reply: fallbackReply,
                 HasFeedback: false,
                 FeedbackCorrection: null,
                 Explanation: null
@@ -297,20 +301,36 @@ public class GeminiAITutorService : IAITutorService
 
         var userContent = $"Học viên gửi câu thoại: \"{request.UserMessage.Trim()}\"";
 
+        // Đọc lịch sử các lượt trước của Conversation này (tối đa 6 messages gần nhất = 3 turns)
+        var historyTurns = await LoadConversationHistoryAsync(conversationId, maxTurns: 6, cancellationToken);
+
+        // Xây dựng contents array cho Gemini: gồm lịch sử (user/model) và lượt user hiện tại
+        var contentsList = new List<object>();
+
+        foreach (var turn in historyTurns)
+        {
+            var role = turn.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "user" : "model";
+            contentsList.Add(new
+            {
+                role = role,
+                parts = new[] { new { text = turn.Text } }
+            });
+        }
+
+        // Lượt user hiện tại
+        contentsList.Add(new
+        {
+            role = "user",
+            parts = new[] { new { text = userContent } }
+        });
+
         var payload = new
         {
             system_instruction = new
             {
                 parts = new[] { new { text = systemPrompt } }
             },
-            contents = new[]
-            {
-                new
-                {
-                    role = "user",
-                    parts = new[] { new { text = userContent } }
-                }
-            },
+            contents = contentsList,
             generationConfig = new
             {
                 temperature = 0.4,
@@ -327,8 +347,8 @@ public class GeminiAITutorService : IAITutorService
 
             try
             {
-                _logger.LogInformation("🎭 [GeminiAITutor] Xử lý lượt Roleplay ({Scenario}) bằng model {Model}...",
-                    scenario.Code, model);
+                _logger.LogInformation("🎭 [GeminiAITutor] Xử lý lượt Roleplay ({Scenario}, Conv: {ConvId}) bằng model {Model} (Lịch sử: {HistoryCount} lượt)...",
+                    scenario.Code, conversationId, model, historyTurns.Count);
 
                 var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
                 if (response.IsSuccessStatusCode)
@@ -346,7 +366,7 @@ public class GeminiAITutorService : IAITutorService
 
                         if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply))
                         {
-                            // Lưu hội thoại vào database nếu có thể
+                            // Lưu hội thoại vào database: APPEND lượt mới vào Messages
                             await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, parsed.Reply, model, cancellationToken);
 
                             return new RoleplayTurnResponse(
@@ -370,16 +390,58 @@ public class GeminiAITutorService : IAITutorService
         }
 
         // Fallback response
+        var fallback = $"Thank you! I understand: \"{request.UserMessage}\". Let's continue our conversation!";
+        await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallback, "fallback", cancellationToken);
+
         return new RoleplayTurnResponse(
             ConversationId: conversationId,
             ScenarioCode: scenario.Code,
             ScenarioTitle: scenario.Title,
             CharacterRole: scenario.CharacterRole,
-            Reply: $"Thank you! I understand: \"{request.UserMessage}\". Let's continue our conversation!",
+            Reply: fallback,
             HasFeedback: false,
             FeedbackCorrection: null,
             Explanation: null
         );
+    }
+
+    private async Task<List<ConversationTurnMessage>> LoadConversationHistoryAsync(
+        Guid conversationId,
+        int maxTurns,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetService<AITutorDbContext>();
+            if (dbContext == null) return new();
+
+            var conv = await dbContext.AiConversations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == conversationId, cancellationToken);
+
+            if (conv == null || string.IsNullOrWhiteSpace(conv.Messages) || conv.Messages == "[]")
+            {
+                return new();
+            }
+
+            var list = JsonSerializer.Deserialize<List<ConversationTurnMessage>>(conv.Messages, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? new();
+
+            if (list.Count > maxTurns)
+            {
+                return list.Skip(list.Count - maxTurns).ToList();
+            }
+
+            return list;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Không thể tải lịch sử hội thoại {ConversationId}", conversationId);
+            return new();
+        }
     }
 
     private async Task SaveConversationTurnAsync(
@@ -407,38 +469,80 @@ public class GeminiAITutorService : IAITutorService
                 var hash = md5.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
                 userId = new Guid(hash);
             }
-
-            var conv = await dbContext.AiConversations.FirstOrDefaultAsync(c => c.Id == conversationId, cancellationToken);
-            if (conv == null)
+            if (userId == Guid.Empty)
             {
-                var newTurn = new[]
-                {
-                    new { role = "user", text = userMessage, time = DateTime.UtcNow },
-                    new { role = "assistant", text = assistantReply, time = DateTime.UtcNow }
-                };
+                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            }
 
-                conv = new AiConversation
+            var newTurns = new[]
+            {
+                new ConversationTurnMessage { Role = "user", Text = userMessage, Time = DateTime.UtcNow },
+                new ConversationTurnMessage { Role = "model", Text = assistantReply, Time = DateTime.UtcNow }
+            };
+            var newTurnsJson = JsonSerializer.Serialize(newTurns);
+
+            if (dbContext.Database.IsRelational())
+            {
+                // Concurrency an toàn trên PostgreSQL: Sử dụng toán tử JSONB concatenation nguyên tử (||)
+                var affected = await dbContext.Database.ExecuteSqlRawAsync(
+                    "UPDATE ai_conversations SET messages = messages || {0}::jsonb, model_name = {1}, ended_at = now() WHERE id = {2}",
+                    newTurnsJson, modelName, conversationId, cancellationToken);
+
+                if (affected == 0)
                 {
-                    Id = conversationId,
-                    UserId = userId != Guid.Empty ? userId : Guid.Parse("00000000-0000-0000-0000-000000000001"),
-                    ScenarioId = scenarioId,
-                    ConversationType = "roleplay",
-                    Title = $"Roleplay {conversationId.ToString()[..8]}",
-                    Status = "active",
-                    Messages = JsonSerializer.Serialize(newTurn),
-                    ModelName = modelName,
-                    TotalTokens = 100,
-                    StartedAt = DateTime.UtcNow
-                };
-                dbContext.AiConversations.Add(conv);
+                    var conv = new AiConversation
+                    {
+                        Id = conversationId,
+                        UserId = userId,
+                        ScenarioId = scenarioId,
+                        ConversationType = "roleplay",
+                        Title = $"Roleplay {conversationId.ToString()[..8]}",
+                        Status = "active",
+                        Messages = newTurnsJson,
+                        ModelName = modelName,
+                        TotalTokens = 100,
+                        StartedAt = DateTime.UtcNow,
+                        EndedAt = DateTime.UtcNow
+                    };
+                    dbContext.AiConversations.Add(conv);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
             }
             else
             {
-                conv.ModelName = modelName;
-                conv.EndedAt = DateTime.UtcNow;
+                // InMemory database (cho unit tests): Lock đồng bộ để bảo vệ concurrency
+                lock (_inMemoryLock)
+                {
+                    var conv = dbContext.AiConversations.FirstOrDefault(c => c.Id == conversationId);
+                    if (conv == null)
+                    {
+                        conv = new AiConversation
+                        {
+                            Id = conversationId,
+                            UserId = userId,
+                            ScenarioId = scenarioId,
+                            ConversationType = "roleplay",
+                            Title = $"Roleplay {conversationId.ToString()[..8]}",
+                            Status = "active",
+                            Messages = newTurnsJson,
+                            ModelName = modelName,
+                            TotalTokens = 100,
+                            StartedAt = DateTime.UtcNow,
+                            EndedAt = DateTime.UtcNow
+                        };
+                        dbContext.AiConversations.Add(conv);
+                    }
+                    else
+                    {
+                        var list = JsonSerializer.Deserialize<List<ConversationTurnMessage>>(conv.Messages) ?? new();
+                        list.AddRange(newTurns);
+                        conv.Messages = JsonSerializer.Serialize(list);
+                        conv.ModelName = modelName;
+                        conv.EndedAt = DateTime.UtcNow;
+                    }
+                    dbContext.SaveChanges();
+                }
             }
-
-            await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -484,6 +588,18 @@ public class GeminiAITutorService : IAITutorService
             Explanation: message,
             Tips: "Mẹo: Bạn có thể thử kiểm tra lại cấu trúc câu đơn giản hơn."
         );
+
+    public class ConversationTurnMessage
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = string.Empty;
+
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+
+        [JsonPropertyName("time")]
+        public DateTime Time { get; set; } = DateTime.UtcNow;
+    }
 
     private class GeminiApiResponse
     {

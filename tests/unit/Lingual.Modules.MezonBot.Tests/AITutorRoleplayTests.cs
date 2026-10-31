@@ -151,5 +151,287 @@ public class AITutorRoleplayTests
         result.FeedbackCorrection.Should().Contain("thay vì");
         result.Explanation.Should().Contain("I would like");
     }
+
+    [Fact]
+    public async Task ProcessRoleplayTurnAsync_AppendsSecondTurn_ToSameConversation()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var scopeFactory = CreateMockScopeFactory(dbContext);
+        var loggerMock = new Mock<ILogger<GeminiAITutorService>>();
+        var options = Options.Create(new GeminiOptions { ApiKey = "test_key", Model = "gemini-flash-lite-latest" });
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    candidates = new[]
+                    {
+                        new
+                        {
+                            content = new
+                            {
+                                parts = new[]
+                                {
+                                    new { text = "{\"reply\": \"What size would you like?\", \"has_feedback\": false}" }
+                                }
+                            }
+                        }
+                    }
+                }))
+            });
+
+        var httpClient = new HttpClient(handlerMock.Object);
+        var service = new GeminiAITutorService(httpClient, options, scopeFactory, loggerMock.Object);
+        var convId = Guid.NewGuid();
+
+        // Act - Turn 1
+        var result1 = await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "I want a coffee",
+            ConversationId: convId,
+            MezonUserId: "user_101"
+        ));
+
+        // Act - Turn 2
+        var result2 = await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "A medium one, please",
+            ConversationId: convId,
+            MezonUserId: "user_101"
+        ));
+
+        // Assert
+        result1.ConversationId.Should().Be(convId);
+        result2.ConversationId.Should().Be(convId);
+
+        dbContext.AiConversations.Should().HaveCount(1);
+        var stored = await dbContext.AiConversations.FirstOrDefaultAsync(c => c.Id == convId);
+        stored.Should().NotBeNull();
+
+        var messages = JsonSerializer.Deserialize<List<GeminiAITutorService.ConversationTurnMessage>>(stored!.Messages, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        messages.Should().NotBeNull();
+        messages.Should().HaveCount(4); // Turn 1 (user+model) + Turn 2 (user+model)
+        messages![0].Role.Should().Be("user");
+        messages[0].Text.Should().Be("I want a coffee");
+        messages[1].Role.Should().Be("model");
+        messages[2].Role.Should().Be("user");
+        messages[2].Text.Should().Be("A medium one, please");
+        messages[3].Role.Should().Be("model");
+    }
+
+    [Fact]
+    public async Task ProcessRoleplayTurnAsync_IncludesPreviousTurnInGeminiPrompt()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var scopeFactory = CreateMockScopeFactory(dbContext);
+        var loggerMock = new Mock<ILogger<GeminiAITutorService>>();
+        var options = Options.Create(new GeminiOptions { ApiKey = "test_key", Model = "gemini-flash-lite-latest" });
+
+        var sentPayloads = new List<string>();
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .Returns<HttpRequestMessage, CancellationToken>(async (req, ct) =>
+            {
+                var content = await req.Content!.ReadAsStringAsync(ct);
+                sentPayloads.Add(content);
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent(JsonSerializer.Serialize(new
+                    {
+                        candidates = new[]
+                        {
+                            new
+                            {
+                                content = new
+                                {
+                                    parts = new[]
+                                    {
+                                        new { text = "{\"reply\": \"Sure thing!\", \"has_feedback\": false}" }
+                                    }
+                                }
+                            }
+                        }
+                    }))
+                };
+            });
+
+        var httpClient = new HttpClient(handlerMock.Object);
+        var service = new GeminiAITutorService(httpClient, options, scopeFactory, loggerMock.Object);
+        var convId = Guid.NewGuid();
+
+        // Turn 1
+        await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Can I get an espresso?",
+            ConversationId: convId,
+            MezonUserId: "user_202"
+        ));
+
+        // Turn 2
+        await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "With some sugar please",
+            ConversationId: convId,
+            MezonUserId: "user_202"
+        ));
+
+        // Assert
+        sentPayloads.Should().HaveCount(2);
+
+        // Turn 1 should contain current message
+        sentPayloads[0].Should().Contain("Can I get an espresso?");
+
+        // Turn 2 should contain Turn 1 user message, Turn 1 model reply, AND Turn 2 user message
+        sentPayloads[1].Should().Contain("Can I get an espresso?");
+        sentPayloads[1].Should().Contain("Sure thing!");
+        sentPayloads[1].Should().Contain("With some sugar please");
+    }
+
+    [Fact]
+    public void MezonBotWorker_ActiveRoleplaySessions_ReusesConversationId_ForSameScenario()
+    {
+        // Arrange
+        MezonBotWorker.ActiveRoleplaySessions.Clear();
+        long channelId = 8888;
+        string senderId = "user_303";
+        var sessionKey = MezonBotWorker.GetRoleplaySessionKey(channelId, senderId);
+
+        // Act 1: Start scenario cafe_order
+        var conv1 = Guid.NewGuid();
+        MezonBotWorker.ActiveRoleplaySessions[sessionKey] = new MezonBotWorker.UserRoleplaySession
+        {
+            ConversationId = conv1,
+            ScenarioCode = "cafe_order",
+            LastActivity = DateTime.UtcNow
+        };
+
+        // Assert 1: Reused for same scenario
+        var found = MezonBotWorker.ActiveRoleplaySessions.TryGetValue(sessionKey, out var session1);
+        found.Should().BeTrue();
+        session1!.ConversationId.Should().Be(conv1);
+        session1.ScenarioCode.Should().Be("cafe_order");
+
+        // Act 2: User changes scenario to airport_checkin
+        var conv2 = Guid.NewGuid();
+        MezonBotWorker.ActiveRoleplaySessions[sessionKey] = new MezonBotWorker.UserRoleplaySession
+        {
+            ConversationId = conv2,
+            ScenarioCode = "airport_checkin",
+            LastActivity = DateTime.UtcNow
+        };
+
+        // Assert 2: New ConversationId assigned for new scenario
+        var session2 = MezonBotWorker.ActiveRoleplaySessions[sessionKey];
+        session2.ConversationId.Should().Be(conv2);
+        session2.ConversationId.Should().NotBe(conv1);
+        session2.ScenarioCode.Should().Be("airport_checkin");
+
+        // Act 3: User clicks "Đổi tình huống" (btn_roleplay_menu)
+        MezonBotWorker.ActiveRoleplaySessions.TryRemove(sessionKey, out _);
+
+        // Assert 3: Session is removed from active sessions
+        MezonBotWorker.ActiveRoleplaySessions.ContainsKey(sessionKey).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ProcessRoleplayTurnAsync_ConcurrentTurns_AppendsMessagesWithoutLoss()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var scopeFactory = CreateMockScopeFactory(dbContext);
+        var loggerMock = new Mock<ILogger<GeminiAITutorService>>();
+        var options = Options.Create(new GeminiOptions { ApiKey = "test_key", Model = "gemini-flash-lite-latest" });
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    candidates = new[]
+                    {
+                        new
+                        {
+                            content = new
+                            {
+                                parts = new[]
+                                {
+                                    new { text = "{\"reply\": \"Understood.\", \"has_feedback\": false}" }
+                                }
+                            }
+                        }
+                    }
+                }))
+            });
+
+        var httpClient = new HttpClient(handlerMock.Object);
+        var service = new GeminiAITutorService(httpClient, options, scopeFactory, loggerMock.Object);
+        var convId = Guid.NewGuid();
+
+        // Pre-create initial turn
+        await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Initial message",
+            ConversationId: convId,
+            MezonUserId: "user_404"
+        ));
+
+        // Act: Run 2 concurrent turns
+        var task1 = service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Concurrent message 1",
+            ConversationId: convId,
+            MezonUserId: "user_404"
+        ));
+        var task2 = service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Concurrent message 2",
+            ConversationId: convId,
+            MezonUserId: "user_404"
+        ));
+
+        await Task.WhenAll(task1, task2);
+
+        // Assert: All 3 turns (6 messages) are preserved
+        var stored = await dbContext.AiConversations.FirstOrDefaultAsync(c => c.Id == convId);
+        stored.Should().NotBeNull();
+
+        var messages = JsonSerializer.Deserialize<List<GeminiAITutorService.ConversationTurnMessage>>(stored!.Messages, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        messages.Should().NotBeNull();
+        messages.Should().HaveCount(6); // 1 initial + 2 concurrent = 3 pairs = 6 messages
+    }
 }
 
