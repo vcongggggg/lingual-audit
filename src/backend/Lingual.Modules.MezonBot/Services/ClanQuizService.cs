@@ -394,27 +394,45 @@ public class ClanQuizService : IClanQuizService
     {
         if (_dbContext.Database.IsRelational())
         {
-            const string upsertUserSql = @"
-                INSERT INTO users (id, mezon_user_id, display_name, status, role, preferred_locale, timezone)
-                VALUES (gen_random_uuid(), {0}, {1}, 'active', 'learner', 'vi-VN', 'Asia/Ho_Chi_Minh')
-                ON CONFLICT (mezon_user_id) DO UPDATE SET display_name = EXCLUDED.display_name
-                RETURNING id;";
-
-            var userId = await _dbContext.Database
-                .SqlQueryRaw<Guid>(upsertUserSql, mezonUserId, string.IsNullOrWhiteSpace(displayName) ? "Learner" : displayName)
-                .FirstOrDefaultAsync();
-
-            if (userId != Guid.Empty)
+            try
             {
-                return userId;
+                var conn = _dbContext.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                {
+                    await conn.OpenAsync();
+                }
+
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO users (id, mezon_user_id, display_name, status, role, preferred_locale, timezone)
+                    VALUES (gen_random_uuid(), @mezonUserId, @displayName, 'active', 'learner', 'vi-VN', 'Asia/Ho_Chi_Minh')
+                    ON CONFLICT (mezon_user_id) DO UPDATE SET display_name = EXCLUDED.display_name
+                    RETURNING id;";
+
+                var pUserId = cmd.CreateParameter();
+                pUserId.ParameterName = "@mezonUserId";
+                pUserId.Value = mezonUserId;
+                cmd.Parameters.Add(pUserId);
+
+                var pName = cmd.CreateParameter();
+                pName.ParameterName = "@displayName";
+                pName.Value = string.IsNullOrWhiteSpace(displayName) ? "Learner" : displayName;
+                cmd.Parameters.Add(pName);
+
+                var scalar = await cmd.ExecuteScalarAsync();
+                if (scalar is Guid g)
+                {
+                    return g;
+                }
+                if (scalar != null && Guid.TryParse(scalar.ToString(), out var parsed))
+                {
+                    return parsed;
+                }
             }
-
-            // Trường hợp SqlQueryRaw trả về rỗng, tra cứu lại trực tiếp
-            var lookupId = await _dbContext.Database
-                .SqlQueryRaw<Guid>("SELECT id FROM users WHERE mezon_user_id = {0} LIMIT 1;", mezonUserId)
-                .FirstOrDefaultAsync();
-
-            return lookupId != Guid.Empty ? lookupId : Guid.NewGuid();
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể upsert user cho mezonUserId {MezonUserId}. Sử dụng Guid ngẫu nhiên.", mezonUserId);
+            }
         }
 
         return Guid.NewGuid();
