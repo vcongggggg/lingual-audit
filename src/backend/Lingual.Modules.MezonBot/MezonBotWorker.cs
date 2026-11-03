@@ -29,6 +29,7 @@ public class MezonBotWorker : BackgroundService
     }
 
     public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
+    public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveQuizTimers = new();
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
@@ -169,8 +170,8 @@ public class MezonBotWorker : BackgroundService
                 return;
             }
 
-            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId} (Clan {ClanId}): '{Text}'", data.ChannelId, data.ClanId, text);
-            var isDm = data.ClanId <= 0;
+            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId} (Clan {ClanId}, Public: {IsPublic}): '{Text}'", data.ChannelId, data.ClanId, data.IsPublic, text);
+            var isDm = data.ClanId <= 0 || !data.IsPublic;
 
             if (text.Equals("/ping", StringComparison.OrdinalIgnoreCase))
             {
@@ -340,17 +341,31 @@ public class MezonBotWorker : BackgroundService
 
             await ReplyToChannelWithContentAsync(channelId, content);
 
-            // Khởi chạy đồng hồ đếm ngược 30 giây trong background để tự động tổng kết phiên
+            // Khởi chạy đồng hồ đếm ngược trong background để tự động tổng kết phiên nếu chưa hoàn thành
+            var cts = new CancellationTokenSource();
+            ActiveQuizTimers[session.SessionId] = cts;
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(durationSeconds));
-                    await ConcludeQuizAsync(channelId, session.SessionId);
+                    await Task.Delay(TimeSpan.FromSeconds(durationSeconds), cts.Token);
+                    if (ActiveQuizTimers.TryRemove(session.SessionId, out _))
+                    {
+                        await ConcludeQuizAsync(channelId, session.SessionId);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Đã bị huỷ do người dùng trong DM trả lời xong ngay lập tức
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ [MezonBot] Lỗi khi tự động kết thúc phiên Clan Quiz {SessionId}", session.SessionId);
+                }
+                finally
+                {
+                    cts.Dispose();
                 }
             });
         }
@@ -772,15 +787,64 @@ public class MezonBotWorker : BackgroundService
             {
                 if (result.IsPractice)
                 {
+                    // 1. Hủy bỏ ngay timer đếm ngược 30s trong DM vì người dùng đã có kết quả
+                    if (ActiveQuizTimers.TryRemove(sessionId, out var cts))
+                    {
+                        try
+                        {
+                            cts.Cancel();
+                            cts.Dispose();
+                        }
+                        catch
+                        {
+                            // Bỏ qua lỗi hủy token nếu task đã kết thúc
+                        }
+                    }
+
+                    // 2. Chốt phiên đố vui ngay lập tức và lấy đáp án / giải thích chi tiết
+                    var conclude = await quizService.ConcludeSessionAsync(sessionId);
+                    var seconds = result.ResponseMs / 1000.0;
+                    var embedBuilder = new MessageEmbedBuilder();
+
                     if (result.IsCorrect)
                     {
-                        var seconds = result.ResponseMs / 1000.0;
-                        await ReplyToChannelAsync(channelId, $"✅ {username} chọn ĐÚNG đáp án {selectedKey} ({seconds:F2}s)! (Chế độ tự luyện tập DM: Không cộng điểm XP)");
+                        embedBuilder
+                            .SetColor("#10B981") // Emerald Green
+                            .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — CHÍNH XÁC!")
+                            .SetDescription($"🎉 Chúc mừng bạn đã trả lời **CHÍNH XÁC** trong **{seconds:F2}s**!\n💡 *Chế độ tự luyện tập DM: Không tính điểm thưởng XP và không đua top Clan.*");
                     }
                     else
                     {
-                        await ReplyToChannelAsync(channelId, $"❌ {username} chọn đáp án {selectedKey} (chưa chính xác). Hãy xem đáp án chi tiết khi hết giờ nhé!");
+                        embedBuilder
+                            .SetColor("#EF4444") // Rose Red
+                            .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — CHƯA CHÍNH XÁC")
+                            .SetDescription($"❌ Bạn đã chọn đáp án **{selectedKey}** (chưa chính xác trong {seconds:F2}s).\n💡 *Chế độ tự luyện tập DM: Không bị trừ điểm XP.*");
                     }
+
+                    if (conclude != null)
+                    {
+                        embedBuilder
+                            .AddField("🎯 Đáp án chính xác", $"{conclude.CorrectKey}. {conclude.CorrectText}", false)
+                            .AddField("📖 Giải thích chi tiết", conclude.Explanation ?? "Không có giải thích bổ sung.", false);
+                    }
+
+                    embedBuilder.SetFooter("Gõ /quiz để luyện tiếp câu mới • Ra kênh Clan để thi đấu tranh tài!", "");
+
+                    var buttons = new ButtonBuilder()
+                        .AddButton("btn_open_miniapp", "🚀 Ôn tập từ vựng 3D", 1, false, "", "")
+                        .BuildComponents();
+
+                    var intro = result.IsCorrect
+                        ? "🌟 Kết quả câu hỏi tự luyện tập của bạn:"
+                        : "💡 Đã có đáp án và giải thích câu hỏi luyện tập:";
+
+                    var content = new MessageContentBuilder()
+                        .SetText(intro)
+                        .AddEmbed(embedBuilder.Build())
+                        .AddActionRow(buttons)
+                        .Build();
+
+                    await ReplyToChannelWithContentAsync(channelId, content);
                 }
                 else
                 {
