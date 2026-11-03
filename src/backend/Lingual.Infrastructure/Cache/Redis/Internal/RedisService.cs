@@ -174,6 +174,66 @@ public sealed class RedisService(IConnectionMultiplexer connectionMultiplexer, I
             values: [_redisCacheSetting.Prefix + ":*"],
             flags: CommandFlags.FireAndForget);
 
+    public async Task<bool> SortedSetAddAsync(string key, string member, double score)
+    {
+        Guard.Against.NullOrEmpty(key);
+        Guard.Against.NullOrEmpty(member);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        return await Database.SortedSetAddAsync(keyWithPrefix, member, score);
+    }
+
+    public async Task<double> SortedSetIncrementAsync(string key, string member, double value)
+    {
+        Guard.Against.NullOrEmpty(key);
+        Guard.Against.NullOrEmpty(member);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        return await Database.SortedSetIncrementAsync(keyWithPrefix, member, value);
+    }
+
+    public async Task<IEnumerable<(string Member, double Score)>> SortedSetRangeByRankWithScoresAsync(
+        string key,
+        long start = 0,
+        long stop = -1,
+        bool descending = true)
+    {
+        Guard.Against.NullOrEmpty(key);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        var order = descending ? Order.Descending : Order.Ascending;
+        var entries = await Database.SortedSetRangeByRankWithScoresAsync(keyWithPrefix, start, stop, order);
+
+        return entries.Select(e => ((string)e.Element!, e.Score));
+    }
+
+    public async Task<long?> SortedSetRankAsync(string key, string member, bool descending = true)
+    {
+        Guard.Against.NullOrEmpty(key);
+        Guard.Against.NullOrEmpty(member);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        var order = descending ? Order.Descending : Order.Ascending;
+        return await Database.SortedSetRankAsync(keyWithPrefix, member, order);
+    }
+
+    public async Task<double?> SortedSetScoreAsync(string key, string member)
+    {
+        Guard.Against.NullOrEmpty(key);
+        Guard.Against.NullOrEmpty(member);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        return await Database.SortedSetScoreAsync(keyWithPrefix, member);
+    }
+
+    public async Task<bool> KeyExpireAsync(string key, TimeSpan expiration)
+    {
+        Guard.Against.NullOrEmpty(key);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        return await Database.KeyExpireAsync(keyWithPrefix, expiration);
+    }
+
     private static T GetByteToObject<T>(RedisValue value)
     {
         if (value.IsNullOrEmpty) throw new InvalidOperationException("RedisValue is null or empty.");

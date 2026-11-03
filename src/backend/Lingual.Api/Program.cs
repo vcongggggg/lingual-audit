@@ -35,18 +35,9 @@ builder.AddInfrastructure(
     Lingual.Modules.MezonBot.AssemblyReference.Assembly,
     Lingual.Modules.AITutor.AssemblyReference.Assembly
 );
+
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "LINGUAL API - Mezon Campus Studio 2026",
-        Version = "v1",
-        Description = "Modular Monolith Backend API for Lingual Social Language Learning Platform"
-    });
-});
 
 // Realtime SignalR
 builder.Services.AddSignalR();
