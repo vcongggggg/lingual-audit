@@ -156,6 +156,9 @@ public class MezonBotWorker : BackgroundService
         try
         {
             ChannelMessageResponse data = (ChannelMessageResponse)eventData;
+            _logger.LogInformation("📩 [MezonBot RAW] Nhận event Channel {ChannelId} (Clan {ClanId}, Public: {IsPublic}, Sender: {SenderId})",
+                data.ChannelId, data.ClanId, data.IsPublic, data.SenderId);
+
             var rawContent = data.Content;
             if (string.IsNullOrWhiteSpace(rawContent))
             {
@@ -164,6 +167,12 @@ public class MezonBotWorker : BackgroundService
 
             var parsed = MessageContent.Parse(rawContent);
             var text = parsed.Text?.Trim() ?? string.Empty;
+
+            // Fallback nếu parsed.Text rỗng nhưng rawContent có dữ liệu
+            if (string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(rawContent))
+            {
+                text = rawContent.Trim();
+            }
 
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -885,6 +894,13 @@ public class MezonBotWorker : BackgroundService
                 await channel.SendAsync(content);
                 _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi dạng Card/Embed đến Channel {ChannelId}", channelId);
             }
+            else
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel {ChannelId} trong cache. Sử dụng fallback SendChannelMessageAsync...", channelId);
+                var sendParams = new SendChannelMessageParams(0, channelId, content.RawJson ?? string.Empty);
+                await _client.SendChannelMessageAsync(sendParams);
+                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi dạng Card/Embed FALLBACK đến Channel {ChannelId}", channelId);
+            }
         }
         catch (Exception ex)
         {
@@ -906,6 +922,15 @@ public class MezonBotWorker : BackgroundService
             {
                 await channel.SendTextAsync(responseText);
                 _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi đến Channel {ChannelId}: '{Response}'", channelId, responseText);
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel {ChannelId} trong cache. Sử dụng fallback SendChannelMessageAsync...", channelId);
+                var content = new MessageContentBuilder().SetText(responseText).Build();
+                var raw = content.RawJson ?? $"{{\"t\":\"{responseText}\"}}";
+                var sendParams = new SendChannelMessageParams(0, channelId, raw);
+                await _client.SendChannelMessageAsync(sendParams);
+                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi FALLBACK đến Channel {ChannelId}: '{Response}'", channelId, responseText);
             }
         }
         catch (Exception ex)
