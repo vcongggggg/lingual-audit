@@ -163,4 +163,57 @@ public class ClanQuizServiceTests
         // Assert
         result.Status.Should().Be(QuizSubmissionStatus.SessionExpired);
     }
+
+    [Fact]
+    public async Task StartSessionAsync_PracticeMode_StoresDmPrefixAndIsolatesSession()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var loggerMock = new Mock<ILogger<ClanQuizService>>();
+        var service = new ClanQuizService(dbContext, loggerMock.Object);
+        var dmChannelId = 999888777L;
+
+        // Act - Bắt đầu session trong DM (isPractice = true)
+        var sessionDto = await service.StartSessionAsync(dmChannelId, "user_dm", 30, isPractice: true);
+
+        // Assert
+        sessionDto.Should().NotBeNull();
+        sessionDto!.IsPractice.Should().BeTrue();
+
+        var dbSession = await dbContext.ClanQuizSessions.FirstAsync(s => s.Id == sessionDto.SessionId);
+        dbSession.ChannelMezonId.Should().Be($"dm_{dmChannelId}");
+
+        // Isolate check: DM active, Clan active should be false
+        var isDmActive = await service.HasActiveSessionAsync(dmChannelId, isPractice: true);
+        var isClanActive = await service.HasActiveSessionAsync(dmChannelId, isPractice: false);
+        isDmActive.Should().BeTrue();
+        isClanActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SubmitAnswerAsync_PracticeMode_DoesNotAwardXp()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var loggerMock = new Mock<ILogger<ClanQuizService>>();
+        var service = new ClanQuizService(dbContext, loggerMock.Object);
+        var dmChannelId = 999888777L;
+
+        var sessionDto = await service.StartSessionAsync(dmChannelId, "user_dm", 30, isPractice: true);
+        sessionDto.Should().NotBeNull();
+
+        // Act - Nộp đáp án trong DM
+        var result = await service.SubmitAnswerAsync(sessionDto!.SessionId, dmChannelId, "user_dm", "Learner", "C");
+
+        // Assert
+        result.Status.Should().Be(QuizSubmissionStatus.Success);
+        result.IsPractice.Should().BeTrue();
+        result.XpAwarded.Should().Be(0);
+        result.IsCorrect.Should().BeTrue();
+
+        // Conclude session
+        var conclude = await service.ConcludeSessionAsync(sessionDto.SessionId);
+        conclude.Should().NotBeNull();
+        conclude!.IsPractice.Should().BeTrue();
+    }
 }

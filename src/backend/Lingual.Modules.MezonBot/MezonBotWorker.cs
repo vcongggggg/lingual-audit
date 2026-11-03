@@ -169,7 +169,8 @@ public class MezonBotWorker : BackgroundService
                 return;
             }
 
-            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId}: '{Text}'", data.ChannelId, text);
+            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId} (Clan {ClanId}): '{Text}'", data.ChannelId, data.ClanId, text);
+            var isDm = data.ClanId <= 0;
 
             if (text.Equals("/ping", StringComparison.OrdinalIgnoreCase))
             {
@@ -186,7 +187,7 @@ public class MezonBotWorker : BackgroundService
             else if (text.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
             {
                 var senderId = data.SenderId.ToString();
-                await HandleQuizCommandAsync(data.ChannelId, senderId);
+                await HandleQuizCommandAsync(data.ChannelId, senderId, isDm);
             }
             else if (text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
@@ -268,21 +269,24 @@ public class MezonBotWorker : BackgroundService
         await ReplyToChannelWithContentAsync(channelId, content);
     }
 
-    private async Task HandleQuizCommandAsync(long channelId, string? senderId)
+    private async Task HandleQuizCommandAsync(long channelId, string? senderId, bool isPractice = false)
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
 
-            if (await quizService.HasActiveSessionAsync(channelId))
+            if (await quizService.HasActiveSessionAsync(channelId, isPractice))
             {
-                await ReplyToChannelAsync(channelId, "⚠️ Đang có một câu đố Clan đang diễn ra!\nHãy nhanh tay bấm chọn đáp án cho câu hỏi hiện tại trên kênh nhé!");
+                var busyMsg = isPractice
+                    ? "⚠️ Bạn đang có một câu đố luyện tập chưa kết thúc!\nHãy chọn đáp án cho câu hỏi hiện tại trước nhé!"
+                    : "⚠️ Đang có một câu đố Clan đang diễn ra!\nHãy nhanh tay bấm chọn đáp án cho câu hỏi hiện tại trên kênh nhé!";
+                await ReplyToChannelAsync(channelId, busyMsg);
                 return;
             }
 
             const int durationSeconds = 30;
-            var session = await quizService.StartSessionAsync(channelId, senderId, durationSeconds);
+            var session = await quizService.StartSessionAsync(channelId, senderId, durationSeconds, isPractice);
 
             if (session == null)
             {
@@ -292,28 +296,45 @@ public class MezonBotWorker : BackgroundService
 
             var optionsText = string.Join("\n", session.Options.Select(o => $"{o.Key}. {o.Text}"));
 
-            var embed = new MessageEmbedBuilder()
-                .SetColor("#F59E0B") // Amber / Golden
-                .SetTitle("🏆 ĐỐ VUI TỪ VỰNG CLAN")
-                .SetDescription("⚡ Nhanh tay chọn đáp án chính xác để ghi điểm cho Clan của bạn!\n⏱️ Thời gian trả lời: 30 giây\n🥇 Đúng nhanh nhất: +15 XP | Đúng tiếp theo: +5 XP")
-                .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
-                .AddField("🎯 Các lựa chọn", optionsText, false)
-                .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
-                .SetFooter("Bấm nút bên dưới để chọn đáp án (mỗi bạn được chọn 1 lần) • LINGUAL Clan", "")
-                .Build();
+            var embedBuilder = new MessageEmbedBuilder();
+            if (isPractice)
+            {
+                embedBuilder
+                    .SetColor("#3B82F6") // Blue Accent for Practice Mode
+                    .SetTitle("🎯 ĐỐ VUI TỪ VỰNG — CHẾ ĐỘ TỰ LUYỆN TẬP (DM)")
+                    .SetDescription("⏱️ Thử sức nhanh với câu hỏi từ vựng trong 30 giây!\n💡 Lưu ý: Chế độ tự luyện tập trong tin nhắn riêng không tính điểm thưởng XP đua top Clan.")
+                    .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
+                    .AddField("🎯 Các lựa chọn", optionsText, false)
+                    .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
+                    .SetFooter("Bấm nút bên dưới để kiểm tra kiến thức • LINGUAL Practice Mode", "");
+            }
+            else
+            {
+                embedBuilder
+                    .SetColor("#F59E0B") // Amber / Golden
+                    .SetTitle("🏆 ĐỐ VUI TỪ VỰNG CLAN")
+                    .SetDescription("⚡ Nhanh tay chọn đáp án chính xác để ghi điểm cho Clan của bạn!\n⏱️ Thời gian trả lời: 30 giây\n🥇 Đúng nhanh nhất: +15 XP | Đúng tiếp theo: +5 XP")
+                    .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
+                    .AddField("🎯 Các lựa chọn", optionsText, false)
+                    .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
+                    .SetFooter("Bấm nút bên dưới để chọn đáp án (mỗi bạn được chọn 1 lần) • LINGUAL Clan", "");
+            }
 
             var buttonBuilder = new ButtonBuilder();
             foreach (var opt in session.Options)
             {
                 var customId = $"btn_quiz_{session.SessionId}_{opt.Key}";
-                // Đồng bộ style 2 (Secondary - màu xám trung tính) cho tất cả các lựa chọn A, B, C, D
                 var style = 2;
                 buttonBuilder.AddButton(customId, $"{opt.Key}. {opt.Text}", style, false, "", "");
             }
 
+            var introText = isPractice
+                ? "📚 Câu đố luyện tập cá nhân của bạn:"
+                : "🔥 Đố vui từ vựng vừa xuất hiện! Chọn đáp án ngay bên dưới:";
+
             var content = new MessageContentBuilder()
-                .SetText("🔥 Đố vui từ vựng vừa xuất hiện! Chọn đáp án ngay bên dưới:")
-                .AddEmbed(embed)
+                .SetText(introText)
+                .AddEmbed(embedBuilder.Build())
                 .AddActionRow(buttonBuilder.BuildComponents())
                 .Build();
 
@@ -336,7 +357,7 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi bắt đầu câu đố Clan. Vui lòng thử lại!");
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi bắt đầu câu đố. Vui lòng thử lại!");
         }
     }
 
@@ -355,36 +376,68 @@ public class MezonBotWorker : BackgroundService
 
             var embedBuilder = new MessageEmbedBuilder();
 
-            if (!string.IsNullOrWhiteSpace(result.WinnerUsername))
+            if (result.IsPractice)
             {
-                var seconds = (result.WinningResponseMs ?? 0) / 1000.0;
+                var isUserCorrect = result.Participants.Any(p => p.IsCorrect);
+                if (isUserCorrect)
+                {
+                    var userFirst = result.Participants.First(p => p.IsCorrect);
+                    var sec = userFirst.ResponseMs / 1000.0;
+                    embedBuilder
+                        .SetColor("#10B981") // Emerald Green
+                        .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — THÀNH CÔNG")
+                        .SetDescription($"🎉 Bạn đã trả lời CHÍNH XÁC trong {sec:F2} giây! Rất xuất sắc.");
+                }
+                else
+                {
+                    embedBuilder
+                        .SetColor("#64748B") // Slate Gray
+                        .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — HẾT GIỜ")
+                        .SetDescription("⏱️ Đã kết thúc 30 giây luyện tập! Hãy cùng xem lời giải chi tiết bên dưới:");
+                }
+
                 embedBuilder
-                    .SetColor("#10B981") // Emerald Green - Vinh quang
-                    .SetTitle("🏁 KẾT QUẢ ĐỐ VUI CLAN — BẢNG VÀNG")
-                    .SetDescription($"🎉 Chúc mừng {result.WinnerUsername} đã xuất sắc trả lời đúng và nhanh nhất trong {seconds:F2} giây!")
-                    .AddField("🥇 Người chiến thắng", $"{result.WinnerUsername} (+15 XP)", true)
-                    .AddField("⏱️ Tốc độ phản xạ", $"{seconds:F2}s", true);
+                    .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
+                    .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
+                    .SetFooter("Gõ /quiz trên kênh Chat Clan để thi đấu và nhận điểm thưởng XP nhé!", "");
             }
             else
             {
-                embedBuilder
-                    .SetColor("#64748B") // Slate Gray
-                    .SetTitle("🏁 HẾT GIỜ ĐỐ VUI CLAN")
-                    .SetDescription("⏱️ Đã hết 30 giây! Chưa có thành viên nào trả lời đúng câu hỏi này. Cùng ôn tập lại để bứt phá ở câu đố sau nhé!");
-            }
+                if (!string.IsNullOrWhiteSpace(result.WinnerUsername))
+                {
+                    var seconds = (result.WinningResponseMs ?? 0) / 1000.0;
+                    embedBuilder
+                        .SetColor("#10B981") // Emerald Green - Vinh quang
+                        .SetTitle("🏁 KẾT QUẢ ĐỐ VUI CLAN — BẢNG VÀNG")
+                        .SetDescription($"🎉 Chúc mừng {result.WinnerUsername} đã xuất sắc trả lời đúng và nhanh nhất trong {seconds:F2} giây!")
+                        .AddField("🥇 Người chiến thắng", $"{result.WinnerUsername} (+15 XP)", true)
+                        .AddField("⏱️ Tốc độ phản xạ", $"{seconds:F2}s", true);
+                }
+                else
+                {
+                    embedBuilder
+                        .SetColor("#64748B") // Slate Gray
+                        .SetTitle("🏁 HẾT GIỜ ĐỐ VUI CLAN")
+                        .SetDescription("⏱️ Đã hết 30 giây! Chưa có thành viên nào trả lời đúng câu hỏi này. Cùng ôn tập lại để bứt phá ở câu đố sau nhé!");
+                }
 
-            embedBuilder
-                .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
-                .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
-                .AddField("📊 Thống kê phiên", $"Tổng người tham gia: {result.TotalResponses} | Trả lời đúng: {result.CorrectResponses} / {result.TotalResponses}", false)
-                .SetFooter("Gõ /quiz để bắt đầu câu đố mới!", "");
+                embedBuilder
+                    .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
+                    .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
+                    .AddField("📊 Thống kê phiên", $"Tổng người tham gia: {result.TotalResponses} | Trả lời đúng: {result.CorrectResponses} / {result.TotalResponses}", false)
+                    .SetFooter("Gõ /quiz để bắt đầu câu đố mới!", "");
+            }
 
             var buttons = new ButtonBuilder()
                 .AddButton("btn_open_miniapp", "🚀 Ôn tập từ vựng 3D", 1, false, "", "")
                 .BuildComponents();
 
+            var introText = result.IsPractice
+                ? "📢 Tổng kết phiên tự luyện tập:"
+                : "📢 Tổng kết kết quả đố vui Clan:";
+
             var content = new MessageContentBuilder()
-                .SetText("📢 Tổng kết kết quả đố vui Clan:")
+                .SetText(introText)
                 .AddEmbed(embedBuilder.Build())
                 .AddActionRow(buttons)
                 .Build();
@@ -717,18 +770,33 @@ public class MezonBotWorker : BackgroundService
             }
             else if (result.Status == QuizSubmissionStatus.Success)
             {
-                if (result.IsWinner)
+                if (result.IsPractice)
                 {
-                    var seconds = result.ResponseMs / 1000.0;
-                    await ReplyToChannelAsync(channelId, $"⚡ {username} đã trả lời ĐÚNG thần tốc trong {seconds:F2}s! Đang dẫn đầu bảng (+15 XP) 🥇");
-                }
-                else if (result.IsCorrect)
-                {
-                    await ReplyToChannelAsync(channelId, $"✅ {username} chọn đúng đáp án {selectedKey} (+5 XP)!");
+                    if (result.IsCorrect)
+                    {
+                        var seconds = result.ResponseMs / 1000.0;
+                        await ReplyToChannelAsync(channelId, $"✅ {username} chọn ĐÚNG đáp án {selectedKey} ({seconds:F2}s)! (Chế độ tự luyện tập DM: Không cộng điểm XP)");
+                    }
+                    else
+                    {
+                        await ReplyToChannelAsync(channelId, $"❌ {username} chọn đáp án {selectedKey} (chưa chính xác). Hãy xem đáp án chi tiết khi hết giờ nhé!");
+                    }
                 }
                 else
                 {
-                    await ReplyToChannelAsync(channelId, $"❌ {username} chọn đáp án {selectedKey} (chưa chính xác). Hãy đợi tổng kết nhé!");
+                    if (result.IsWinner)
+                    {
+                        var seconds = result.ResponseMs / 1000.0;
+                        await ReplyToChannelAsync(channelId, $"⚡ {username} đã trả lời ĐÚNG thần tốc trong {seconds:F2}s! Đang dẫn đầu bảng (+15 XP) 🥇");
+                    }
+                    else if (result.IsCorrect)
+                    {
+                        await ReplyToChannelAsync(channelId, $"✅ {username} chọn đúng đáp án {selectedKey} (+5 XP)!");
+                    }
+                    else
+                    {
+                        await ReplyToChannelAsync(channelId, $"❌ {username} chọn đáp án {selectedKey} (chưa chính xác). Hãy đợi tổng kết nhé!");
+                    }
                 }
             }
         }

@@ -31,9 +31,9 @@ public class ClanQuizService : IClanQuizService
         _logger = logger;
     }
 
-    public async Task<bool> HasActiveSessionAsync(long channelId)
+    public async Task<bool> HasActiveSessionAsync(long channelId, bool isPractice = false)
     {
-        var channelKey = channelId.ToString();
+        var channelKey = isPractice ? $"dm_{channelId}" : channelId.ToString();
         var now = DateTime.UtcNow;
 
         return await _dbContext.ClanQuizSessions
@@ -43,11 +43,12 @@ public class ClanQuizService : IClanQuizService
     public async Task<ClanQuizSessionDto?> StartSessionAsync(
         long channelId,
         string? startedByMezonUserId = null,
-        int durationSeconds = 30)
+        int durationSeconds = 30,
+        bool isPractice = false)
     {
-        if (await HasActiveSessionAsync(channelId))
+        if (await HasActiveSessionAsync(channelId, isPractice))
         {
-            _logger.LogWarning("Kênh {ChannelId} đang có phiên đố vui mở. Bỏ qua tạo mới.", channelId);
+            _logger.LogWarning("Kênh/DM {ChannelId} đang có phiên đố vui mở. Bỏ qua tạo mới.", channelId);
             return null;
         }
 
@@ -65,10 +66,11 @@ public class ClanQuizService : IClanQuizService
         }
 
         var now = DateTime.UtcNow;
+        var channelKey = isPractice ? $"dm_{channelId}" : channelId.ToString();
         var session = new ClanQuizSession
         {
             Id = Guid.NewGuid(),
-            ChannelMezonId = channelId.ToString(),
+            ChannelMezonId = channelKey,
             QuestionId = question.Id,
             StartedBy = startedByGuid,
             Status = "open",
@@ -80,8 +82,8 @@ public class ClanQuizService : IClanQuizService
         _dbContext.ClanQuizSessions.Add(session);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("🚀 [ClanQuiz] Đã tạo phiên Quiz {SessionId} cho Kênh {ChannelId}. Hạn chót: {ClosesAt}",
-            session.Id, channelId, session.ClosesAt);
+        _logger.LogInformation("🚀 [ClanQuiz] Đã tạo phiên Quiz {SessionId} (Practice: {IsPractice}) cho Kênh {ChannelId}. Hạn chót: {ClosesAt}",
+            session.Id, isPractice, channelId, session.ClosesAt);
 
         var parsedOptions = ParseOptions(question.Options);
 
@@ -94,7 +96,8 @@ public class ClanQuizService : IClanQuizService
             Difficulty = question.Difficulty,
             Options = parsedOptions.Select(o => new QuizOptionDto { Key = o.Key, Text = o.Text }).ToList(),
             DurationSeconds = durationSeconds,
-            ClosesAt = session.ClosesAt
+            ClosesAt = session.ClosesAt,
+            IsPractice = isPractice
         };
     }
 
@@ -237,13 +240,28 @@ public class ClanQuizService : IClanQuizService
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == sessionId);
 
-        var isWinner = isCorrect && updatedSession?.WinningUserId == resolvedUserId && updatedSession?.WinningResponseMs == responseMs;
+        var isPractice = session.ChannelMezonId.StartsWith("dm_");
+        var isWinner = !isPractice && isCorrect && updatedSession?.WinningUserId == resolvedUserId && updatedSession?.WinningResponseMs == responseMs;
         var xpAwarded = 0;
 
-        if (isCorrect)
+        if (isCorrect && !isPractice)
         {
             xpAwarded = isWinner ? 15 : 5;
             await AwardXpAsync(resolvedUserId, sessionId, xpAwarded, isWinner, cleanKey, responseMs);
+        }
+
+        string message;
+        if (isPractice)
+        {
+            message = isCorrect
+                ? $"✅ Chính xác! Bạn đã chọn đúng đáp án {cleanKey}. (Chế độ tự luyện tập DM: Không cộng điểm XP)"
+                : $"❌ Tiếc quá, đáp án {cleanKey} chưa chính xác!";
+        }
+        else
+        {
+            message = isCorrect
+                ? (isWinner ? "🎉 Xuất sắc! Bạn là người trả lời ĐÚNG và NHANH NHẤT (+15 XP)!" : "✅ Chính xác! Bạn nhận được +5 XP.")
+                : "❌ Tiếc quá, câu trả lời chưa chính xác!";
         }
 
         return new QuizSubmissionResultDto
@@ -253,9 +271,8 @@ public class ClanQuizService : IClanQuizService
             IsWinner = isWinner,
             ResponseMs = responseMs,
             XpAwarded = xpAwarded,
-            Message = isCorrect
-                ? (isWinner ? "🎉 Xuất sắc! Bạn là người trả lời ĐÚNG và NHANH NHẤT (+15 XP)!" : "✅ Chính xác! Bạn nhận được +5 XP.")
-                : "❌ Tiếc quá, câu trả lời chưa chính xác!"
+            IsPractice = isPractice,
+            Message = message
         };
     }
 
@@ -323,10 +340,13 @@ public class ClanQuizService : IClanQuizService
             })
             .ToList();
 
+        var isPractice = session.ChannelMezonId.StartsWith("dm_");
+        var rawChannelId = session.ChannelMezonId.Replace("dm_", "");
+
         return new ClanQuizConcludeDto
         {
             SessionId = sessionId,
-            ChannelId = long.TryParse(session.ChannelMezonId, out var cid) ? cid : 0,
+            ChannelId = long.TryParse(rawChannelId, out var cid) ? cid : 0,
             QuestionPrompt = session.Question.Prompt,
             CorrectKey = correctOption?.Key ?? "A",
             CorrectText = correctOption?.Text ?? string.Empty,
@@ -336,7 +356,8 @@ public class ClanQuizService : IClanQuizService
             WinningResponseMs = winningMs,
             TotalResponses = totalResponses,
             CorrectResponses = correctResponses,
-            Participants = participants
+            Participants = participants,
+            IsPractice = isPractice
         };
     }
 

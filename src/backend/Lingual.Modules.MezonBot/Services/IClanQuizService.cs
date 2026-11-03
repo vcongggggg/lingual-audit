@@ -29,6 +29,7 @@ public class ClanQuizSessionDto
     public List<QuizOptionDto> Options { get; set; } = new();
     public int DurationSeconds { get; set; }
     public DateTime ClosesAt { get; set; }
+    public bool IsPractice { get; set; }
 }
 
 public class QuizSubmissionResultDto
@@ -38,6 +39,7 @@ public class QuizSubmissionResultDto
     public bool IsWinner { get; set; }
     public int ResponseMs { get; set; }
     public int XpAwarded { get; set; }
+    public bool IsPractice { get; set; }
     public string Message { get; set; } = string.Empty;
 }
 
@@ -64,12 +66,13 @@ public class ClanQuizConcludeDto
     public int TotalResponses { get; set; }
     public int CorrectResponses { get; set; }
     public List<QuizParticipantSummaryDto> Participants { get; set; } = new();
+    public bool IsPractice { get; set; }
 }
 
 public interface IClanQuizService
 {
-    Task<bool> HasActiveSessionAsync(long channelId);
-    Task<ClanQuizSessionDto?> StartSessionAsync(long channelId, string? startedByMezonUserId = null, int durationSeconds = 30);
+    Task<bool> HasActiveSessionAsync(long channelId, bool isPractice = false);
+    Task<ClanQuizSessionDto?> StartSessionAsync(long channelId, string? startedByMezonUserId = null, int durationSeconds = 30, bool isPractice = false);
     Task<QuizSubmissionResultDto> SubmitAnswerAsync(Guid sessionId, long channelId, string mezonUserId, string username, string selectedKey);
     Task<ClanQuizConcludeDto?> ConcludeSessionAsync(Guid sessionId);
 }
