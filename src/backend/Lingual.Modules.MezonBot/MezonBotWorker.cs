@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
+using System.Reflection;
 using Mezon.Net.Sdk;
 using Mezon.Net.Client;
 using Mezon.Net.Models;
@@ -30,6 +31,7 @@ public class MezonBotWorker : BackgroundService
 
     public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
     public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveQuizTimers = new();
+    private static readonly ConcurrentDictionary<string, DateTime> ButtonClickCooldowns = new();
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
@@ -84,7 +86,10 @@ public class MezonBotWorker : BackgroundService
             {
                 _logger.LogInformation("🚀 [MezonBot] Đang khởi tạo kết nối Mezon.Net.Sdk 1.7.0 cho BotId: {BotId}...", botId);
 
-                var clientOptions = new MezonClientOptions(botId, _options.Token);
+                var clientOptions = new MezonClientOptions(botId, _options.Token)
+                {
+                    EventDispatchMode = Mezon.Net.Client.EventDispatchMode.Concurrent
+                };
                 _client = new SdkClient(clientOptions);
 
                 _client.Connected += OnConnectedAsync;
@@ -92,9 +97,17 @@ public class MezonBotWorker : BackgroundService
                 _client.Reconnecting += OnReconnectingAsync;
                 _client.ChannelMessageReceived += OnChannelMessageReceivedAsync;
                 _client.MessageButtonClicked += OnMessageButtonClickedAsync;
+                _client.UserChannelAdded += OnUserChannelAddedAsync;
 
                 await _client.LoginAsync();
                 _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
+
+                // Kích hoạt lắng nghe Realtime chat cho toàn bộ kênh DM hiện có của Bot
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1500);
+                    await EnsureDmChannelsJoinedAsync();
+                });
 
                 retryCount = 0;
 
@@ -135,6 +148,7 @@ public class MezonBotWorker : BackgroundService
                         _client.Reconnecting -= OnReconnectingAsync;
                         _client.ChannelMessageReceived -= OnChannelMessageReceivedAsync;
                         _client.MessageButtonClicked -= OnMessageButtonClickedAsync;
+                        _client.UserChannelAdded -= OnUserChannelAddedAsync;
                         await _client.DisposeAsync();
                     }
                     catch (Exception disposeEx)
@@ -151,12 +165,122 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
+    private async Task EnsureDmChannelsJoinedAsync()
+    {
+        if (_client == null) return;
+        try
+        {
+            var engineProp = typeof(SdkClient).GetProperty("Engine", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var engine = engineProp?.GetValue(_client) as Mezon.Net.Client.MezonClient;
+            if (engine == null) return;
+
+            var joinedCount = 0;
+
+            // 1. Quét từ DmChannelManager của SDK
+            var dmProp = typeof(SdkClient).GetProperty("DmChannels", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var dmManager = dmProp?.GetValue(_client);
+            if (dmManager != null)
+            {
+                var dmListProp = dmManager.GetType().GetProperty("DmChannelDescriptions");
+                var dmList = dmListProp?.GetValue(dmManager) as System.Collections.IEnumerable;
+                if (dmList != null)
+                {
+                    foreach (var dmObj in dmList)
+                    {
+                        var chIdProp = dmObj.GetType().GetProperty("ChannelId");
+                        var typeProp = dmObj.GetType().GetProperty("Type");
+                        var clanIdProp = dmObj.GetType().GetProperty("ClanId");
+                        var privProp = dmObj.GetType().GetProperty("ChannelPrivate");
+
+                        var chId = (long)(chIdProp?.GetValue(dmObj) ?? 0L);
+                        var chType = (int)(typeProp?.GetValue(dmObj) ?? 0);
+                        var cId = (long)(clanIdProp?.GetValue(dmObj) ?? 0L);
+                        var priv = (int)(privProp?.GetValue(dmObj) ?? 0);
+
+                        if (chId > 0)
+                        {
+                            await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
+                                clanId: cId,
+                                channelId: chId,
+                                channelType: chType,
+                                isPublic: priv == 0 && cId > 0
+                            ));
+                            joinedCount++;
+                            _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM {ChannelId} thành công!", chId);
+                        }
+                    }
+                }
+            }
+
+            // 2. Dự phòng: Quét từ ListChannelByUserIdAsync
+            try
+            {
+                var userChannels = await engine.ListChannelByUserIdAsync();
+                if (userChannels.Channeldesc.Count > 0)
+                {
+                    foreach (var ch in userChannels.Channeldesc)
+                    {
+                        if (ch.ClanId == 0 || ch.ChannelPrivate > 0)
+                        {
+                            await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
+                                clanId: ch.ClanId,
+                                channelId: ch.ChannelId,
+                                channelType: ch.Type,
+                                isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
+                            ));
+                            joinedCount++;
+                            _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM/Private {ChannelId} thành công!", ch.ChannelId);
+                        }
+                    }
+                }
+            }
+            catch (Exception exUser)
+            {
+                _logger.LogDebug(exUser, "ListChannelByUserIdAsync quét hoàn tất.");
+            }
+
+            _logger.LogInformation("✅ [MezonBot] Tổng cộng đã kích hoạt lắng nghe {Count} kênh DM/Private.", joinedCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi quét danh sách kênh DM lúc khởi động");
+        }
+    }
+
+    private async Task OnUserChannelAddedAsync(UserChannelAddedEventData eventData)
+    {
+        try
+        {
+            UserChannelAddedResponse response = (UserChannelAddedResponse)eventData;
+            var ch = response.ChannelDesc;
+            if (ch.ClanId == 0 || ch.ChannelPrivate > 0)
+            {
+                var engineProp = typeof(SdkClient).GetProperty("Engine", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var engine = engineProp?.GetValue(_client) as Mezon.Net.Client.MezonClient;
+                if (engine != null)
+                {
+                    await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
+                        clanId: ch.ClanId,
+                        channelId: ch.ChannelId,
+                        channelType: ch.Type,
+                        isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
+                    ));
+                    _logger.LogInformation("🔗 [MezonBot] Đã tự động kết nối lắng nghe kênh DM mới {ChannelId}!", ch.ChannelId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi xử lý sự kiện UserChannelAdded");
+        }
+    }
+
     private async Task OnChannelMessageReceivedAsync(ChannelMessageEventData eventData)
     {
         try
         {
             ChannelMessageResponse data = (ChannelMessageResponse)eventData;
-            _logger.LogInformation("📩 [MezonBot RAW] Nhận event Channel {ChannelId} (Clan {ClanId}, Public: {IsPublic}, Sender: {SenderId})",
+            _logger.LogInformation("📩 [MezonBot RAW] Channel: {ChannelId}, Clan: {ClanId}, Public: {IsPublic}, Sender: {SenderId}",
                 data.ChannelId, data.ClanId, data.IsPublic, data.SenderId);
 
             var rawContent = data.Content;
@@ -168,7 +292,6 @@ public class MezonBotWorker : BackgroundService
             var parsed = MessageContent.Parse(rawContent);
             var text = parsed.Text?.Trim() ?? string.Empty;
 
-            // Fallback nếu parsed.Text rỗng nhưng rawContent có dữ liệu
             if (string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(rawContent))
             {
                 text = rawContent.Trim();
@@ -179,25 +302,25 @@ public class MezonBotWorker : BackgroundService
                 return;
             }
 
-            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId} (Clan {ClanId}, Public: {IsPublic}): '{Text}'", data.ChannelId, data.ClanId, data.IsPublic, text);
-            var isDm = data.ClanId <= 0 || !data.IsPublic;
+            _logger.LogInformation("📩 [MezonBot] Nhận tin nhắn từ Channel {ChannelId} (Clan {ClanId}): '{Text}'", data.ChannelId, data.ClanId, text);
+            var isDm = data.ClanId <= 0;
 
             if (text.Equals("/ping", StringComparison.OrdinalIgnoreCase))
             {
-                await ReplyToChannelAsync(data.ChannelId, "🏓 Pong! Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.7.0)");
+                await ReplyToChannelAsync(data.ChannelId, "🏓 Pong! Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.7.0)", data);
             }
             else if (text.Equals("/help", StringComparison.OrdinalIgnoreCase))
             {
-                await HandleHelpCommandAsync(data.ChannelId);
+                await HandleHelpCommandAsync(data.ChannelId, data);
             }
             else if (text.Equals("/learn", StringComparison.OrdinalIgnoreCase))
             {
-                await HandleLearnCommandAsync(data.ChannelId);
+                await HandleLearnCommandAsync(data.ChannelId, data);
             }
             else if (text.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
             {
                 var senderId = data.SenderId.ToString();
-                await HandleQuizCommandAsync(data.ChannelId, senderId, isDm);
+                await HandleQuizCommandAsync(data.ChannelId, senderId, isDm, data);
             }
             else if (text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
@@ -205,7 +328,7 @@ public class MezonBotWorker : BackgroundService
                 var prefixLength = text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ? 9 : 9;
                 var query = text[prefixLength..].Trim();
                 var senderId = data.SenderId.ToString();
-                await HandleRoleplayCommandAsync(data.ChannelId, senderId, query);
+                await HandleRoleplayCommandAsync(data.ChannelId, senderId, query, data);
             }
             else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
@@ -215,11 +338,11 @@ public class MezonBotWorker : BackgroundService
 
                 if (string.IsNullOrWhiteSpace(query))
                 {
-                    await ReplyToChannelAsync(data.ChannelId, "🦉 LingLing: Bạn hãy nhập câu tiếng Anh cần kiểm tra sau lệnh /ask nhé!\nVí dụ: /ask I go to school yesterday");
+                    await ReplyToChannelAsync(data.ChannelId, "🦉 LingLing: Bạn hãy nhập câu tiếng Anh cần kiểm tra sau lệnh /ask nhé!\nVí dụ: /ask I go to school yesterday", data);
                     return;
                 }
 
-                await HandleAskGrammarAsync(data.ChannelId, query);
+                await HandleAskGrammarAsync(data.ChannelId, query, data);
             }
         }
         catch (Exception ex)
@@ -228,14 +351,14 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task HandleHelpCommandAsync(long channelId)
+    private async Task HandleHelpCommandAsync(long channelId, ChannelMessageResponse? replyTo = null)
     {
         var embed = new MessageEmbedBuilder()
             .SetColor("#3B82F6") // Blue Accent
             .SetTitle("🤖 LINGUAL BOT — TRỢ LÝ HỌC TIẾNG ANH")
             .SetDescription("Chào mừng bạn đến với LINGUAL trên nền tảng Mezon Campus Studio 2026!")
             .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
-            .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan", false)
+            .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
@@ -252,17 +375,17 @@ public class MezonBotWorker : BackgroundService
             .AddActionRow(buttons)
             .Build();
 
-        await ReplyToChannelWithContentAsync(channelId, content);
+        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
     }
 
-    private async Task HandleLearnCommandAsync(long channelId)
+    private async Task HandleLearnCommandAsync(long channelId, ChannelMessageResponse? replyTo = null)
     {
         var embed = new MessageEmbedBuilder()
             .SetColor("#6366F1") // Indigo Accent
             .SetTitle("📚 HỌC TỪ VỰNG TIẾNG ANH CÙNG LINGUAL")
             .SetDescription("Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh, giúp bạn nhớ sâu và lâu quên hơn mỗi ngày!")
             .AddField("💡 Mẹo nhỏ", "Gõ /ask <câu tiếng Anh> bất kỳ lúc nào để nhờ trợ lý LingLing giải thích ngữ pháp hoặc từ mới.", false)
-            .AddField("⚔️ Đấu trường Clan", "Gõ /quiz để tham gia đố vui từ vựng 30 giây cùng Clan và nhận điểm thưởng XP!", false)
+            .AddField("⚔️ Đấu trường Clan", "Gõ /quiz để tham gia đố vui từ vựng cùng Clan hoặc luyện tập trong DM!", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
 
@@ -276,10 +399,14 @@ public class MezonBotWorker : BackgroundService
             .AddActionRow(buttons)
             .Build();
 
-        await ReplyToChannelWithContentAsync(channelId, content);
+        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
     }
 
-    private async Task HandleQuizCommandAsync(long channelId, string? senderId, bool isPractice = false)
+    private async Task HandleQuizCommandAsync(
+        long channelId,
+        string? senderId,
+        bool isPractice = false,
+        ChannelMessageResponse? replyTo = null)
     {
         try
         {
@@ -291,7 +418,7 @@ public class MezonBotWorker : BackgroundService
                 var busyMsg = isPractice
                     ? "⚠️ Bạn đang có một câu đố luyện tập chưa kết thúc!\nHãy chọn đáp án cho câu hỏi hiện tại trước nhé!"
                     : "⚠️ Đang có một câu đố Clan đang diễn ra!\nHãy nhanh tay bấm chọn đáp án cho câu hỏi hiện tại trên kênh nhé!";
-                await ReplyToChannelAsync(channelId, busyMsg);
+                await ReplyToChannelAsync(channelId, busyMsg, replyTo);
                 return;
             }
 
@@ -300,57 +427,42 @@ public class MezonBotWorker : BackgroundService
 
             if (session == null)
             {
-                await ReplyToChannelAsync(channelId, "⚠️ Không thể khởi tạo câu đố vào lúc này. Vui lòng thử lại sau ít phút!");
+                await ReplyToChannelAsync(channelId, "⚠️ Không thể khởi tạo câu đố vào lúc này. Vui lòng thử lại sau ít phút!", replyTo);
                 return;
             }
 
             var optionsText = string.Join("\n", session.Options.Select(o => $"{o.Key}. {o.Text}"));
 
-            var embedBuilder = new MessageEmbedBuilder();
-            if (isPractice)
-            {
-                embedBuilder
-                    .SetColor("#3B82F6") // Blue Accent for Practice Mode
-                    .SetTitle("🎯 ĐỐ VUI TỪ VỰNG — CHẾ ĐỘ TỰ LUYỆN TẬP (DM)")
-                    .SetDescription("⏱️ Thử sức nhanh với câu hỏi từ vựng trong 30 giây!\n💡 Lưu ý: Chế độ tự luyện tập trong tin nhắn riêng không tính điểm thưởng XP đua top Clan.")
-                    .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
-                    .AddField("🎯 Các lựa chọn", optionsText, false)
-                    .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
-                    .SetFooter("Bấm nút bên dưới để kiểm tra kiến thức • LINGUAL Practice Mode", "");
-            }
-            else
-            {
-                embedBuilder
-                    .SetColor("#F59E0B") // Amber / Golden
-                    .SetTitle("🏆 ĐỐ VUI TỪ VỰNG CLAN")
-                    .SetDescription("⚡ Nhanh tay chọn đáp án chính xác để ghi điểm cho Clan của bạn!\n⏱️ Thời gian trả lời: 30 giây\n🥇 Đúng nhanh nhất: +15 XP | Đúng tiếp theo: +5 XP")
-                    .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
-                    .AddField("🎯 Các lựa chọn", optionsText, false)
-                    .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
-                    .SetFooter("Bấm nút bên dưới để chọn đáp án (mỗi bạn được chọn 1 lần) • LINGUAL Clan", "");
-            }
+            var title = isPractice ? "📖 TỰ LUYỆN TẬP TỪ VỰNG (DM)" : "🏆 ĐỐ VUI TỪ VỰNG CLAN";
+            var desc = isPractice
+                ? "🎯 Chế độ luyện tập cá nhân: Chọn đáp án đúng bên dưới để nhận phản hồi và giải thích chi tiết ngay lập tức!\n💡 Không áp lực thời gian, không tranh hạng Clan."
+                : "⚡ Nhanh tay chọn đáp án chính xác để ghi điểm cho Clan của bạn!\n⏱️ Thời gian trả lời: 30 giây\n🥇 Đúng nhanh nhất: +15 XP | Đúng tiếp theo: +5 XP";
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor(isPractice ? "#6366F1" : "#F59E0B")
+                .SetTitle(title)
+                .SetDescription(desc)
+                .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
+                .AddField("🎯 Các lựa chọn", optionsText, false)
+                .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
+                .SetFooter("Bấm nút bên dưới để chọn đáp án (mỗi bạn được chọn 1 lần) • LINGUAL Quiz", "")
+                .Build();
 
             var buttonBuilder = new ButtonBuilder();
             foreach (var opt in session.Options)
             {
                 var customId = $"btn_quiz_{session.SessionId}_{opt.Key}";
-                var style = 2;
-                buttonBuilder.AddButton(customId, $"{opt.Key}. {opt.Text}", style, false, "", "");
+                buttonBuilder.AddButton(customId, $"{opt.Key}. {opt.Text}", 2, false, "", "");
             }
 
-            var introText = isPractice
-                ? "📚 Câu đố luyện tập cá nhân của bạn:"
-                : "🔥 Đố vui từ vựng vừa xuất hiện! Chọn đáp án ngay bên dưới:";
-
             var content = new MessageContentBuilder()
-                .SetText(introText)
-                .AddEmbed(embedBuilder.Build())
+                .SetText(isPractice ? "📚 Câu hỏi luyện tập của bạn đã sẵn sàng:" : "🔥 Đố vui từ vựng vừa xuất hiện! Chọn đáp án ngay bên dưới:")
+                .AddEmbed(embed)
                 .AddActionRow(buttonBuilder.BuildComponents())
                 .Build();
 
-            await ReplyToChannelWithContentAsync(channelId, content);
+            await ReplyToChannelWithContentAsync(channelId, content, replyTo);
 
-            // Khởi chạy đồng hồ đếm ngược trong background để tự động tổng kết phiên nếu chưa hoàn thành
             var cts = new CancellationTokenSource();
             ActiveQuizTimers[session.SessionId] = cts;
 
@@ -366,7 +478,7 @@ public class MezonBotWorker : BackgroundService
                 }
                 catch (OperationCanceledException)
                 {
-                    // Đã bị huỷ do người dùng trong DM trả lời xong ngay lập tức
+                    // Đã được chốt sớm do người dùng trong DM trả lời xong ngay lập tức
                 }
                 catch (Exception ex)
                 {
@@ -381,7 +493,7 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi bắt đầu câu đố. Vui lòng thử lại!");
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi bắt đầu câu đố. Vui lòng thử lại!", replyTo);
         }
     }
 
@@ -393,75 +505,47 @@ public class MezonBotWorker : BackgroundService
             var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
 
             var result = await quizService.ConcludeSessionAsync(sessionId);
-            if (result == null)
-            {
-                return;
-            }
+            if (result == null) return;
 
             var embedBuilder = new MessageEmbedBuilder();
 
             if (result.IsPractice)
             {
-                var isUserCorrect = result.Participants.Any(p => p.IsCorrect);
-                if (isUserCorrect)
-                {
-                    var userFirst = result.Participants.First(p => p.IsCorrect);
-                    var sec = userFirst.ResponseMs / 1000.0;
-                    embedBuilder
-                        .SetColor("#10B981") // Emerald Green
-                        .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — THÀNH CÔNG")
-                        .SetDescription($"🎉 Bạn đã trả lời CHÍNH XÁC trong {sec:F2} giây! Rất xuất sắc.");
-                }
-                else
-                {
-                    embedBuilder
-                        .SetColor("#64748B") // Slate Gray
-                        .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — HẾT GIỜ")
-                        .SetDescription("⏱️ Đã kết thúc 30 giây luyện tập! Hãy cùng xem lời giải chi tiết bên dưới:");
-                }
-
                 embedBuilder
-                    .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
-                    .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
-                    .SetFooter("Gõ /quiz trên kênh Chat Clan để thi đấu và nhận điểm thưởng XP nhé!", "");
+                    .SetColor("#6366F1")
+                    .SetTitle("🏁 KẾT THÚC CÂU HỎI LUYỆN TẬP")
+                    .SetDescription("💡 Hết thời gian câu hỏi tự luyện tập cá nhân. Cùng xem đáp án chi tiết bên dưới nhé:");
+            }
+            else if (!string.IsNullOrWhiteSpace(result.WinnerUsername))
+            {
+                var seconds = (result.WinningResponseMs ?? 0) / 1000.0;
+                embedBuilder
+                    .SetColor("#10B981")
+                    .SetTitle("🏁 KẾT QUẢ ĐỐ VUI CLAN — BẢNG VÀNG")
+                    .SetDescription($"🎉 Chúc mừng {result.WinnerUsername} đã xuất sắc trả lời đúng và nhanh nhất trong {seconds:F2} giây!")
+                    .AddField("🥇 Người chiến thắng", $"{result.WinnerUsername} (+15 XP)", true)
+                    .AddField("⏱️ Tốc độ phản xạ", $"{seconds:F2}s", true);
             }
             else
             {
-                if (!string.IsNullOrWhiteSpace(result.WinnerUsername))
-                {
-                    var seconds = (result.WinningResponseMs ?? 0) / 1000.0;
-                    embedBuilder
-                        .SetColor("#10B981") // Emerald Green - Vinh quang
-                        .SetTitle("🏁 KẾT QUẢ ĐỐ VUI CLAN — BẢNG VÀNG")
-                        .SetDescription($"🎉 Chúc mừng {result.WinnerUsername} đã xuất sắc trả lời đúng và nhanh nhất trong {seconds:F2} giây!")
-                        .AddField("🥇 Người chiến thắng", $"{result.WinnerUsername} (+15 XP)", true)
-                        .AddField("⏱️ Tốc độ phản xạ", $"{seconds:F2}s", true);
-                }
-                else
-                {
-                    embedBuilder
-                        .SetColor("#64748B") // Slate Gray
-                        .SetTitle("🏁 HẾT GIỜ ĐỐ VUI CLAN")
-                        .SetDescription("⏱️ Đã hết 30 giây! Chưa có thành viên nào trả lời đúng câu hỏi này. Cùng ôn tập lại để bứt phá ở câu đố sau nhé!");
-                }
-
                 embedBuilder
-                    .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
-                    .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
-                    .AddField("📊 Thống kê phiên", $"Tổng người tham gia: {result.TotalResponses} | Trả lời đúng: {result.CorrectResponses} / {result.TotalResponses}", false)
-                    .SetFooter("Gõ /quiz để bắt đầu câu đố mới!", "");
+                    .SetColor("#64748B")
+                    .SetTitle("🏁 HẾT GIỜ ĐỐ VUI CLAN")
+                    .SetDescription("⏱️ Đã hết 30 giây! Chưa có thành viên nào trả lời đúng câu hỏi này. Cùng ôn tập lại để bứt phá ở câu đố sau nhé!");
             }
+
+            embedBuilder
+                .AddField("🎯 Đáp án chính xác", $"{result.CorrectKey}. {result.CorrectText}", false)
+                .AddField("📖 Giải thích chi tiết", result.Explanation ?? "Không có giải thích bổ sung.", false)
+                .AddField("📊 Thống kê phiên", $"Tổng người tham gia: {result.TotalResponses} | Trả lời đúng: {result.CorrectResponses} / {result.TotalResponses}", false)
+                .SetFooter("Gõ /quiz để bắt đầu câu đố mới!", "");
 
             var buttons = new ButtonBuilder()
                 .AddButton("btn_open_miniapp", "🚀 Ôn tập từ vựng 3D", 1, false, "", "")
                 .BuildComponents();
 
-            var introText = result.IsPractice
-                ? "📢 Tổng kết phiên tự luyện tập:"
-                : "📢 Tổng kết kết quả đố vui Clan:";
-
             var content = new MessageContentBuilder()
-                .SetText(introText)
+                .SetText(result.IsPractice ? "📖 Đáp án câu hỏi luyện tập:" : "📢 Tổng kết kết quả đố vui Clan:")
                 .AddEmbed(embedBuilder.Build())
                 .AddActionRow(buttons)
                 .Build();
@@ -474,7 +558,7 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task HandleAskGrammarAsync(long channelId, string userQuery)
+    private async Task HandleAskGrammarAsync(long channelId, string userQuery, ChannelMessageResponse? replyTo = null)
     {
         try
         {
@@ -483,7 +567,7 @@ public class MezonBotWorker : BackgroundService
 
             if (aiTutor == null)
             {
-                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.");
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.", replyTo);
                 return;
             }
 
@@ -494,7 +578,7 @@ public class MezonBotWorker : BackgroundService
             if (analysis.IsCorrect)
             {
                 embedBuilder
-                    .SetColor("#10B981") // Emerald Green - Chính xác
+                    .SetColor("#10B981")
                     .SetTitle("🌟 LINGLING — ĐÁNH GIÁ NGỮ PHÁP")
                     .SetDescription("✨ Đánh giá: Rất chuẩn xác! • Bạn diễn đạt rất tự nhiên và chính xác!")
                     .AddField("📝 Câu của bạn", analysis.OriginalText, false)
@@ -504,7 +588,7 @@ public class MezonBotWorker : BackgroundService
             else
             {
                 embedBuilder
-                    .SetColor("#F59E0B") // Amber Orange - Cần chú ý / học hỏi
+                    .SetColor("#F59E0B")
                     .SetTitle("🦉 LINGLING — GỢI Ý CHỈNH SỬA")
                     .SetDescription("💡 Đánh giá: Cần hoàn thiện • Xem câu gợi ý chuẩn tự nhiên bên dưới nhé:")
                     .AddField("📝 Câu gốc của bạn", analysis.OriginalText, false)
@@ -526,12 +610,12 @@ public class MezonBotWorker : BackgroundService
                 .AddActionRow(buttons)
                 .Build();
 
-            await ReplyToChannelWithContentAsync(channelId, content);
+            await ReplyToChannelWithContentAsync(channelId, content, replyTo);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /ask cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!", replyTo);
         }
     }
 
@@ -542,8 +626,19 @@ public class MezonBotWorker : BackgroundService
             MessageButtonClickedResponse data = (MessageButtonClickedResponse)eventData;
             var buttonId = data.ButtonId;
             var channelId = data.ChannelId;
+            var mezonUserId = data.UserId.ToString();
 
-            _logger.LogInformation("🔘 [MezonBot] Người dùng bấm nút {ButtonId} tại Channel {ChannelId}", buttonId, channelId);
+            _logger.LogInformation("🔘 [MezonBot] Người dùng {UserId} bấm nút {ButtonId} tại Channel {ChannelId}", mezonUserId, buttonId, channelId);
+
+            // Kiểm soát chống spam nút bấm (Debounce 2 giây cho cùng người dùng và nút)
+            var cooldownKey = $"{channelId}_{mezonUserId}_{buttonId}";
+            var now = DateTime.UtcNow;
+            if (ButtonClickCooldowns.TryGetValue(cooldownKey, out var lastClick) && (now - lastClick).TotalSeconds < 2)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Bỏ qua spam click từ User {UserId} cho nút {ButtonId}", mezonUserId, buttonId);
+                return;
+            }
+            ButtonClickCooldowns[cooldownKey] = now;
 
             if (buttonId.StartsWith("btn_quiz_"))
             {
@@ -552,7 +647,6 @@ public class MezonBotWorker : BackgroundService
                 if (parts.Length >= 4 && Guid.TryParse(parts[2], out var sessionId))
                 {
                     var selectedKey = parts[3];
-                    var mezonUserId = data.UserId.ToString();
                     var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
 
                     await HandleQuizButtonClickAsync(channelId, sessionId, mezonUserId, username, selectedKey);
@@ -572,16 +666,14 @@ public class MezonBotWorker : BackgroundService
             }
             else if (buttonId == "btn_roleplay_menu")
             {
-                var senderId = data.UserId.ToString();
-                var sessionKey = GetRoleplaySessionKey(channelId, senderId);
+                var sessionKey = GetRoleplaySessionKey(channelId, mezonUserId);
                 ActiveRoleplaySessions.TryRemove(sessionKey, out _);
-                await HandleRoleplayCommandAsync(channelId, senderId, string.Empty);
+                await HandleRoleplayCommandAsync(channelId, mezonUserId, string.Empty);
             }
             else if (buttonId.StartsWith("btn_roleplay_select_"))
             {
                 var scenarioCode = buttonId["btn_roleplay_select_".Length..];
-                var senderId = data.UserId.ToString();
-                await HandleRoleplayScenarioSelectedAsync(channelId, senderId, scenarioCode);
+                await HandleRoleplayScenarioSelectedAsync(channelId, mezonUserId, scenarioCode);
             }
         }
         catch (Exception ex)
@@ -590,7 +682,11 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task HandleRoleplayCommandAsync(long channelId, string senderId, string query)
+    private async Task HandleRoleplayCommandAsync(
+        long channelId,
+        string senderId,
+        string query,
+        ChannelMessageResponse? replyTo = null)
     {
         try
         {
@@ -598,7 +694,7 @@ public class MezonBotWorker : BackgroundService
             var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
             if (aiTutor == null)
             {
-                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.");
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng trên hệ thống.", replyTo);
                 return;
             }
 
@@ -628,14 +724,13 @@ public class MezonBotWorker : BackgroundService
                     .AddActionRow(buttons)
                     .Build();
 
-                await ReplyToChannelWithContentAsync(channelId, content);
+                await ReplyToChannelWithContentAsync(channelId, content, replyTo);
                 return;
             }
 
             var sessionKey = GetRoleplaySessionKey(channelId, senderId);
             ActiveRoleplaySessions.TryGetValue(sessionKey, out var activeSession);
 
-            // Phân tích mã tình huống nếu người dùng gõ /roleplay <code/tên> <câu thoại>
             var parts = query.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             string scenarioCode;
             string userMessage;
@@ -715,12 +810,12 @@ public class MezonBotWorker : BackgroundService
                 .AddActionRow(buttonsRow)
                 .Build();
 
-            await ReplyToChannelWithContentAsync(channelId, responseContent);
+            await ReplyToChannelWithContentAsync(channelId, responseContent, replyTo);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /roleplay cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!", replyTo);
         }
     }
 
@@ -786,17 +881,20 @@ public class MezonBotWorker : BackgroundService
 
             if (result.Status == QuizSubmissionStatus.AlreadyAnswered)
             {
-                await ReplyToChannelAsync(channelId, $"⚠️ {username}: Bạn đã gửi câu trả lời cho câu đố này rồi! Mỗi thành viên chỉ được bấm 1 lần.");
+                // Tránh spam tin nhắn nếu người dùng bấm nhiều lần
+                _logger.LogInformation("ℹ️ [MezonBot] User {UserId} đã gửi câu trả lời rồi. Bỏ qua spam click.", mezonUserId);
+                return;
             }
             else if (result.Status == QuizSubmissionStatus.SessionExpired)
             {
                 await ReplyToChannelAsync(channelId, $"⏰ {username}: Phiên đố vui này đã hết thời gian nhận đáp án!");
+                return;
             }
             else if (result.Status == QuizSubmissionStatus.Success)
             {
                 if (result.IsPractice)
                 {
-                    // 1. Hủy bỏ ngay timer đếm ngược 30s trong DM vì người dùng đã có kết quả
+                    // 1. Huỷ ngay lập tức bộ đếm thời gian 30s
                     if (ActiveQuizTimers.TryRemove(sessionId, out var cts))
                     {
                         try
@@ -804,10 +902,7 @@ public class MezonBotWorker : BackgroundService
                             cts.Cancel();
                             cts.Dispose();
                         }
-                        catch
-                        {
-                            // Bỏ qua lỗi hủy token nếu task đã kết thúc
-                        }
+                        catch { }
                     }
 
                     // 2. Chốt phiên đố vui ngay lập tức và lấy đáp án / giải thích chi tiết
@@ -818,14 +913,14 @@ public class MezonBotWorker : BackgroundService
                     if (result.IsCorrect)
                     {
                         embedBuilder
-                            .SetColor("#10B981") // Emerald Green
+                            .SetColor("#10B981")
                             .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — CHÍNH XÁC!")
                             .SetDescription($"🎉 Chúc mừng bạn đã trả lời **CHÍNH XÁC** trong **{seconds:F2}s**!\n💡 *Chế độ tự luyện tập DM: Không tính điểm thưởng XP và không đua top Clan.*");
                     }
                     else
                     {
                         embedBuilder
-                            .SetColor("#EF4444") // Rose Red
+                            .SetColor("#EF4444")
                             .SetTitle("🎯 KẾT QUẢ TỰ LUYỆN TẬP — CHƯA CHÍNH XÁC")
                             .SetDescription($"❌ Bạn đã chọn đáp án **{selectedKey}** (chưa chính xác trong {seconds:F2}s).\n💡 *Chế độ tự luyện tập DM: Không bị trừ điểm XP.*");
                     }
@@ -857,6 +952,7 @@ public class MezonBotWorker : BackgroundService
                 }
                 else
                 {
+                    // Clan Quiz mode
                     if (result.IsWinner)
                     {
                         var seconds = result.ResponseMs / 1000.0;
@@ -879,63 +975,123 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task ReplyToChannelWithContentAsync(long channelId, MessageContent content)
+    private async Task ReplyToChannelWithContentAsync(
+        long channelId,
+        MessageContent content,
+        ChannelMessageResponse? replyTo = null)
     {
-        if (_client == null || channelId <= 0)
-        {
-            return;
-        }
+        if (_client == null || channelId <= 0) return;
 
         try
         {
             var channel = await _client.GetChannelAsync(channelId);
+            IEnumerable<MessageRefParams>? refs = null;
+
+            if (replyTo != null && replyTo.Value.MessageId > 0)
+            {
+                refs = new[]
+                {
+                    new MessageRefParams(
+                        messageId: replyTo.Value.MessageId,
+                        messageRefId: replyTo.Value.MessageId,
+                        content: replyTo.Value.Content,
+                        hasAttachment: false,
+                        refType: 0,
+                        messageSenderId: replyTo.Value.SenderId,
+                        messageSenderUsername: replyTo.Value.Username,
+                        messageSenderAvatar: replyTo.Value.Avatar,
+                        messageSenderClanNick: string.Empty,
+                        messageSenderDisplayName: replyTo.Value.Username
+                    )
+                };
+            }
+
             if (channel != null)
             {
-                await channel.SendAsync(content);
-                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi dạng Card/Embed đến Channel {ChannelId}", channelId);
+                if (refs != null)
+                {
+                    await channel.SendAsync(content, references: refs);
+                }
+                else
+                {
+                    await channel.SendAsync(content);
+                }
+                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi đến Channel {ChannelId}", channelId);
             }
             else
             {
-                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel {ChannelId} trong cache. Sử dụng fallback SendChannelMessageAsync...", channelId);
-                var sendParams = new SendChannelMessageParams(0, channelId, content.RawJson ?? string.Empty);
+                _logger.LogWarning("⚠️ [MezonBot] Kênh {ChannelId} là DM/không có trong cache. Sử dụng fallback SendChannelMessageAsync...", channelId);
+                var sendParams = new SendChannelMessageParams(
+                    clanId: 0,
+                    channelId: channelId,
+                    content: content.ToJson(),
+                    topicId: null,
+                    isPublic: false,
+                    mode: 0,
+                    code: 0,
+                    mentionEveryone: false,
+                    anonymousMessage: false,
+                    mentions: null,
+                    attachments: null,
+                    references: refs
+                );
                 await _client.SendChannelMessageAsync(sendParams);
-                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi dạng Card/Embed FALLBACK đến Channel {ChannelId}", channelId);
+                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi FALLBACK đến Channel DM {ChannelId}", channelId);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ [MezonBot] Không thể gửi tin nhắn Card/Embed tới channel {ChannelId}", channelId);
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi tin nhắn tới channel {ChannelId}", channelId);
         }
     }
 
-    private async Task ReplyToChannelAsync(long channelId, string responseText)
+    private async Task ReplyToChannelAsync(
+        long channelId,
+        string responseText,
+        ChannelMessageResponse? replyTo = null)
     {
-        if (_client == null || channelId <= 0)
-        {
-            return;
-        }
+        if (_client == null || channelId <= 0) return;
 
         try
         {
-            var channel = await _client.GetChannelAsync(channelId);
-            if (channel != null)
-            {
-                await channel.SendTextAsync(responseText);
-                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi đến Channel {ChannelId}: '{Response}'", channelId, responseText);
-            }
-            else
-            {
-                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel {ChannelId} trong cache. Sử dụng fallback SendChannelMessageAsync...", channelId);
-                var content = new MessageContentBuilder().SetText(responseText).Build();
-                var raw = content.RawJson ?? $"{{\"t\":\"{responseText}\"}}";
-                var sendParams = new SendChannelMessageParams(0, channelId, raw);
-                await _client.SendChannelMessageAsync(sendParams);
-                _logger.LogInformation("📤 [MezonBot] Đã gửi phản hồi FALLBACK đến Channel {ChannelId}: '{Response}'", channelId, responseText);
-            }
+            var content = new MessageContentBuilder().SetText(responseText).Build();
+            await ReplyToChannelWithContentAsync(channelId, content, replyTo);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Không thể gửi tin nhắn phản hồi tới channel {ChannelId}", channelId);
+        }
+    }
+
+    /// <summary>
+    /// Gửi tin nhắn Ephemeral (chỉ duy nhất người dùng nhận được chỉ định nhìn thấy).
+    /// </summary>
+    public async Task SendEphemeralMessageAsync(long channelId, long userId, string text)
+    {
+        if (_client == null || channelId <= 0 || userId <= 0) return;
+
+        try
+        {
+            var messageContent = new MessageContentBuilder().SetText(text).Build();
+            var innerMessage = new SendChannelMessageParams(
+                clanId: 0,
+                channelId: channelId,
+                content: messageContent.ToJson(),
+                topicId: null,
+                isPublic: false
+            );
+
+            var ephParams = new SendEphemeralMessageParams(
+                receiverIds: new[] { userId },
+                message: innerMessage
+            );
+
+            await _client.SendEphemeralMessageToBotAsync(ephParams);
+            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral message tới User {UserId} tại Channel {ChannelId}", userId, channelId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi Ephemeral message tới User {UserId}", userId);
         }
     }
 }
