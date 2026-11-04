@@ -45,7 +45,7 @@ public class GeminiAITutorService : IAITutorService
             "cafe_order",
             "Gọi đồ uống tại Quán Cà phê (London)",
             "Luyện giao tiếp gọi cà phê/trà, chọn size, loại sữa và thanh toán với nhân viên pha chế (Barista) tại London.",
-            "A1-A2",
+            "A1",
             "Barista LingLing",
             "Hi there! Welcome to The London Roast. What drink can I get started for you today?"
         ),
@@ -54,7 +54,7 @@ public class GeminiAITutorService : IAITutorService
             "airport_checkin",
             "Làm thủ tục tại Sân bay Quốc tế",
             "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành tại sân bay Heathrow.",
-            "A2-B1",
+            "A2",
             "Ground Crew LingLing",
             "Good morning! Welcome to London Heathrow Airport. May I see your passport and flight booking, please?"
         ),
@@ -63,7 +63,7 @@ public class GeminiAITutorService : IAITutorService
             "job_interview",
             "Phỏng vấn xin việc & Giới thiệu bản thân",
             "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh và định hướng nghề nghiệp.",
-            "B1-B2",
+            "B1",
             "Interviewer LingLing",
             "Hello! Welcome to our interview today. To start off, could you tell me a little bit about yourself and your background?"
         )
@@ -222,7 +222,7 @@ public class GeminiAITutorService : IAITutorService
                             s.Code,
                             s.Title,
                             s.Description ?? string.Empty,
-                            s.Level ?? "A1-A2",
+                            s.Level ?? "A1",
                             predefined?.CharacterRole ?? "Mascot LingLing",
                             predefined?.GreetingMessage ?? "Hi there! Let's practice English together!"
                         );

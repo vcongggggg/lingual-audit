@@ -10,6 +10,7 @@ public static class MezonBotModuleExtensions
     {
         services.Configure<MezonBotOptions>(configuration.GetSection(MezonBotOptions.SectionName));
         services.AddScoped<IClanQuizService, ClanQuizService>();
+        services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddHostedService<MezonBotWorker>();
         return services;
     }
