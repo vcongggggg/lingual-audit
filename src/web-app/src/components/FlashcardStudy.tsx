@@ -73,6 +73,15 @@ export interface SrsReviewPayload {
   idempotency_key: string;
 }
 
+const DEMO_VOCABULARY: VocabularyItem[] = [
+  { id: "demo-vocab-01", term: "curious", normalized_term: "curious", source_language: "en", target_language: "vi", ipa: "/ˈkjʊəriəs/", cefr_level: "A2", part_of_speech: "adjective", meaning: "tò mò; ham tìm hiểu", examples: [{ source_text: "The curious student asked one more question.", target_text: "Bạn học sinh ham tìm hiểu hỏi thêm một câu nữa." }] },
+  { id: "demo-vocab-02", term: "journey", normalized_term: "journey", source_language: "en", target_language: "vi", ipa: "/ˈdʒɜːrni/", cefr_level: "A2", part_of_speech: "noun", meaning: "hành trình; chuyến đi", examples: [{ source_text: "Learning a language is a long journey.", target_text: "Học một ngôn ngữ là một hành trình dài." }] },
+  { id: "demo-vocab-03", term: "improve", normalized_term: "improve", source_language: "en", target_language: "vi", ipa: "/ɪmˈpruːv/", cefr_level: "A2", part_of_speech: "verb", meaning: "cải thiện; tiến bộ", examples: [{ source_text: "A little practice can improve your speaking.", target_text: "Luyện tập một chút có thể cải thiện kỹ năng nói của bạn." }] },
+  { id: "demo-vocab-04", term: "achieve", normalized_term: "achieve", source_language: "en", target_language: "vi", ipa: "/əˈtʃiːv/", cefr_level: "A2", part_of_speech: "verb", meaning: "đạt được; hoàn thành", examples: [{ source_text: "She worked hard to achieve her goal.", target_text: "Cô ấy chăm chỉ để đạt được mục tiêu." }] },
+  { id: "demo-vocab-05", term: "habit", normalized_term: "habit", source_language: "en", target_language: "vi", ipa: "/ˈhæbɪt/", cefr_level: "A1", part_of_speech: "noun", meaning: "thói quen", examples: [{ source_text: "Reading every day is a good habit.", target_text: "Đọc sách mỗi ngày là một thói quen tốt." }] },
+  { id: "demo-vocab-06", term: "careful", normalized_term: "careful", source_language: "en", target_language: "vi", ipa: "/ˈkerfəl/", cefr_level: "A1", part_of_speech: "adjective", meaning: "cẩn thận", examples: [{ source_text: "Be careful when you cross the street.", target_text: "Hãy cẩn thận khi băng qua đường." }] },
+];
+
 // ============================================================================
 // 2. SM-2 ALGORITHM CLIENT HELPER (SUPERMEMO-2 STANDARD)
 // ============================================================================
@@ -173,6 +182,7 @@ export default function FlashcardStudy({
   const [startTime, setStartTime] = useState<number>(() => Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
   const [databaseVocabulary, setDatabaseVocabulary] = useState<VocabularyItem[]>([]);
+  const [isDemoVocabulary, setIsDemoVocabulary] = useState(false);
   const reviewIdempotencyKeys = useRef<Record<string, string>>({});
   const [isLoadingVocabulary, setIsLoadingVocabulary] = useState(!vocabularyList);
   const [vocabularyLoadError, setVocabularyLoadError] = useState<string | null>(null);
@@ -188,12 +198,15 @@ export default function FlashcardStudy({
         const data = (await response.json()) as { words?: VocabularyItem[] };
         if (!Array.isArray(data.words) || data.words.length === 0) throw new Error("No vocabulary rows found in database");
         setDatabaseVocabulary(data.words);
+        setIsDemoVocabulary(false);
         setVocabularyLoadError(null);
         setCurrentIndex(0);
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error("Could not load vocabulary from database.", error);
-        setVocabularyLoadError("Could not load vocabulary from the database.");
+        setDatabaseVocabulary(DEMO_VOCABULARY);
+        setIsDemoVocabulary(true);
+        setVocabularyLoadError(null);
       } finally {
         if (!controller.signal.aborted) setIsLoadingVocabulary(false);
       }
@@ -290,7 +303,7 @@ export default function FlashcardStudy({
     };
 
     // Persist first so a failed request never advances the learner's session.
-    if (onReviewSubmit) {
+    if (onReviewSubmit && !isDemoVocabulary) {
       try {
         await onReviewSubmit(payload);
       } catch (err) {
@@ -349,6 +362,7 @@ export default function FlashcardStudy({
     currentIndex,
     currentVocab.id,
     isSubmitting,
+    isDemoVocabulary,
     onFinishSession,
     onReviewSubmit,
     reviewedCardsCount,
@@ -405,6 +419,7 @@ export default function FlashcardStudy({
     return (
       <section className="study-complete" aria-live="polite">
         <span className="study-complete-mark"><BookOpen aria-hidden="true" /></span>
+        {isDemoVocabulary && <p className="study-demo-note">Bản dùng thử · Kết quả ôn tập chỉ lưu trong phiên này, chưa gửi lên máy chủ.</p>}
         <p className="study-eyebrow">Hoàn thành phiên học</p>
         <h2>Tốt lắm. Hãy duy trì nhịp học.</h2>
         <p className="study-complete-copy">Bạn đã ôn {reviewedCardsCount} từ trong phiên này.</p>
@@ -437,6 +452,7 @@ export default function FlashcardStudy({
 
   return (
     <section className="study-shell" aria-label="Phiên ôn từ vựng">
+      {isDemoVocabulary && <p className="study-demo-note">Bản dùng thử · Đang dùng 6 từ mẫu. Đánh giá thẻ chưa được lưu lên máy chủ.</p>}
       <div className="study-progress-row">
         <div className="study-progress-copy"><span>Tiến độ phiên học</span><strong>{currentIndex + 1}<span> / {cards.length}</span></strong></div>
         <span className="study-progress-percent">{progressPercent}%</span>
