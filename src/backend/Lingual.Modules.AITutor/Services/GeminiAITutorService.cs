@@ -129,17 +129,21 @@ public class GeminiAITutorService : IAITutorService
 
         foreach (var model in candidateModels)
         {
-            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent?key={_options.ApiKey}";
+            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent";
             const int maxAttemptsPerModel = 2;
 
             for (var attempt = 1; attempt <= maxAttemptsPerModel; attempt++)
             {
                 try
                 {
-                    _logger.LogInformation("🤖 [GeminiAITutor] Đang phân tích câu '{Text}' bằng model {Model} (Lần thử {Attempt})...",
-                        request.Text, model, attempt);
+                    _logger.LogInformation("🤖 [GeminiAITutor] Đang phân tích câu (độ dài {Length} ký tự) bằng model {Model} (Lần thử {Attempt})...",
+                        request.Text?.Length ?? 0, model, attempt);
 
-                    var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
+                    using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+                    httpRequest.Headers.Add("x-goog-api-key", _options.ApiKey);
+                    httpRequest.Content = JsonContent.Create(payload);
+
+                    var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                     if (response.IsSuccessStatusCode)
                     {
                         var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
@@ -266,7 +270,7 @@ public class GeminiAITutorService : IAITutorService
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             var fallbackReply = $"[Offline Mode] {scenario.CharacterRole}: That sounds great! Could you tell me more about that?";
-            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallbackReply, "offline", cancellationToken);
+            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallbackReply, "offline", totalTokens: 0, cancellationToken: cancellationToken);
 
             return new RoleplayTurnResponse(
                 ConversationId: conversationId,
@@ -343,14 +347,18 @@ public class GeminiAITutorService : IAITutorService
 
         foreach (var model in candidateModels)
         {
-            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent?key={_options.ApiKey}";
+            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent";
 
             try
             {
                 _logger.LogInformation("🎭 [GeminiAITutor] Xử lý lượt Roleplay ({Scenario}, Conv: {ConvId}) bằng model {Model} (Lịch sử: {HistoryCount} lượt)...",
                     scenario.Code, conversationId, model, historyTurns.Count);
 
-                var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+                httpRequest.Headers.Add("x-goog-api-key", _options.ApiKey);
+                httpRequest.Content = JsonContent.Create(payload);
+
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
@@ -366,8 +374,10 @@ public class GeminiAITutorService : IAITutorService
 
                         if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Reply))
                         {
+                            var totalTokens = result?.UsageMetadata?.TotalTokenCount ?? (request.UserMessage.Length / 4 + parsed.Reply.Length / 4 + 10);
+
                             // Lưu hội thoại vào database: APPEND lượt mới vào Messages
-                            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, parsed.Reply, model, cancellationToken);
+                            await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, parsed.Reply, model, totalTokens, cancellationToken);
 
                             return new RoleplayTurnResponse(
                                 ConversationId: conversationId,
@@ -391,7 +401,7 @@ public class GeminiAITutorService : IAITutorService
 
         // Fallback response
         var fallback = $"Thank you! I understand: \"{request.UserMessage}\". Let's continue our conversation!";
-        await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallback, "fallback", cancellationToken);
+        await SaveConversationTurnAsync(conversationId, scenario.Id, request.MezonUserId, request.UserMessage, fallback, "fallback", totalTokens: 0, cancellationToken: cancellationToken);
 
         return new RoleplayTurnResponse(
             ConversationId: conversationId,
@@ -451,7 +461,8 @@ public class GeminiAITutorService : IAITutorService
         string userMessage,
         string assistantReply,
         string modelName,
-        CancellationToken cancellationToken)
+        int totalTokens = 0,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -465,9 +476,9 @@ public class GeminiAITutorService : IAITutorService
             var userId = Guid.Empty;
             if (!string.IsNullOrWhiteSpace(mezonUserId))
             {
-                using var md5 = MD5.Create();
-                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
-                userId = new Guid(hash);
+                using var sha256 = SHA256.Create();
+                var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
+                userId = new Guid(hash.AsSpan(0, 16));
             }
             if (userId == Guid.Empty)
             {
@@ -485,8 +496,8 @@ public class GeminiAITutorService : IAITutorService
             {
                 // Concurrency an toàn trên PostgreSQL: Sử dụng toán tử JSONB concatenation nguyên tử (||)
                 var affected = await dbContext.Database.ExecuteSqlRawAsync(
-                    "UPDATE ai_conversations SET messages = messages || {0}::jsonb, model_name = {1}, ended_at = now() WHERE id = {2}",
-                    newTurnsJson, modelName, conversationId, cancellationToken);
+                    "UPDATE ai_conversations SET messages = messages || {0}::jsonb, model_name = {1}, total_tokens = total_tokens + {2}, ended_at = now() WHERE id = {3}",
+                    newTurnsJson, modelName, totalTokens, conversationId, cancellationToken);
 
                 if (affected == 0)
                 {
@@ -500,7 +511,7 @@ public class GeminiAITutorService : IAITutorService
                         Status = "active",
                         Messages = newTurnsJson,
                         ModelName = modelName,
-                        TotalTokens = 100,
+                        TotalTokens = totalTokens,
                         StartedAt = DateTime.UtcNow,
                         EndedAt = DateTime.UtcNow
                     };
@@ -526,7 +537,7 @@ public class GeminiAITutorService : IAITutorService
                             Status = "active",
                             Messages = newTurnsJson,
                             ModelName = modelName,
-                            TotalTokens = 100,
+                            TotalTokens = totalTokens,
                             StartedAt = DateTime.UtcNow,
                             EndedAt = DateTime.UtcNow
                         };
@@ -538,6 +549,7 @@ public class GeminiAITutorService : IAITutorService
                         list.AddRange(newTurns);
                         conv.Messages = JsonSerializer.Serialize(list);
                         conv.ModelName = modelName;
+                        conv.TotalTokens += totalTokens;
                         conv.EndedAt = DateTime.UtcNow;
                     }
                     dbContext.SaveChanges();
@@ -605,6 +617,21 @@ public class GeminiAITutorService : IAITutorService
     {
         [JsonPropertyName("candidates")]
         public List<Candidate>? Candidates { get; set; }
+
+        [JsonPropertyName("usageMetadata")]
+        public UsageMetadata? UsageMetadata { get; set; }
+    }
+
+    private class UsageMetadata
+    {
+        [JsonPropertyName("promptTokenCount")]
+        public int? PromptTokenCount { get; set; }
+
+        [JsonPropertyName("candidatesTokenCount")]
+        public int? CandidatesTokenCount { get; set; }
+
+        [JsonPropertyName("totalTokenCount")]
+        public int? TotalTokenCount { get; set; }
     }
 
     private class Candidate

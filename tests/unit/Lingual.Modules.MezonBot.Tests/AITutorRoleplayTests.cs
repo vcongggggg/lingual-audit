@@ -433,5 +433,75 @@ public class AITutorRoleplayTests
         messages.Should().NotBeNull();
         messages.Should().HaveCount(6); // 1 initial + 2 concurrent = 3 pairs = 6 messages
     }
+
+    [Fact]
+    public async Task ProcessRoleplayTurnAsync_SendsApiKeyInHeader_NotQueryString()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var scopeFactory = CreateMockScopeFactory(dbContext);
+        var loggerMock = new Mock<ILogger<GeminiAITutorService>>();
+        const string expectedKey = "secret_gemini_key_xyz";
+        var options = Options.Create(new GeminiOptions { ApiKey = expectedKey, Model = "gemini-flash-lite-latest" });
+
+        HttpRequestMessage? capturedRequest = null;
+
+        var geminiResponsePayload = new
+        {
+            candidates = new[]
+            {
+                new
+                {
+                    content = new
+                    {
+                        parts = new[]
+                        {
+                            new { text = "{\"reply\": \"Hello! What drink can I get you?\", \"has_feedback\": false}" }
+                        }
+                    }
+                }
+            },
+            usageMetadata = new
+            {
+                promptTokenCount = 25,
+                candidatesTokenCount = 15,
+                totalTokenCount = 40
+            }
+        };
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(geminiResponsePayload))
+            });
+
+        var httpClient = new HttpClient(handlerMock.Object);
+        var service = new GeminiAITutorService(httpClient, options, scopeFactory, loggerMock.Object);
+
+        var request = new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Hello",
+            MezonUserId: "user_sec"
+        );
+
+        // Act
+        var result = await service.ProcessRoleplayTurnAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.Headers.Contains("x-goog-api-key").Should().BeTrue();
+        capturedRequest.Headers.GetValues("x-goog-api-key").First().Should().Be(expectedKey);
+        capturedRequest.RequestUri!.Query.Should().NotContain("key=");
+    }
 }
 
