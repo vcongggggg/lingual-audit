@@ -1,4 +1,4 @@
-services:
+﻿services:
   # =========================================================================
   # 1. DATABASE: POSTGRESQL 16
   # =========================================================================
@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: lingual_password
       POSTGRES_DB: lingual_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docs/database/sql/00_init_all.sql:/docker-entrypoint-initdb.d/00_init_all.sql:ro
