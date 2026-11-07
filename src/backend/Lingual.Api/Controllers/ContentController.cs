@@ -578,7 +578,8 @@ public class ContentController : ControllerBase
             return (fallback.CorrectAnswer, fallback.Explanation);
         }
 
-        return ("A", string.Empty);
+        // 3. Không tìm thấy câu hỏi trong DB và không có trong FallbackBank -> trả chuỗi rỗng để không bao giờ chấm đúng ngẫu nhiên
+        return (string.Empty, string.Empty);
     }
 
     private static void AddParam(System.Data.Common.DbCommand cmd, string name, object value)

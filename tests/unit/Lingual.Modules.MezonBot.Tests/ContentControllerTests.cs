@@ -371,4 +371,61 @@ public class ContentControllerTests
         json.Should().Contain("\"success\":true");
         json.Should().Contain(vocabId.ToString());
     }
+
+    [Fact]
+    public async Task SaveQuizAttempt_FabricatedQuestionIdWithAnswerA_AwardsZeroXp()
+    {
+        // Arrange
+        var (botDb, learnDb, gameDb) = CreateInMemoryDbs();
+        var streakMock = new Mock<IUserStreakService>();
+        var loggerMock = new Mock<ILogger<ContentController>>();
+
+        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var authUserId = Guid.NewGuid();
+        AttachUser(controller, authUserId);
+
+        var fabricatedQuestionId = Guid.NewGuid().ToString();
+        var request = new QuizAttemptRequest(
+            IdempotencyKey: "idem_fabricated_a",
+            UserId: authUserId.ToString(),
+            Mode: "sprint10",
+            Answers: new List<QuizSubmittedAnswer>
+            {
+                new(fabricatedQuestionId, "A")
+            }
+        );
+
+        // Act
+        var result = await controller.SaveQuizAttempt(request);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult!.Value);
+        json.Should().Contain("\"xpAwarded\":0");
+        json.Should().Contain("\"correctCount\":0");
+    }
+
+    [Fact]
+    public async Task CheckSingleAnswer_UnfamiliarQuestionId_ReturnsFalseAndEmptyCorrectAnswer()
+    {
+        // Arrange
+        var (botDb, learnDb, gameDb) = CreateInMemoryDbs();
+        var streakMock = new Mock<IUserStreakService>();
+        var loggerMock = new Mock<ILogger<ContentController>>();
+
+        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var unfamiliarQuestionId = Guid.NewGuid().ToString();
+
+        // Act - Submit "A" for an unknown / unfamiliar question ID
+        var result = await controller.CheckSingleAnswer(new CheckAnswerRequest(unfamiliarQuestionId, "A"));
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult.Should().NotBeNull();
+        var json = System.Text.Json.JsonSerializer.Serialize(okResult!.Value);
+        json.Should().Contain("\"isCorrect\":false");
+        json.Should().Contain("\"correctAnswer\":\"\"");
+    }
 }
