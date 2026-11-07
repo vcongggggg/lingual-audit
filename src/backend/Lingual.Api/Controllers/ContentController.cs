@@ -94,13 +94,17 @@ public class ContentController : ControllerBase
                     query = query.Where(q => q.Difficulty == (short)difficulty.Value);
                 }
 
-                var dbQuestions = await query
-                    .OrderBy(r => EF.Functions.Random())
-                    .Take(targetCount)
-                    .ToListAsync(cancellationToken);
+                // Tối ưu Index: Dùng Index-Only Scan lấy danh sách ID rồi xáo trộn ngẫu nhiên trên bộ nhớ,
+                // tránh dùng ORDER BY Random() quét toàn bảng làm phá vỡ B-Tree Index trên PostgreSQL
+                var allIds = await query.Select(q => q.Id).ToListAsync(cancellationToken);
 
-                if (dbQuestions.Count > 0)
+                if (allIds.Count > 0)
                 {
+                    var selectedIds = allIds.OrderBy(_ => Guid.NewGuid()).Take(targetCount).ToList();
+                    var dbQuestions = await _botDbContext.QuizQuestions
+                        .Where(q => selectedIds.Contains(q.Id))
+                        .AsNoTracking()
+                        .ToListAsync(cancellationToken);
                     var mapped = dbQuestions.Select(q =>
                     {
                         var parsedOptions = ParseQuizOptions(q.Options);
@@ -476,10 +480,10 @@ public class ContentController : ControllerBase
 
         var defaultLeaderboard = new List<object>
         {
-            new { rank = 1, user_id = "user-1", name = "MCS03_cong.ngovan", xp = 480, level = "B1", words_learned = 120, streak = 7 },
-            new { rank = 2, user_id = "user-2", name = "MCS03_minh.nguyen", xp = 390, level = "A2", words_learned = 95, streak = 5 },
-            new { rank = 3, user_id = "user-3", name = "MCS03_tri.phan", xp = 350, level = "A2", words_learned = 80, streak = 4 },
-            new { rank = 4, user_id = "user-4", name = "LinguaLearner_01", xp = 220, level = "A1", words_learned = 50, streak = 3 }
+            new { rank = 1, user_id = "user-1", name = "Minh Anh", xp = 480, level = "B1", words_learned = 120, streak = 7 },
+            new { rank = 2, user_id = "user-2", name = "Hoàng Nam", xp = 390, level = "A2", words_learned = 95, streak = 5 },
+            new { rank = 3, user_id = "user-3", name = "Thảo Linh", xp = 350, level = "A2", words_learned = 80, streak = 4 },
+            new { rank = 4, user_id = "user-4", name = "Đức Huy", xp = 220, level = "A1", words_learned = 50, streak = 3 }
         };
 
         return Ok(new { data = defaultLeaderboard });

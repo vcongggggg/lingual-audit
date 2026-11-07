@@ -32,6 +32,7 @@ public class MezonBotWorker : BackgroundService
     public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
     public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveQuizTimers = new();
     private static readonly ConcurrentDictionary<string, DateTime> ButtonClickCooldowns = new();
+    private static readonly ConcurrentDictionary<long, long> ChannelClanMap = new();
 
     public record QuizMessageMeta(
         long ChannelId,
@@ -211,6 +212,7 @@ public class MezonBotWorker : BackgroundService
 
                         if (chId > 0)
                         {
+                            ChannelClanMap[chId] = cId;
                             await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
                                 clanId: cId,
                                 channelId: chId,
@@ -234,6 +236,7 @@ public class MezonBotWorker : BackgroundService
                     {
                         if (ch.ClanId == 0 || ch.ChannelPrivate > 0)
                         {
+                            ChannelClanMap[ch.ChannelId] = ch.ClanId;
                             await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
                                 clanId: ch.ClanId,
                                 channelId: ch.ChannelId,
@@ -292,6 +295,7 @@ public class MezonBotWorker : BackgroundService
         try
         {
             ChannelMessageResponse data = (ChannelMessageResponse)eventData;
+            ChannelClanMap[data.ChannelId] = data.ClanId;
             _logger.LogInformation("📩 [MezonBot RAW] Channel: {ChannelId}, Clan: {ClanId}, Public: {IsPublic}, Sender: {SenderId}",
                 data.ChannelId, data.ClanId, data.IsPublic, data.SenderId);
 
@@ -777,7 +781,7 @@ public class MezonBotWorker : BackgroundService
             }
             else if (buttonId == "btn_quiz_start_prompt")
             {
-                var isDm = channelId > 0 && channelId == data.ChannelId;
+                var isDm = ChannelClanMap.TryGetValue(channelId, out var cid) ? (cid <= 0) : false;
                 await HandleQuizCommandAsync(channelId, mezonUserId, isDm);
             }
             else if (buttonId == "btn_save_flashcard")

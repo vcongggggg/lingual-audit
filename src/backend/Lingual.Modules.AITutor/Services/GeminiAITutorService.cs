@@ -306,7 +306,7 @@ public class GeminiAITutorService : IAITutorService
         var userContent = $"Học viên gửi câu thoại: \"{request.UserMessage.Trim()}\"";
 
         // Đọc lịch sử các lượt trước của Conversation này (tối đa 6 messages gần nhất = 3 turns)
-        var historyTurns = await LoadConversationHistoryAsync(conversationId, maxTurns: 6, cancellationToken);
+        var historyTurns = await LoadConversationHistoryAsync(conversationId, request.MezonUserId, maxTurns: 6, cancellationToken);
 
         // Xây dựng contents array cho Gemini: gồm lịch sử (user/model) và lượt user hiện tại
         var contentsList = new List<object>();
@@ -417,6 +417,7 @@ public class GeminiAITutorService : IAITutorService
 
     private async Task<List<ConversationTurnMessage>> LoadConversationHistoryAsync(
         Guid conversationId,
+        string? mezonUserId,
         int maxTurns,
         CancellationToken cancellationToken)
     {
@@ -433,6 +434,21 @@ public class GeminiAITutorService : IAITutorService
             if (conv == null || string.IsNullOrWhiteSpace(conv.Messages) || conv.Messages == "[]")
             {
                 return new();
+            }
+
+            // Kiểm tra quyền sở hữu cuộc trò chuyện nếu mezonUserId được cung cấp
+            if (!string.IsNullOrWhiteSpace(mezonUserId))
+            {
+                using var sha256 = SHA256.Create();
+                var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
+                var callerUserId = new Guid(hash.AsSpan(0, 16));
+                var defaultGuestId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+                if (conv.UserId != callerUserId && conv.UserId != defaultGuestId && conv.UserId != Guid.Empty)
+                {
+                    _logger.LogWarning("⚠️ [GeminiAITutor] Người dùng {UserId} không có quyền truy cập hội thoại {ConvId}.", mezonUserId, conversationId);
+                    return new();
+                }
             }
 
             var list = JsonSerializer.Deserialize<List<ConversationTurnMessage>>(conv.Messages, new JsonSerializerOptions

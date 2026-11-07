@@ -503,5 +503,79 @@ public class AITutorRoleplayTests
         capturedRequest.Headers.GetValues("x-goog-api-key").First().Should().Be(expectedKey);
         capturedRequest.RequestUri!.Query.Should().NotContain("key=");
     }
+
+    [Fact]
+    public async Task ProcessRoleplayTurnAsync_DoesNotLoadHistory_WhenCallerDoesNotOwnConversation()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var scopeFactory = CreateMockScopeFactory(dbContext);
+        var loggerMock = new Mock<ILogger<GeminiAITutorService>>();
+        var options = Options.Create(new GeminiOptions { ApiKey = "test_key", Model = "gemini-flash-lite-latest" });
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        string? capturedPayloadJson = null;
+
+        var geminiResponsePayload = new
+        {
+            candidates = new[]
+            {
+                new
+                {
+                    content = new
+                    {
+                        parts = new[]
+                        {
+                            new { text = "{\"reply\": \"Welcome!\", \"has_feedback\": false}" }
+                        }
+                    }
+                }
+            }
+        };
+
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .Callback<HttpRequestMessage, CancellationToken>(async (req, _) =>
+            {
+                if (req.Content != null)
+                {
+                    capturedPayloadJson = await req.Content.ReadAsStringAsync();
+                }
+            })
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(JsonSerializer.Serialize(geminiResponsePayload))
+            });
+
+        var httpClient = new HttpClient(handlerMock.Object);
+        var service = new GeminiAITutorService(httpClient, options, scopeFactory, loggerMock.Object);
+
+        // Turn 1 by legitimate Owner
+        var turn1 = await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Owner private secret message",
+            MezonUserId: "owner_123"
+        ));
+
+        capturedPayloadJson = null;
+
+        // Turn 2 by unauthorized caller targeting Owner's conversationId
+        await service.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+            ScenarioCode: "cafe_order",
+            UserMessage: "Attacker message",
+            ConversationId: turn1.ConversationId,
+            MezonUserId: "attacker_456"
+        ));
+
+        // Assert: Attacker request prompt must NOT contain Owner's private history
+        capturedPayloadJson.Should().NotBeNull();
+        capturedPayloadJson.Should().NotContain("Owner private secret message");
+    }
 }
 
