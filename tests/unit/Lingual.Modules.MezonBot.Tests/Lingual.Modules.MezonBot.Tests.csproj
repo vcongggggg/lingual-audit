@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.AITutor\Lingual.Modules.AITutor.csproj" />
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Lingual.Api\Lingual.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

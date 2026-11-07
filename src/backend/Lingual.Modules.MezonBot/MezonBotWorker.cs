@@ -382,6 +382,7 @@ public class MezonBotWorker : BackgroundService
             .AddField("🔥 Duy trì Streak hàng ngày", "• /daily: Điểm danh nhận +20 XP và duy trì ngọn lửa Streak mỗi ngày\n• /streak: Tra cứu chuỗi ngày học và kỷ lục của bạn", false)
             .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
             .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
+            .AddField("🌐 Webview Miniapp Học tập", $"• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
@@ -790,7 +791,7 @@ public class MezonBotWorker : BackgroundService
             {
                 if (long.TryParse(mezonUserId, out var uid))
                 {
-                    await SendEphemeralMessageAsync(channelId, uid, "🚀 LingLing: Đang mở không gian học từ vựng 3D... Chúc bạn có một buổi học thật hiệu quả!");
+                    await SendEphemeralMessageAsync(channelId, uid, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
                 }
             }
             else if (buttonId == "btn_guide_ask")

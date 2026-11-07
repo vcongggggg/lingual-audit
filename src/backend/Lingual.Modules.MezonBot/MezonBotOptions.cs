@@ -31,6 +31,11 @@ public class MezonBotOptions
     /// </summary>
     public bool Enabled { get; set; } = true;
 
+    /// <summary>
+    /// URL của ứng dụng Webview Next.js (mặc định: http://localhost:3000).
+    /// </summary>
+    public string WebAppUrl { get; set; } = "http://localhost:3000";
+
     public long GetEffectiveBotId()
     {
         var idStr = !string.IsNullOrWhiteSpace(BotId) ? BotId : AppId;
