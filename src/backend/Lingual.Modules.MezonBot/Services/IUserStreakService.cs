@@ -1,18 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using Lingual.Modules.Gamification.Contracts.DTOs;
 
 namespace Lingual.Modules.MezonBot.Services;
-
-public record DailyCheckinResultDto(
-    bool IsSuccess,
-    bool AlreadyCheckedInToday,
-    int CurrentDays,
-    int BestDays,
-    int XpAwarded,
-    int FreezeBalance,
-    bool FreezeUsed,
-    string Message
-);
 
 public record UserStreakDto(
     int CurrentDays,
@@ -27,4 +17,3 @@ public interface IUserStreakService
     Task<DailyCheckinResultDto> ProcessDailyCheckinAsync(string mezonUserId, string displayName);
     Task<UserStreakDto?> GetStreakAsync(string mezonUserId);
 }
-

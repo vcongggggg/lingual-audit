@@ -4,7 +4,9 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Lingual.Api.Controllers;
+using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Infrastructure.Data;
+using Lingual.Modules.Gamification.Services;
 using Lingual.Modules.Learning.Infrastructure.Data;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
 using Lingual.Modules.MezonBot.Services;
@@ -39,6 +41,37 @@ public class ContentControllerTests
         );
     }
 
+    private static ContentController CreateController(
+        MezonBotDbContext botDb,
+        LearningDbContext learnDb,
+        GamificationDbContext gameDb,
+        Mock<IUserStreakService>? streakMock = null,
+        Mock<IXpService>? xpMock = null,
+        Mock<ILeaderboardService>? lbMock = null)
+    {
+        var sMock = streakMock ?? new Mock<IUserStreakService>();
+        var xMock = xpMock ?? new Mock<IXpService>();
+        var lMock = lbMock ?? new Mock<ILeaderboardService>();
+        var loggerMock = new Mock<ILogger<ContentController>>();
+
+        lMock.Setup(l => l.GetLeaderboardAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync(new LeaderboardResponseDto(DateTimeOffset.UtcNow, new List<LeaderboardEntryDto>
+             {
+                 new(1, Guid.NewGuid().ToString(), "Test User", 100, null)
+             }));
+
+        xMock.Setup(x => x.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync((AwardXpRequest req, CancellationToken _) => new AwardXpResult(
+                 IsSuccess: true,
+                 AwardedXp: req.XpDelta,
+                 TotalXp: req.XpDelta,
+                 CurrentStreak: 1,
+                 IsStreakActiveToday: true,
+                 AlreadyAwarded: false));
+
+        return new ContentController(botDb, learnDb, gameDb, sMock.Object, xMock.Object, lMock.Object, loggerMock.Object);
+    }
+
     private static void AttachUser(ControllerBase controller, Guid userId)
     {
         var claims = new List<Claim>
@@ -64,7 +97,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
 
         // Act
         var result = await controller.GetQuizzes(mode: "sprint10", limit: 5);
@@ -84,7 +117,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
 
         // Act
         var result = await controller.GetLeaderboard();
@@ -103,7 +136,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
 
         // Act
         var result = await controller.GetVocabulary(limit: 10);
@@ -120,7 +153,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
 
         // Act - Test correct answer for fallback question fb-01
         var resultCorrect = await controller.CheckSingleAnswer(new CheckAnswerRequest("fb-01", "A"));
@@ -147,7 +180,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext() // No User authenticated
@@ -177,7 +210,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var authUserId = Guid.NewGuid();
         AttachUser(controller, authUserId);
 
@@ -212,7 +245,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var authUserId = Guid.NewGuid();
         AttachUser(controller, authUserId);
 
@@ -246,7 +279,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var authUserId = Guid.NewGuid();
         AttachUser(controller, authUserId);
 
@@ -281,7 +314,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var tokenUserId = Guid.NewGuid();
         var fakeTargetUserId = Guid.NewGuid();
         AttachUser(controller, tokenUserId);
@@ -309,7 +342,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext() // Unauthenticated
@@ -344,7 +377,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var authUserId = Guid.NewGuid();
         AttachUser(controller, authUserId);
 
@@ -380,7 +413,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var authUserId = Guid.NewGuid();
         AttachUser(controller, authUserId);
 
@@ -414,7 +447,7 @@ public class ContentControllerTests
         var streakMock = new Mock<IUserStreakService>();
         var loggerMock = new Mock<ILogger<ContentController>>();
 
-        var controller = new ContentController(botDb, learnDb, gameDb, streakMock.Object, loggerMock.Object);
+        var controller = CreateController(botDb, learnDb, gameDb, streakMock);
         var unfamiliarQuestionId = Guid.NewGuid().ToString();
 
         // Act - Submit "A" for an unknown / unfamiliar question ID

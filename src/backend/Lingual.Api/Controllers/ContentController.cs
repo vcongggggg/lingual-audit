@@ -8,8 +8,10 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Domain;
 using Lingual.Modules.Gamification.Infrastructure.Data;
+using Lingual.Modules.Gamification.Services;
 using Lingual.Modules.Learning.Infrastructure.Data;
 using Lingual.Modules.MezonBot.Domain;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
@@ -30,6 +32,8 @@ public class ContentController : ControllerBase
     private readonly LearningDbContext _learningDbContext;
     private readonly GamificationDbContext _gamificationDbContext;
     private readonly IUserStreakService _streakService;
+    private readonly IXpService _xpService;
+    private readonly ILeaderboardService _leaderboardService;
     private readonly ILogger<ContentController> _logger;
 
     // Cache fallback questions for server-side evaluation when questions originate from the fallback bank
@@ -45,12 +49,16 @@ public class ContentController : ControllerBase
         LearningDbContext learningDbContext,
         GamificationDbContext gamificationDbContext,
         IUserStreakService streakService,
+        IXpService xpService,
+        ILeaderboardService leaderboardService,
         ILogger<ContentController> logger)
     {
         _botDbContext = botDbContext;
         _learningDbContext = learningDbContext;
         _gamificationDbContext = gamificationDbContext;
         _streakService = streakService;
+        _xpService = xpService;
+        _leaderboardService = leaderboardService;
         _logger = logger;
     }
 
@@ -242,27 +250,33 @@ public class ContentController : ControllerBase
 
         try
         {
-            if (_gamificationDbContext.Database.IsRelational())
+            if (xpAwarded > 0)
             {
-                var conn = _gamificationDbContext.Database.GetDbConnection();
-                if (conn.State != ConnectionState.Open)
+                var metadata = JsonSerializer.Serialize(new
                 {
-                    await conn.OpenAsync(cancellationToken);
-                }
+                    type = "web_quiz_attempt",
+                    mode = request.Mode ?? "sprint10",
+                    score = serverCorrectCount,
+                    total = totalCount,
+                    awarded_at = DateTime.UtcNow.ToString("o")
+                });
 
-                // Kiểm tra xem bài nộp với Idempotency Key này đã được ghi nhận trước đó chưa
-                using var checkCmd = conn.CreateCommand();
-                checkCmd.CommandText = "SELECT xp_delta FROM xp_ledger WHERE idempotency_key = @key LIMIT 1;";
-                AddParam(checkCmd, "@key", scopedIdempotencyKey);
-                var existingXp = await checkCmd.ExecuteScalarAsync(cancellationToken);
-                if (existingXp != null)
+                var awardResult = await _xpService.AwardXpAsync(new AwardXpRequest(
+                    UserId: userId,
+                    SourceType: "quiz_attempt",
+                    XpDelta: xpAwarded,
+                    SourceId: Guid.NewGuid(),
+                    IdempotencyKey: scopedIdempotencyKey,
+                    Metadata: metadata
+                ), cancellationToken);
+
+                if (awardResult.AlreadyAwarded)
                 {
-                    int prevXp = Convert.ToInt32(existingXp);
                     return Ok(new
                     {
                         success = true,
                         xpAwarded = 0,
-                        xp = prevXp,
+                        xp = awardResult.TotalXp,
                         isDuplicate = true,
                         correctCount = serverCorrectCount,
                         totalQuestions = totalCount,
@@ -270,32 +284,8 @@ public class ContentController : ControllerBase
                     });
                 }
 
-                if (xpAwarded > 0)
-                {
-                    var metadata = JsonSerializer.Serialize(new
-                    {
-                        type = "web_quiz_attempt",
-                        mode = request.Mode ?? "sprint10",
-                        score = serverCorrectCount,
-                        total = totalCount,
-                        awarded_at = DateTime.UtcNow.ToString("o")
-                    });
-
-                    using var insertCmd = conn.CreateCommand();
-                    insertCmd.CommandText = @"
-                        INSERT INTO xp_ledger (id, user_id, source_type, source_id, xp_delta, awarded_at, idempotency_key, metadata)
-                        VALUES (gen_random_uuid(), @userId, 'quiz_attempt', gen_random_uuid(), @xpDelta, now(), @idempotencyKey, @metadata::jsonb);";
-
-                    AddParam(insertCmd, "@userId", userId);
-                    AddParam(insertCmd, "@xpDelta", xpAwarded);
-                    AddParam(insertCmd, "@idempotencyKey", scopedIdempotencyKey);
-                    AddParam(insertCmd, "@metadata", metadata);
-
-                    await insertCmd.ExecuteNonQueryAsync(cancellationToken);
-
-                    _logger.LogInformation("🎯 [ContentApi] Đã lưu Quiz Attempt ({Correct}/{Total}) nhận +{Xp} XP cho User {UserId}",
-                        serverCorrectCount, totalCount, xpAwarded, userId);
-                }
+                _logger.LogInformation("🎯 [ContentApi] Đã lưu Quiz Attempt ({Correct}/{Total}) nhận +{Xp} XP cho User {UserId}",
+                    serverCorrectCount, totalCount, xpAwarded, userId);
             }
         }
         catch (Exception ex)
@@ -417,76 +407,36 @@ public class ContentController : ControllerBase
 
     /// <summary>
     /// GET /api/v1/content/leaderboard
+    /// Sử dụng LeaderboardService của Gamification module (Redis / SQL fallback), không dùng raw SQL và không có user mẫu giả.
     /// </summary>
     [HttpGet("leaderboard")]
     public async Task<IActionResult> GetLeaderboard(CancellationToken cancellationToken = default)
     {
         try
         {
-            if (_gamificationDbContext.Database.IsRelational())
+            var response = await _leaderboardService.GetLeaderboardAsync(limit: 50, cancellationToken: cancellationToken);
+            var entries = response.Entries.Select(e => new
             {
-                var conn = _gamificationDbContext.Database.GetDbConnection();
-                if (conn.State != ConnectionState.Open)
-                {
-                    await conn.OpenAsync(cancellationToken);
-                }
+                rank = e.Rank,
+                user_id = e.UserId,
+                name = e.Name,
+                xp = (int)e.Xp,
+                level = e.Xp > 500 ? "B1" : e.Xp > 200 ? "A2" : "A1",
+                words_learned = Math.Max(10, (int)e.Xp / 10),
+                streak = 1
+            }).ToList();
 
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"
-                    SELECT 
-                        u.id::text AS user_id,
-                        COALESCE(u.display_name, 'Learner') AS name,
-                        COALESCE(SUM(l.xp_delta), 0)::int AS xp,
-                        COALESCE(s.current_days, 1) AS streak_days
-                    FROM users u
-                    LEFT JOIN xp_ledger l ON l.user_id = u.id
-                    LEFT JOIN user_streaks s ON s.user_id = u.id
-                    GROUP BY u.id, u.display_name, s.current_days
-                    ORDER BY xp DESC, u.display_name ASC
-                    LIMIT 50;";
-
-                var entries = new List<object>();
-                using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-                int rank = 1;
-                while (await reader.ReadAsync(cancellationToken))
-                {
-                    var uId = reader.GetString(0);
-                    var name = reader.GetString(1);
-                    var xp = reader.GetInt32(2);
-                    var streak = reader.GetInt32(3);
-
-                    entries.Add(new
-                    {
-                        rank = rank++,
-                        user_id = uId,
-                        name = name,
-                        xp = xp,
-                        level = xp > 500 ? "B1" : xp > 200 ? "A2" : "A1",
-                        words_learned = Math.Max(10, xp / 10),
-                        streak = streak
-                    });
-                }
-
-                if (entries.Count > 0)
-                {
-                    return Ok(new { data = entries });
-                }
-            }
+            return Ok(new { data = entries });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ [ContentApi] Lỗi khi tra cứu leaderboard từ DB. Dùng danh sách mẫu.");
+            _logger.LogError(ex, "❌ [ContentApi] Lỗi khi tra cứu leaderboard từ LeaderboardService.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "Lỗi khi lấy thông tin bảng xếp hạng.",
+                data = new List<object>()
+            });
         }
-
-        var defaultLeaderboard = new List<object>
-        {
-            new { rank = 1, user_id = "user-1", name = "Minh Anh", xp = 480, level = "B1", words_learned = 120, streak = 7 },
-            new { rank = 2, user_id = "user-2", name = "Hoàng Nam", xp = 390, level = "A2", words_learned = 95, streak = 5 },
-            new { rank = 3, user_id = "user-3", name = "Thảo Linh", xp = 350, level = "A2", words_learned = 80, streak = 4 },
-            new { rank = 4, user_id = "user-4", name = "Đức Huy", xp = 220, level = "A1", words_learned = 50, streak = 3 }
-        };
-
-        return Ok(new { data = defaultLeaderboard });
     }
 
     /// <summary>
