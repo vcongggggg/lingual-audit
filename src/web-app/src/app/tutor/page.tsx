@@ -221,11 +221,16 @@ export default function TutorPage() {
         if (!response.ok) throw new Error("Grammar check failed");
 
         const data = (await response.json()) as {
-          isCorrect: boolean;
+          isCorrect?: boolean;
           correctedText?: string;
           explanation?: string;
           tips?: string;
+          error?: string;
         };
+
+        if (data.error || typeof data.isCorrect !== "boolean") {
+          throw new Error(data.error || "Grammar evaluation unavailable");
+        }
 
         const botReply = data.isCorrect
           ? "🎉 Tuyệt vời! Câu của bạn hoàn toàn chính xác về ngữ pháp và cách dùng từ tự nhiên."
@@ -246,14 +251,18 @@ export default function TutorPage() {
         setMascotMood(data.isCorrect ? "correct" : "encourage");
       }
     } catch {
+      const errorMsgText = activeTab === "grammar"
+        ? "⚠️ Không thể kết nối đến máy chủ AI để kiểm tra ngữ pháp lúc này. Vui lòng thử lại sau ít phút."
+        : "⚠️ Kết nối đến máy chủ AI tạm thời gián đoạn. Vui lòng thử lại sau ít phút.";
+
       const fallbackMsg: ChatMessage = {
         id: "bot-" + Date.now(),
         sender: "bot",
-        text: "Cảm ơn bạn! Mình đã ghi nhận câu nói của bạn. Hãy tiếp tục luyện tập để phản xạ tốt hơn nhé!",
+        text: errorMsgText,
         timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, fallbackMsg]);
-      setMascotMood("idle");
+      setMascotMood("encourage");
     } finally {
       setLoading(false);
     }

@@ -1,16 +1,21 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Lingual.Modules.Gamification.Domain;
 using Lingual.Modules.Gamification.Infrastructure.Data;
 using Lingual.Modules.Learning.Infrastructure.Data;
+using Lingual.Modules.MezonBot.Domain;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
 using Lingual.Modules.MezonBot.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -26,6 +31,14 @@ public class ContentController : ControllerBase
     private readonly GamificationDbContext _gamificationDbContext;
     private readonly IUserStreakService _streakService;
     private readonly ILogger<ContentController> _logger;
+
+    // Cache fallback questions for server-side evaluation when questions originate from the fallback bank
+    private static readonly ConcurrentDictionary<string, FallbackQuestionMeta> FallbackBank = new();
+
+    static ContentController()
+    {
+        InitializeFallbackBank();
+    }
 
     public ContentController(
         MezonBotDbContext botDbContext,
@@ -43,7 +56,7 @@ public class ContentController : ControllerBase
 
     /// <summary>
     /// GET /api/v1/content/quizzes?mode=sprint10&limit=10&questionType=multiple_choice&difficulty=1
-    /// Trả về danh sách câu hỏi trắc nghiệm từ PostgreSQL (hoặc fallback ngân hàng 300 câu CEFR)
+    /// BẢO MẬT: KHÔNG trả correct_answer hay is_correct cho client để chống gian lận F12.
     /// </summary>
     [HttpGet("quizzes")]
     public async Task<IActionResult> GetQuizzes(
@@ -65,7 +78,6 @@ public class ContentController : ControllerBase
 
         try
         {
-            // 1. Thử lấy từ Database PostgreSQL trước
             if (_botDbContext.Database.IsRelational())
             {
                 var query = _botDbContext.QuizQuestions
@@ -92,13 +104,13 @@ public class ContentController : ControllerBase
                     var mapped = dbQuestions.Select(q =>
                     {
                         var parsedOptions = ParseQuizOptions(q.Options);
-                        var correctKey = parsedOptions.FirstOrDefault(o => o.IsCorrect)?.Key ?? "A";
                         object? payloadObj = null;
                         if (!string.IsNullOrWhiteSpace(q.Payload) && q.Payload != "{}")
                         {
                             try { payloadObj = JsonSerializer.Deserialize<object>(q.Payload); } catch { }
                         }
 
+                        // KHÔNG TRẢ correct_answer, KHÔNG TRẢ is_correct
                         return new
                         {
                             id = q.Id.ToString(),
@@ -111,11 +123,8 @@ public class ContentController : ControllerBase
                             {
                                 key = o.Key,
                                 text = o.Text,
-                                is_correct = o.IsCorrect,
                                 image_url = o.ImageUrl
                             }),
-                            correct_answer = correctKey,
-                            explanation = q.Explanation ?? string.Empty,
                             points = (int)q.Points,
                             payload = payloadObj
                         };
@@ -132,11 +141,11 @@ public class ContentController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ [ContentApi] Không thể đọc từ DB quiz_questions, chuyển sang nạp từ file JSON dự phòng.");
+            _logger.LogWarning(ex, "⚠️ [ContentApi] Không thể đọc từ DB quiz_questions, chuyển sang nạp từ ngân hàng dự phòng.");
         }
 
-        // 2. Fallback: Đọc từ file JSON quiz-bank-300.json nếu DB chưa có
-        var fallbackQuestions = GetFallbackQuizQuestions(targetCount, questionType, difficulty);
+        // Fallback: ngân hàng câu hỏi an toàn (cũng không trả correct_answer)
+        var fallbackQuestions = GetSanitizedFallbackQuestions(targetCount);
         return Ok(new
         {
             mode,
@@ -146,8 +155,264 @@ public class ContentController : ControllerBase
     }
 
     /// <summary>
+    /// POST /api/v1/content/check-answer
+    /// Server tự kiểm tra và trả kết quả đúng/sai kèm đáp án chuẩn và giải thích sau khi người dùng chọn.
+    /// </summary>
+    [HttpPost("check-answer")]
+    public async Task<IActionResult> CheckSingleAnswer(
+        [FromBody] CheckAnswerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.QuestionId))
+        {
+            return BadRequest(new { error = "Thiếu questionId." });
+        }
+
+        var (correctAnswer, explanation) = await ResolveCorrectAnswerAsync(request.QuestionId, cancellationToken);
+        var isCorrect = !string.IsNullOrWhiteSpace(request.Answer) &&
+                        !string.IsNullOrWhiteSpace(correctAnswer) &&
+                        request.Answer.Trim().Equals(correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        return Ok(new
+        {
+            questionId = request.QuestionId,
+            isCorrect,
+            correctAnswer,
+            explanation
+        });
+    }
+
+    /// <summary>
+    /// POST /api/v1/content/quiz-attempts
+    /// BẢO MẬT:
+    /// 1. Bắt buộc đăng nhập [Authorize].
+    /// 2. Lấy UserId từ Token, KHÔNG tin UserId client gửi, KHÔNG fallback lấy user đầu tiên.
+    /// 3. Server tự chấm điểm từ DB, BỎ QUA cờ IsCorrect client gửi.
+    /// 4. Làm sai hết thì 0 XP.
+    /// 5. Idempotency key gắn với UserId + bài thi, chống cộng trùng.
+    /// 6. Ghi DB lỗi thì trả 500 InternalServerError.
+    /// </summary>
+    [Authorize]
+    [HttpPost("quiz-attempts")]
+    public async Task<IActionResult> SaveQuizAttempt(
+        [FromBody] QuizAttemptRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null)
+        {
+            return BadRequest(new { error = "Dữ liệu kết quả bài làm không hợp lệ." });
+        }
+
+        // 1. Xác thực UserId từ JWT Token Claims
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { error = "Yêu cầu đăng nhập hợp lệ để nộp bài và nhận điểm XP." });
+        }
+
+        var answers = request.Answers ?? new List<QuizSubmittedAnswer>();
+        var totalCount = answers.Count;
+
+        // 2. Server tự chấm đáp án - Hoàn toàn không tin client
+        int serverCorrectCount = 0;
+        foreach (var ans in answers)
+        {
+            if (string.IsNullOrWhiteSpace(ans.QuestionId)) continue;
+            var (correctAnswer, _) = await ResolveCorrectAnswerAsync(ans.QuestionId, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(correctAnswer) &&
+                !string.IsNullOrWhiteSpace(ans.Answer) &&
+                ans.Answer.Trim().Equals(correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                serverCorrectCount++;
+            }
+        }
+
+        // 3. Quy tắc XP: Sai hết = 0 XP. Đúng câu nào nhận 10 XP câu đó.
+        int xpAwarded = serverCorrectCount > 0 ? (serverCorrectCount * 10) : 0;
+
+        // 4. Idempotency Key gắn chặt với UserId của phiên đăng nhập
+        var baseKey = string.IsNullOrWhiteSpace(request.IdempotencyKey) ? Guid.NewGuid().ToString("N") : request.IdempotencyKey;
+        var scopedIdempotencyKey = $"quiz_attempt_{userId}_{baseKey}";
+
+        try
+        {
+            if (_gamificationDbContext.Database.IsRelational())
+            {
+                var conn = _gamificationDbContext.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open)
+                {
+                    await conn.OpenAsync(cancellationToken);
+                }
+
+                // Kiểm tra xem bài nộp với Idempotency Key này đã được ghi nhận trước đó chưa
+                using var checkCmd = conn.CreateCommand();
+                checkCmd.CommandText = "SELECT xp_delta FROM xp_ledger WHERE idempotency_key = @key LIMIT 1;";
+                AddParam(checkCmd, "@key", scopedIdempotencyKey);
+                var existingXp = await checkCmd.ExecuteScalarAsync(cancellationToken);
+                if (existingXp != null)
+                {
+                    int prevXp = Convert.ToInt32(existingXp);
+                    return Ok(new
+                    {
+                        success = true,
+                        xpAwarded = 0,
+                        xp = prevXp,
+                        isDuplicate = true,
+                        correctCount = serverCorrectCount,
+                        totalQuestions = totalCount,
+                        message = "Bài làm này đã được ghi nhận trước đó. Không cộng thêm XP trùng lặp."
+                    });
+                }
+
+                if (xpAwarded > 0)
+                {
+                    var metadata = JsonSerializer.Serialize(new
+                    {
+                        type = "web_quiz_attempt",
+                        mode = request.Mode ?? "sprint10",
+                        score = serverCorrectCount,
+                        total = totalCount,
+                        awarded_at = DateTime.UtcNow.ToString("o")
+                    });
+
+                    using var insertCmd = conn.CreateCommand();
+                    insertCmd.CommandText = @"
+                        INSERT INTO xp_ledger (id, user_id, source_type, source_id, xp_delta, awarded_at, idempotency_key, metadata)
+                        VALUES (gen_random_uuid(), @userId, 'quiz_attempt', gen_random_uuid(), @xpDelta, now(), @idempotencyKey, @metadata::jsonb);";
+
+                    AddParam(insertCmd, "@userId", userId);
+                    AddParam(insertCmd, "@xpDelta", xpAwarded);
+                    AddParam(insertCmd, "@idempotencyKey", scopedIdempotencyKey);
+                    AddParam(insertCmd, "@metadata", metadata);
+
+                    await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+
+                    _logger.LogInformation("🎯 [ContentApi] Đã lưu Quiz Attempt ({Correct}/{Total}) nhận +{Xp} XP cho User {UserId}",
+                        serverCorrectCount, totalCount, xpAwarded, userId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [ContentApi] Lỗi cơ sở dữ liệu khi ghi nhận Quiz Attempt");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "Lỗi cơ sở dữ liệu khi ghi nhận kết quả bài thi.",
+                success = false
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            xpAwarded = xpAwarded,
+            xp = xpAwarded,
+            correctCount = serverCorrectCount,
+            totalQuestions = totalCount,
+            message = serverCorrectCount > 0
+                ? $"Tuyệt vời! Bạn trả lời đúng {serverCorrectCount}/{totalCount} câu và nhận được +{xpAwarded} XP!"
+                : $"Bạn chưa trả lời đúng câu nào (0/{totalCount}). Hãy ôn tập thêm và thử lại nhé!"
+        });
+    }
+
+    /// <summary>
+    /// POST /api/v1/content/reviews
+    /// Lưu thật tiến độ ôn tập thẻ từ vựng SRS vào bảng srs_cards trong PostgreSQL
+    /// </summary>
+    [Authorize]
+    [HttpPost("reviews")]
+    public async Task<IActionResult> SaveReview(
+        [FromBody] SrsReviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.VocabularyId))
+        {
+            return BadRequest(new { error = "Dữ liệu ôn tập không hợp lệ (thiếu vocabularyId)." });
+        }
+
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { error = "Yêu cầu đăng nhập hợp lệ để lưu tiến độ ôn tập SRS." });
+        }
+
+        if (!Guid.TryParse(request.VocabularyId, out var vocabId))
+        {
+            return BadRequest(new { error = "Mã từ vựng vocabularyId không đúng định dạng GUID." });
+        }
+
+        try
+        {
+            if (_learningDbContext.Database.IsRelational())
+            {
+                var conn = _learningDbContext.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open)
+                {
+                    await conn.OpenAsync(cancellationToken);
+                }
+
+                var reviewItem = JsonSerializer.Serialize(new
+                {
+                    rating = request.Rating,
+                    quality = request.Quality,
+                    time_spent_ms = request.TimeSpentMs,
+                    reviewed_at = DateTime.UtcNow.ToString("o")
+                });
+
+                var nextDue = request.NextDueAt ?? DateTime.UtcNow.AddDays(Math.Max(1, (double)request.IntervalDays));
+
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO srs_cards (user_id, vocabulary_id, repetitions, interval_days, ease_factor, next_due_at, last_reviewed_at, review_history, created_at, updated_at)
+                    VALUES (@userId, @vocabId, @repetitions, @intervalDays, @easeFactor, @nextDue, now(), jsonb_build_array(@reviewItem::jsonb), now(), now())
+                    ON CONFLICT (user_id, vocabulary_id) DO UPDATE SET
+                        repetitions = EXCLUDED.repetitions,
+                        interval_days = EXCLUDED.interval_days,
+                        ease_factor = EXCLUDED.ease_factor,
+                        next_due_at = EXCLUDED.next_due_at,
+                        last_reviewed_at = now(),
+                        review_history = srs_cards.review_history || jsonb_build_array(@reviewItem::jsonb),
+                        updated_at = now();";
+
+                AddParam(cmd, "@userId", userId);
+                AddParam(cmd, "@vocabId", vocabId);
+                AddParam(cmd, "@repetitions", request.Repetitions);
+                AddParam(cmd, "@intervalDays", (decimal)request.IntervalDays);
+                AddParam(cmd, "@easeFactor", (decimal)request.EaseFactor);
+                AddParam(cmd, "@nextDue", nextDue);
+                AddParam(cmd, "@reviewItem", reviewItem);
+
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+                _logger.LogInformation("📚 [ContentApi] Đã lưu tiến độ SRS cho User {UserId}, Từ vựng {VocabId} (Lần lặp {Reps})",
+                    userId, vocabId, request.Repetitions);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [ContentApi] Lỗi khi lưu tiến độ SRS vào cơ sở dữ liệu");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "Lỗi cơ sở dữ liệu khi lưu tiến độ ôn tập từ vựng.",
+                success = false
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            vocabularyId = vocabId,
+            repetitions = request.Repetitions,
+            message = "Đã lưu tiến độ ôn tập thẻ từ vựng vào cơ sở dữ liệu."
+        });
+    }
+
+    /// <summary>
     /// GET /api/v1/content/leaderboard
-    /// Trả về Bảng xếp hạng học viên theo tổng XP và chuỗi học tập
     /// </summary>
     [HttpGet("leaderboard")]
     public async Task<IActionResult> GetLeaderboard(CancellationToken cancellationToken = default)
@@ -181,7 +446,7 @@ public class ContentController : ControllerBase
                 int rank = 1;
                 while (await reader.ReadAsync(cancellationToken))
                 {
-                    var userId = reader.GetString(0);
+                    var uId = reader.GetString(0);
                     var name = reader.GetString(1);
                     var xp = reader.GetInt32(2);
                     var streak = reader.GetInt32(3);
@@ -189,7 +454,7 @@ public class ContentController : ControllerBase
                     entries.Add(new
                     {
                         rank = rank++,
-                        user_id = userId,
+                        user_id = uId,
                         name = name,
                         xp = xp,
                         level = xp > 500 ? "B1" : xp > 200 ? "A2" : "A1",
@@ -209,117 +474,19 @@ public class ContentController : ControllerBase
             _logger.LogWarning(ex, "⚠️ [ContentApi] Lỗi khi tra cứu leaderboard từ DB. Dùng danh sách mẫu.");
         }
 
-        // Fallback danh sách Leaderboard mẫu
         var defaultLeaderboard = new List<object>
         {
             new { rank = 1, user_id = "user-1", name = "MCS03_cong.ngovan", xp = 480, level = "B1", words_learned = 120, streak = 7 },
             new { rank = 2, user_id = "user-2", name = "MCS03_minh.nguyen", xp = 390, level = "A2", words_learned = 95, streak = 5 },
             new { rank = 3, user_id = "user-3", name = "MCS03_tri.phan", xp = 350, level = "A2", words_learned = 80, streak = 4 },
-            new { rank = 4, user_id = "user-4", name = "LinguaLearner_01", xp = 220, level = "A1", words_learned = 50, streak = 3 },
-            new { rank = 5, user_id = "user-5", name = "MezonCampus_VIP", xp = 160, level = "A1", words_learned = 35, streak = 2 }
+            new { rank = 4, user_id = "user-4", name = "LinguaLearner_01", xp = 220, level = "A1", words_learned = 50, streak = 3 }
         };
 
         return Ok(new { data = defaultLeaderboard });
     }
 
     /// <summary>
-    /// POST /api/v1/content/quiz-attempts
-    /// Lưu kết quả làm quiz trên Web và cộng XP thưởng vào xp_ledger
-    /// </summary>
-    [HttpPost("quiz-attempts")]
-    public async Task<IActionResult> SaveQuizAttempt(
-        [FromBody] QuizAttemptRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        if (request == null)
-        {
-            return BadRequest(new { error = "Dữ liệu kết quả không hợp lệ." });
-        }
-
-        var answers = request.Answers ?? new List<QuizAnswerItem>();
-        var correctCount = answers.Count(a => a.IsCorrect);
-        var totalCount = answers.Count;
-
-        // Tính toán XP: 10 XP cho mỗi câu đúng + 10 XP thưởng hoàn thành bài tập
-        var xpAwarded = Math.Max(10, correctCount * 10);
-        var idempotencyKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)
-            ? $"quiz_attempt_{Guid.NewGuid():N}"
-            : $"quiz_attempt_{request.IdempotencyKey}";
-
-        try
-        {
-            if (_gamificationDbContext.Database.IsRelational())
-            {
-                var conn = _gamificationDbContext.Database.GetDbConnection();
-                if (conn.State != ConnectionState.Open)
-                {
-                    await conn.OpenAsync(cancellationToken);
-                }
-
-                // Tìm hoặc tạo user mặc định cho lượt làm bài
-                var userGuid = Guid.Empty;
-                if (!string.IsNullOrWhiteSpace(request.UserId) && Guid.TryParse(request.UserId, out var parsed))
-                {
-                    userGuid = parsed;
-                }
-                else
-                {
-                    // Lấy user đầu tiên trong bảng users
-                    using var findUserCmd = conn.CreateCommand();
-                    findUserCmd.CommandText = "SELECT id FROM users LIMIT 1;";
-                    var userScalar = await findUserCmd.ExecuteScalarAsync(cancellationToken);
-                    if (userScalar is Guid g) userGuid = g;
-                    else if (userScalar != null && Guid.TryParse(userScalar.ToString(), out var parsedUser)) userGuid = parsedUser;
-                }
-
-                if (userGuid != Guid.Empty)
-                {
-                    var metadata = JsonSerializer.Serialize(new
-                    {
-                        type = "web_quiz_attempt",
-                        mode = request.Mode ?? "sprint10",
-                        score = correctCount,
-                        total = totalCount,
-                        awarded_at = DateTime.UtcNow.ToString("o")
-                    });
-
-                    using var insertCmd = conn.CreateCommand();
-                    insertCmd.CommandText = @"
-                        INSERT INTO xp_ledger (id, user_id, source_type, source_id, xp_delta, awarded_at, idempotency_key, metadata)
-                        VALUES (gen_random_uuid(), @userId, 'quiz_attempt', gen_random_uuid(), @xpDelta, now(), @idempotencyKey, @metadata::jsonb)
-                        ON CONFLICT (idempotency_key) DO NOTHING;";
-
-                    AddParam(insertCmd, "@userId", userGuid);
-                    AddParam(insertCmd, "@xpDelta", xpAwarded);
-                    AddParam(insertCmd, "@idempotencyKey", idempotencyKey);
-                    AddParam(insertCmd, "@metadata", metadata);
-
-                    await insertCmd.ExecuteNonQueryAsync(cancellationToken);
-
-                    _logger.LogInformation("🎯 [ContentApi] Đã ghi nhận Quiz Attempt ({Correct}/{Total}) nhận +{Xp} XP cho User {UserId}",
-                        correctCount, totalCount, xpAwarded, userGuid);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "⚠️ [ContentApi] Lỗi khi ghi nhận XP vào cơ sở dữ liệu");
-        }
-
-        return Ok(new
-        {
-            success = true,
-            xpAwarded = xpAwarded,
-            xp = xpAwarded,
-            correctCount,
-            totalQuestions = totalCount,
-            message = $"Tuyệt vời! Bạn trả lời đúng {correctCount}/{totalCount} câu và nhận được +{xpAwarded} XP!"
-        });
-    }
-
-    /// <summary>
     /// GET /api/v1/content/vocabulary?limit=50
-    /// Trả về danh sách từ vựng phục vụ Flashcard và Từ vựng A1-A2
     /// </summary>
     [HttpGet("vocabulary")]
     public async Task<IActionResult> GetVocabulary(
@@ -362,14 +529,11 @@ public class ContentController : ControllerBase
             _logger.LogWarning(ex, "⚠️ [ContentApi] Lỗi khi lấy danh sách từ vựng từ DB");
         }
 
-        // Fallback từ vựng mẫu
         var defaultVocab = new List<object>
         {
             new { id = "vocab-1", term = "breakfast", ipa = "/ˈbrek.fəst/", meaning = "Bữa sáng", part_of_speech = "noun" },
             new { id = "vocab-2", term = "airport", ipa = "/ˈer.pɔːt/", meaning = "Sân bay", part_of_speech = "noun" },
-            new { id = "vocab-3", term = "coffee", ipa = "/ˈkɒf.i/", meaning = "Cà phê", part_of_speech = "noun" },
-            new { id = "vocab-4", term = "interview", ipa = "/ˈɪn.tə.vjuː/", meaning = "Phỏng vấn", part_of_speech = "noun" },
-            new { id = "vocab-5", term = "challenge", ipa = "/ˈtʃæl.ɪndʒ/", meaning = "Thử thách", part_of_speech = "noun" }
+            new { id = "vocab-3", term = "coffee", ipa = "/ˈkɒf.i/", meaning = "Cà phê", part_of_speech = "noun" }
         };
 
         return Ok(new
@@ -379,23 +543,39 @@ public class ContentController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// POST /api/v1/content/reviews
-    /// Ghi nhận phiên ôn tập thẻ ghi nhớ SRS
-    /// </summary>
-    [HttpPost("reviews")]
-    public IActionResult SaveReview([FromBody] ReviewRequest? request)
-    {
-        return Ok(new
-        {
-            success = true,
-            message = "Ghi nhận ôn tập từ vựng thành công."
-        });
-    }
+    // ==========================================
+    // HELPERS & RESOLVERS
+    // ==========================================
 
-    // ==========================================
-    // HELPERS & DTOs
-    // ==========================================
+    private async Task<(string CorrectAnswer, string Explanation)> ResolveCorrectAnswerAsync(string questionId, CancellationToken ct)
+    {
+        // 1. Thử tìm trong DB
+        if (Guid.TryParse(questionId, out var qGuid))
+        {
+            try
+            {
+                var dbQ = await _botDbContext.QuizQuestions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(q => q.Id == qGuid, ct);
+
+                if (dbQ != null)
+                {
+                    var options = ParseQuizOptions(dbQ.Options);
+                    var correct = options.FirstOrDefault(o => o.IsCorrect)?.Key ?? "A";
+                    return (correct, dbQ.Explanation ?? string.Empty);
+                }
+            }
+            catch { }
+        }
+
+        // 2. Thử tìm trong Fallback Bank
+        if (FallbackBank.TryGetValue(questionId, out var fallback))
+        {
+            return (fallback.CorrectAnswer, fallback.Explanation);
+        }
+
+        return ("A", string.Empty);
+    }
 
     private static void AddParam(System.Data.Common.DbCommand cmd, string name, object value)
     {
@@ -422,70 +602,47 @@ public class ContentController : ControllerBase
         }
     }
 
-    private static List<object> GetFallbackQuizQuestions(int count, string? questionType, int? difficulty)
+    private static List<object> GetSanitizedFallbackQuestions(int count)
     {
-        var questions = new List<object>
+        return FallbackBank.Values.Take(count).Select(f => (object)new
         {
-            new
-            {
-                id = "fb-01",
-                level = "A1",
-                difficulty = 1,
-                question_type = "multiple_choice",
-                prompt = "Choose the word that completes the sentence: I eat ___ every morning.",
-                options = new[]
-                {
-                    new { key = "A", text = "breakfast", is_correct = true, image_url = (string?)null },
-                    new { key = "B", text = "midnight", is_correct = false, image_url = (string?)null },
-                    new { key = "C", text = "yesterday", is_correct = false, image_url = (string?)null },
-                    new { key = "D", text = "quickly", is_correct = false, image_url = (string?)null }
-                },
-                correct_answer = "A",
-                explanation = "Breakfast nghĩa là bữa sáng, phù hợp hoàn cảnh every morning.",
-                points = 10,
-                payload = (object?)null
-            },
-            new
-            {
-                id = "fb-02",
-                level = "A1",
-                difficulty = 1,
-                question_type = "multiple_choice",
-                prompt = "Welcome to London! May I see your ___ and flight ticket?",
-                options = new[]
-                {
-                    new { key = "A", text = "passport", is_correct = true, image_url = (string?)null },
-                    new { key = "B", text = "pillow", is_correct = false, image_url = (string?)null },
-                    new { key = "C", text = "kitchen", is_correct = false, image_url = (string?)null },
-                    new { key = "D", text = "window", is_correct = false, image_url = (string?)null }
-                },
-                correct_answer = "A",
-                explanation = "Passport là hộ chiếu, giấy tờ cần xuất trình cùng vé máy bay.",
-                points = 10,
-                payload = (object?)null
-            },
-            new
-            {
-                id = "fb-03",
-                level = "A2",
-                difficulty = 1,
-                question_type = "multiple_choice",
-                prompt = "What size coffee would you like? We have small, medium, and ___.",
-                options = new[]
-                {
-                    new { key = "A", text = "large", is_correct = true, image_url = (string?)null },
-                    new { key = "B", text = "heavy", is_correct = false, image_url = (string?)null },
-                    new { key = "C", text = "slow", is_correct = false, image_url = (string?)null },
-                    new { key = "D", text = "short", is_correct = false, image_url = (string?)null }
-                },
-                correct_answer = "A",
-                explanation = "Large là kích cỡ lớn trong các lựa chọn đồ uống quán cà phê.",
-                points = 10,
-                payload = (object?)null
-            }
-        };
+            id = f.Id,
+            level = f.Level,
+            difficulty = f.Difficulty,
+            question_type = f.QuestionType,
+            prompt = f.Prompt,
+            prompt_audio_url = (string?)null,
+            options = f.Options.Select(o => new { key = o.Key, text = o.Text, image_url = (string?)null }),
+            points = 10,
+            payload = (object?)null
+            // KHÔNG TRẢ correct_answer, KHÔNG TRẢ explanation
+        }).ToList();
+    }
 
-        return questions.Take(count).ToList();
+    private static void InitializeFallbackBank()
+    {
+        var q1 = new FallbackQuestionMeta(
+            "fb-01", "A1", 1, "multiple_choice",
+            "Choose the word that completes the sentence: I eat ___ every morning.",
+            new[] { new OptionDto { Key = "A", Text = "breakfast", IsCorrect = true }, new OptionDto { Key = "B", Text = "midnight" }, new OptionDto { Key = "C", Text = "yesterday" }, new OptionDto { Key = "D", Text = "quickly" } },
+            "A", "Breakfast nghĩa là bữa sáng, phù hợp hoàn cảnh every morning."
+        );
+        var q2 = new FallbackQuestionMeta(
+            "fb-02", "A1", 1, "multiple_choice",
+            "Welcome to London! May I see your ___ and flight ticket?",
+            new[] { new OptionDto { Key = "A", Text = "passport", IsCorrect = true }, new OptionDto { Key = "B", Text = "pillow" }, new OptionDto { Key = "C", Text = "kitchen" }, new OptionDto { Key = "D", Text = "window" } },
+            "A", "Passport là hộ chiếu, giấy tờ cần xuất trình cùng vé máy bay."
+        );
+        var q3 = new FallbackQuestionMeta(
+            "fb-03", "A2", 1, "multiple_choice",
+            "What size coffee would you like? We have small, medium, and ___.",
+            new[] { new OptionDto { Key = "A", Text = "large", IsCorrect = true }, new OptionDto { Key = "B", Text = "heavy" }, new OptionDto { Key = "C", Text = "slow" }, new OptionDto { Key = "D", Text = "short" } },
+            "A", "Large là kích cỡ lớn trong các lựa chọn đồ uống quán cà phê."
+        );
+
+        FallbackBank[q1.Id] = q1;
+        FallbackBank[q2.Id] = q2;
+        FallbackBank[q3.Id] = q3;
     }
 
     public record OptionDto
@@ -495,23 +652,45 @@ public class ContentController : ControllerBase
         public bool IsCorrect { get; init; }
         public string? ImageUrl { get; init; }
     }
+
+    private record FallbackQuestionMeta(
+        string Id,
+        string Level,
+        int Difficulty,
+        string QuestionType,
+        string Prompt,
+        OptionDto[] Options,
+        string CorrectAnswer,
+        string Explanation
+    );
 }
+
+public record CheckAnswerRequest(
+    string QuestionId,
+    string Answer
+);
 
 public record QuizAttemptRequest(
     string? IdempotencyKey,
     string? UserId,
     string? Mode,
-    List<QuizAnswerItem>? Answers
+    List<QuizSubmittedAnswer>? Answers
 );
 
-public record QuizAnswerItem(
+public record QuizSubmittedAnswer(
     string? QuestionId,
     string? Answer,
-    bool IsCorrect
+    bool? IsCorrect = null
 );
 
-public record ReviewRequest(
-    string? CardId,
-    int Rating
+public record SrsReviewRequest(
+    string VocabularyId,
+    string? Rating,
+    int Quality,
+    int Repetitions,
+    decimal IntervalDays,
+    decimal EaseFactor,
+    DateTime? NextDueAt,
+    int TimeSpentMs,
+    string? IdempotencyKey
 );
-

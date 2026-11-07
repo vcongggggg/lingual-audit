@@ -5,9 +5,15 @@ import { BookOpen } from "lucide-react";
 
 export default function LearnPage() {
   const saveReview = async (payload: SrsReviewPayload) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (token) {
+      headers["authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch("/api/reviews", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({
         vocabularyId: payload.vocabulary_id,
         rating: payload.rating,

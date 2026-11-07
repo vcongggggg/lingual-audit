@@ -115,10 +115,51 @@ export default function QuizPage() {
     setAnswers((previous) => [...previous, { questionId: current.id, selectedKey: value, isCorrect: correct }]);
     setElapsedSeconds((previous) => previous + Math.max(0, 30 - seconds));
   }, [completed, current, seconds, selected, started]);
-  const checkAnswer = (value: string) => { if (!current) return; submit(value, normalize(value) === normalize(current.correct_answer)); };
+  const checkAnswer = async (value: string) => {
+    if (!current || selected !== null) return;
+    if (demo) {
+      submit(value, normalize(value) === normalize(current.correct_answer));
+      return;
+    }
+    try {
+      const response = await fetch("/api/check-answer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ questionId: current.id, answer: value }),
+      });
+      if (response.ok) {
+        const data = await response.json() as { isCorrect: boolean; correctAnswer: string; explanation?: string };
+        current.correct_answer = data.correctAnswer;
+        if (data.explanation) current.explanation = data.explanation;
+        submit(value, Boolean(data.isCorrect));
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    submit(value, normalize(value) === normalize(current.correct_answer ?? ""));
+  };
+  const handleTimeout = async () => {
+    if (!current || selected !== null) return;
+    if (!demo) {
+      try {
+        const response = await fetch("/api/check-answer", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ questionId: current.id, answer: "" }),
+        });
+        if (response.ok) {
+          const data = await response.json() as { correctAnswer: string; explanation?: string };
+          current.correct_answer = data.correctAnswer;
+          if (data.explanation) current.explanation = data.explanation;
+        }
+      } catch {}
+    }
+    submit(null, false);
+  };
   const finish = useCallback(() => { setElapsedSeconds((value) => value + (selected === null ? Math.max(0, 30 - seconds) : 0)); setCompleted(true); }, [seconds, selected]);
   const next = useCallback(() => { if (selected === null) return; if (index + 1 >= questions.length) finish(); else { setIndex((value) => value + 1); resetQuestionState(); } }, [finish, index, questions.length, selected]);
-  useEffect(() => { if (!started || !current || selected !== null || completed) return; if (seconds <= 0) { const timer = window.setTimeout(() => submit(null, false), 0); return () => window.clearTimeout(timer); } const timer = window.setTimeout(() => setSeconds((value) => value - 1), 1000); return () => window.clearTimeout(timer); }, [completed, current, seconds, selected, started, submit]);
+  useEffect(() => { if (!started || !current || selected !== null || completed) return; if (seconds <= 0) { const timer = window.setTimeout(() => void handleTimeout(), 0); return () => window.clearTimeout(timer); } const timer = window.setTimeout(() => setSeconds((value) => value - 1), 1000); return () => window.clearTimeout(timer); }, [completed, current, seconds, selected, started, handleTimeout]);
   useEffect(() => {
     if (!completed || !questions.length || saveState !== "idle") return;
     const timer = window.setTimeout(() => {
@@ -130,7 +171,11 @@ export default function QuizPage() {
         return;
       }
       setSaveState("saving");
-      void fetch("/api/quiz-attempts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idempotencyKey: sessionId.current, answers }), signal: AbortSignal.timeout(10000) }).then(async (response) => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (token) headers["authorization"] = `Bearer ${token}`;
+
+      void fetch("/api/quiz-attempts", { method: "POST", headers, body: JSON.stringify({ idempotencyKey: sessionId.current, answers }), signal: AbortSignal.timeout(10000) }).then(async (response) => {
         if (!response.ok) throw new Error("save failed");
         const result = await response.json() as { xpAwarded?: number; xp?: number };
         const savedXp = Number.isFinite(result.xpAwarded) ? result.xpAwarded! : Number.isFinite(result.xp) ? result.xp! : null;

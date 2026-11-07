@@ -14,19 +14,20 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "AI Grammar server error" },
+        { error: "AI Grammar server error", isCorrect: false },
         { status: response.status }
       );
     }
     const data = await response.json();
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({
-      isCorrect: true,
-      correctedText: "",
-      explanation: "Chưa kết nối được máy chủ AI, hãy thử lại sau ít phút.",
-      tips: "Tiếp tục luyện tập thường xuyên!",
-    });
+    return NextResponse.json(
+      {
+        error: "Không thể kết nối đến máy chủ AI để kiểm tra ngữ pháp lúc này.",
+        isCorrect: false,
+        explanation: "Hệ thống AI đang tạm thời gián đoạn kết nối. Vui lòng thử lại sau.",
+      },
+      { status: 503 }
+    );
   }
 }
-

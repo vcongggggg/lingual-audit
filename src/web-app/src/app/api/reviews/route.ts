@@ -3,11 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
   try {
+    const authHeader = request.headers.get("authorization");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (authHeader) {
+      headers["authorization"] = authHeader;
+    }
+
+    const payload = await request.json();
     const response = await fetch(`${apiBase}/api/v1/content/reviews`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify(await request.json()), cache: "no-store",
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      cache: "no-store",
     });
-    return NextResponse.json(await response.json(), { status: response.status });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch {
     return NextResponse.json({ error: "Could not save review" }, { status: 503 });
   }
