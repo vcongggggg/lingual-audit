@@ -17,4 +17,4 @@ EXPOSE 3000
 
 # Chạy npm install khi container khởi động (tránh làm gãy bước Docker Image Build)
 # sau đó khởi chạy Next.js development server
-CMD ["sh", "-c", "npm install --no-audit --no-fund && npm run dev"]
+CMD ["sh", "-c", "npm install --no-audit --no-fund && npm run dev -- --hostname 0.0.0.0"]

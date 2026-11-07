@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LinguaMezon - Học Từ Vựng Flashcard 3D & SM-2</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 3D Perspective Canvas */
+    .card-perspective {
+      perspective: 1200px;
+    }
+    .card-preserve-3d {
+      transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+    }
+    .card-face {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .card-back {
+      transform: rotateY(180deg);
+    }
+    .flipped {
+      transform: rotateY(180deg);
+    }
+  </style>
+</head>
+<body class="bg-[#070b14] text-slate-100 font-sans min-h-screen antialiased flex flex-col justify-between p-4 md:py-6 relative overflow-x-hidden select-none">
+
+  <!-- Ambient background glow elements -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/20 blur-[130px] rounded-full"></div>
+    <div class="absolute top-[40%] -left-32 w-80 h-80 bg-cyan-500/10 blur-[100px] rounded-full"></div>
+    <div class="absolute top-[60%] -right-32 w-80 h-80 bg-amber-500/10 blur-[100px] rounded-full"></div>
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="w-full max-w-xl mx-auto flex items-center justify-between pb-3 border-b border-white/5 z-10">
+    <a href="preview-leaderboard.html" class="flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-white/10 transition-colors">
+      <i data-lucide="chevron-left" class="w-4 h-4"></i>
+      <span>Bảng Xếp Hạng</span>
+    </a>
+
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+        SRS SM-2 Deck
+      </span>
+      <span class="text-xs text-amber-400 font-bold flex items-center gap-1 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+        <i data-lucide="flame" class="w-3.5 h-3.5 fill-amber-400"></i>
+        14d
+      </span>
+    </div>
+  </header>
+
+  <!-- MAIN STUDY AREA -->
+  <main class="w-full flex-1 flex flex-col items-center justify-center py-4 z-10">
+    <div class="w-full max-w-xl mx-auto flex flex-col items-center">
+      
+      <!-- Top Progress Bar & Live Session Stats -->
+      <div class="w-full flex items-center justify-between mb-3 text-xs px-1">
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-white text-sm" id="progressText">1 <span class="text-slate-500 text-xs">/ 3</span></span>
+          <div class="w-28 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+            <div id="progressBar" style="width: 33%" class="h-full bg-gradient-to-r from-indigo-500 via-indigo-400 to-cyan-400 rounded-full transition-all duration-300"></div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="relative flex items-center gap-1 font-black text-cyan-400 bg-cyan-400/10 px-2.5 py-1 rounded-xl border border-cyan-400/20">
+            <i data-lucide="zap" class="w-3.5 h-3.5 fill-cyan-400"></i>
+            <span id="sessionXp">0 XP</span>
+            <span id="xpFloatBadge" class="hidden absolute -top-7 right-0 text-xs font-black text-amber-300 bg-slate-900 border border-amber-400/40 px-2 py-0.5 rounded-full shadow-lg animate-bounce">+25 XP!</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D Flashcard Perspective Container -->
+      <div class="w-full h-[400px] sm:h-[430px] card-perspective cursor-pointer group" onclick="toggleCardFlip()">
+        <div id="cardInner" class="relative w-full h-full rounded-3xl card-preserve-3d shadow-2xl">
+          
+          <!-- ========================================== -->
+          <!-- FRONT FACE (MẶT TRƯỚC) -->
+          <!-- ========================================== -->
+          <div class="card-face absolute inset-0 w-full h-full rounded-3xl bg-gradient-to-b from-[#0f172a] via-[#0d1424] to-[#070b14] border-2 border-indigo-500/30 p-6 flex flex-col justify-between shadow-2xl shadow-indigo-950/50 group-hover:border-indigo-400/50 transition-colors overflow-hidden">
+            <!-- Glow background -->
+            <div class="absolute -top-20 -right-20 w-44 h-44 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-20 -left-20 w-44 h-44 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Top tags -->
+            <div class="flex items-center justify-between z-10">
+              <div class="flex items-center gap-2">
+                <span id="cardPos" class="text-[11px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-xl border border-indigo-500/20">
+                  noun
+                </span>
+                <span id="cardReps" class="text-[11px] text-slate-400 font-semibold bg-slate-800/80 px-2 py-0.5 rounded-lg border border-white/5">
+                  Lặp lại: 1 lần
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-xl border border-white/5">
+                <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span>Chạm để lật</span>
+              </div>
+            </div>
+
+            <!-- Center: Audio Button & Word & IPA -->
+            <div class="flex flex-col items-center justify-center my-auto text-center z-10 px-2">
+              <!-- Web Speech API Button -->
+              <button type="button" id="btnAudioSpeak" onclick="speakTerm(event)" title="Phát âm từ vựng (Web Speech API) - Phím R" class="relative mb-3 flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-400/40 hover:scale-105 active:scale-95 shadow-md shadow-indigo-600/30 transition-all">
+                <i data-lucide="volume-2" id="audioIcon" class="w-7 h-7"></i>
+              </button>
+
+              <h1 id="cardTerm" class="text-3xl sm:text-4xl font-black text-white tracking-tight drop-shadow-md">
+                Perseverance
+              </h1>
+
+              <span id="cardIpa" class="text-sm sm:text-base font-mono text-cyan-300/90 mt-1.5 tracking-wider bg-cyan-950/40 px-3 py-0.5 rounded-full border border-cyan-500/20">
+                /ˌpɜː.sɪˈvɪə.rəns/
+              </span>
+
+              <!-- Collocations -->
+              <div id="cardCollocations" class="flex flex-wrap items-center justify-center gap-1.5 mt-4 max-w-sm">
+                <span class="text-[11px] text-slate-300 bg-slate-900/80 px-2.5 py-0.5 rounded-lg border border-white/5">💡 show perseverance</span>
+                <span class="text-[11px] text-slate-300 bg-slate-900/80 px-2.5 py-0.5 rounded-lg border border-white/5">💡 remarkable perseverance</span>
+              </div>
+            </div>
+
+            <!-- Bottom hint -->
+            <div class="pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-400 z-10">
+              <span class="flex items-center gap-1 text-[11px]">
+                <i data-lucide="keyboard" class="w-3.5 h-3.5 text-slate-500"></i>
+                Phím Space để lật thẻ
+              </span>
+              <span class="text-[11px] text-indigo-300/90 font-medium">Mặt sau: Định nghĩa & Ví dụ</span>
+            </div>
+          </div>
+
+          <!-- ========================================== -->
+          <!-- BACK FACE (MẶT SAU) -->
+          <!-- ========================================== -->
+          <div class="card-face card-back absolute inset-0 w-full h-full rounded-3xl bg-gradient-to-b from-[#111a33] via-[#0d1424] to-[#070b14] border-2 border-cyan-500/30 p-5 sm:p-6 flex flex-col justify-between shadow-2xl shadow-cyan-950/50 overflow-y-auto">
+            <!-- Header back -->
+            <div class="flex items-center justify-between pb-2 border-b border-white/5">
+              <div class="flex items-center gap-2">
+                <span id="backTerm" class="text-base font-black text-white">Perseverance</span>
+                <span id="backIpa" class="text-xs font-mono text-cyan-300">/ˌpɜː.sɪˈvɪə.rəns/</span>
+              </div>
+              <button type="button" onclick="speakTerm(event)" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 transition-colors">
+                <i data-lucide="volume-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- Meaning -->
+            <div class="my-2 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/60 to-cyan-950/40 border border-indigo-400/20">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-400 block mb-1">
+                Ý Nghĩa Tiếng Việt:
+              </span>
+              <p id="backMeaning" class="text-sm sm:text-base font-extrabold text-amber-200 leading-snug">
+                Tính kiên trì, sự bền chí, quyết tâm theo đuổi mục tiêu dù gặp muôn vàn khó khăn.
+              </p>
+            </div>
+
+            <!-- Examples -->
+            <div id="backExamples" class="flex flex-col gap-2 my-1">
+              <!-- Rendered via JS -->
+            </div>
+
+            <!-- Bottom hint -->
+            <div class="pt-2 border-t border-white/5 text-center">
+              <span class="text-[11px] font-bold text-indigo-300">
+                👇 Chọn mức độ ghi nhớ bên dưới để hệ thống xếp lịch ôn
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Flip helper button -->
+      <button onclick="toggleCardFlip()" class="mt-3 text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
+        <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-indigo-400"></i>
+        <span id="flipToggleLabel">Lật mặt sau xem đáp án (Space)</span>
+      </button>
+
+      <!-- 4 SM-2 EVALUATION BUTTONS -->
+      <div class="w-full mt-4 pt-3 border-t border-white/10">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-2 px-1">
+          <span class="font-semibold flex items-center gap-1">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+            Đánh giá theo thuật toán SM-2:
+          </span>
+          <span class="text-[11px] text-slate-500 hidden sm:inline">Phím tắt: 1, 2, 3, 4</span>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 sm:gap-3 w-full">
+          <!-- 1. AGAIN -->
+          <button type="button" onclick="submitSm2Rating('again')" class="group relative flex flex-col items-center justify-center p-2.5 sm:py-3.5 rounded-2xl bg-gradient-to-b from-rose-950/40 to-slate-900/90 border border-rose-500/30 hover:border-rose-400 hover:bg-rose-900/30 active:scale-95 transition-all shadow-md hover:shadow-rose-500/20">
+            <span class="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.2 rounded mb-1" id="intervalAgain">&lt; 10 phút</span>
+            <span class="font-black text-xs sm:text-sm text-white group-hover:text-rose-200">Again</span>
+            <span class="text-[10px] text-slate-400 font-medium">Quên (1)</span>
+          </button>
+
+          <!-- 2. HARD -->
+          <button type="button" onclick="submitSm2Rating('hard')" class="group relative flex flex-col items-center justify-center p-2.5 sm:py-3.5 rounded-2xl bg-gradient-to-b from-amber-950/40 to-slate-900/90 border border-amber-500/30 hover:border-amber-400 hover:bg-amber-900/30 active:scale-95 transition-all shadow-md hover:shadow-amber-500/20">
+            <span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded mb-1" id="intervalHard">1 ngày</span>
+            <span class="font-black text-xs sm:text-sm text-white group-hover:text-amber-200">Hard</span>
+            <span class="text-[10px] text-slate-400 font-medium">Khó (2)</span>
+          </button>
+
+          <!-- 3. GOOD -->
+          <button type="button" onclick="submitSm2Rating('good')" class="group relative flex flex-col items-center justify-center p-2.5 sm:py-3.5 rounded-2xl bg-gradient-to-b from-indigo-950/40 to-slate-900/90 border border-indigo-500/40 hover:border-indigo-400 hover:bg-indigo-900/30 active:scale-95 transition-all shadow-md hover:shadow-indigo-500/20 ring-1 ring-indigo-500/30">
+            <span class="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 px-1.5 py-0.2 rounded mb-1" id="intervalGood">3 ngày</span>
+            <span class="font-black text-xs sm:text-sm text-white group-hover:text-cyan-200">Good</span>
+            <span class="text-[10px] text-slate-400 font-medium">Chuẩn (3)</span>
+          </button>
+
+          <!-- 4. EASY -->
+          <button type="button" onclick="submitSm2Rating('easy')" class="group relative flex flex-col items-center justify-center p-2.5 sm:py-3.5 rounded-2xl bg-gradient-to-b from-emerald-950/40 to-slate-900/90 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-900/30 active:scale-95 transition-all shadow-md hover:shadow-emerald-500/20">
+            <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded mb-1" id="intervalEasy">6 ngày</span>
+            <span class="font-black text-xs sm:text-sm text-white group-hover:text-emerald-200">Easy</span>
+            <span class="text-[10px] text-slate-400 font-medium">Rất dễ (4)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Realtime SM-2 Console Inspector (For Devs & Tutors) -->
+      <div class="w-full mt-4 p-3 rounded-2xl bg-slate-900/80 border border-white/5 text-xs text-slate-400 font-mono">
+        <div class="flex items-center justify-between text-[11px] text-indigo-400 font-bold mb-1">
+          <span>⚡ Backend SM-2 Payload Preview:</span>
+          <span id="payloadStatus">Ready to emit POST /api/v1/srs/review</span>
+        </div>
+        <div id="payloadJson" class="text-[11px] text-slate-300 overflow-x-auto whitespace-pre">
+{ "vocabulary_id": "vocab-01", "rating": "good", "quality": 4, "interval_days": 3, "ease_factor": 2.5 }
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="w-full max-w-xl mx-auto pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500 z-10">
+    <span>Spaced Repetition System (SRS SM-2)</span>
+    <span>LinguaMezon • Webview</span>
+  </footer>
+
+  <!-- ========================================================= -->
+  <!-- JAVASCRIPT LOGIC & SM-2 ENGINE -->
+  <!-- ========================================================= -->
+  <script>
+    const VOCAB_DATA = [
+      {
+        id: "vocab-01",
+        term: "Perseverance",
+        ipa: "/ˌpɜː.sɪˈvɪə.rəns/",
+        pos: "noun",
+        meaning: "Tính kiên trì, sự bền chí, quyết tâm theo đuổi mục tiêu dù gặp muôn vàn khó khăn.",
+        reps: 1,
+        interval: 1.0,
+        ef: 2.50,
+        examples: [
+          { src: "Through hard work and perseverance, she conquered the IELTS 8.0.", tgt: "Nhờ làm việc chăm chỉ và sự kiên trì, cô ấy đã chinh phục IELTS 8.0." },
+          { src: "Perseverance in daily SRS review brings mastery.", tgt: "Sự kiên trì ôn tập SRS mỗi ngày mang lại sự tinh thông." }
+        ],
+        collocations: ["show perseverance", "remarkable perseverance"]
+      },
+      {
+        id: "vocab-02",
+        term: "Eloquent",
+        ipa: "/ˈel.ə.kwənt/",
+        pos: "adjective",
+        meaning: "Hùng biện, lưu loát, có tài ăn nói thuyết phục và truyền cảm hứng.",
+        reps: 0,
+        interval: 0,
+        ef: 2.50,
+        examples: [
+          { src: "The student gave an eloquent presentation about AI in education.", tgt: "Bạn sinh viên đã thuyết trình hùng biện đầy thuyết phục về AI." }
+        ],
+        collocations: ["eloquent speaker", "eloquent speech"]
+      },
+      {
+        id: "vocab-03",
+        term: "Meticulous",
+        ipa: "/məˈtɪk.jə.ləs/",
+        pos: "adjective",
+        meaning: "Tỉ mỉ, cẩn thận từng li từng tí, chú ý đến từng chi tiết nhỏ nhất.",
+        reps: 3,
+        interval: 6.0,
+        ef: 2.60,
+        examples: [
+          { src: "He kept meticulous records of every SRS card reviewed.", tgt: "Anh ấy ghi chép tỉ mỉ từng thẻ SRS mà mình đã ôn tập." }
+        ],
+        collocations: ["meticulous research", "meticulous attention"]
+      }
+    ];
+
+    let currentIndex = 0;
+    let isFlipped = false;
+    let totalXp = 0;
+    let startTime = Date.now();
+
+    function computeSm2(item, rating) {
+      const qMap = { again: 1, hard: 2, good: 4, easy: 5 };
+      const q = qMap[rating];
+      let reps = item.reps;
+      let interval = item.interval;
+      let ef = item.ef;
+
+      if (q < 3) {
+        reps = 0;
+        interval = 0.007; // ~10m
+      } else {
+        if (reps === 0) interval = 1;
+        else if (reps === 1) interval = rating === 'hard' ? 3 : 6;
+        else {
+          let mult = ef;
+          if (rating === 'hard') mult = 1.2;
+          if (rating === 'easy') mult = ef * 1.3;
+          interval = Math.round(interval * mult * 10) / 10;
+        }
+        reps += 1;
+      }
+
+      let newEf = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+      if (newEf < 1.3) newEf = 1.3;
+      newEf = Math.round(newEf * 100) / 100;
+
+      let label = "";
+      if (interval < 0.02) label = "< 10 phút";
+      else if (interval <= 1) label = "1 ngày";
+      else label = Math.round(interval) + " ngày";
+
+      return { rating, quality: q, reps, interval, ef: newEf, label };
+    }
+
+    function renderCard() {
+      const item = VOCAB_DATA[currentIndex];
+      startTime = Date.now();
+
+      // Front
+      document.getElementById('cardTerm').textContent = item.term;
+      document.getElementById('cardIpa').textContent = item.ipa;
+      document.getElementById('cardPos').textContent = item.pos;
+      document.getElementById('cardReps').textContent = `Lặp lại: ${item.reps} lần`;
+      document.getElementById('cardCollocations').innerHTML = item.collocations.map(c => `
+        <span class="text-[11px] text-slate-300 bg-slate-900/80 px-2.5 py-0.5 rounded-lg border border-white/5">💡 ${c}</span>
+      `).join('');
+
+      // Back
+      document.getElementById('backTerm').textContent = item.term;
+      document.getElementById('backIpa').textContent = item.ipa;
+      document.getElementById('backMeaning').textContent = item.meaning;
+      document.getElementById('backExamples').innerHTML = item.examples.map(eg => `
+        <div class="p-2.5 rounded-xl bg-slate-900/80 border border-white/5 text-xs text-left">
+          <p class="text-slate-200 font-medium italic">"${eg.src}"</p>
+          <p class="text-emerald-400 font-medium text-[11px] mt-1">→ ${eg.tgt}</p>
+        </div>
+      `).join('');
+
+      // Button intervals preview
+      document.getElementById('intervalAgain').textContent = computeSm2(item, 'again').label;
+      document.getElementById('intervalHard').textContent = computeSm2(item, 'hard').label;
+      document.getElementById('intervalGood').textContent = computeSm2(item, 'good').label;
+      document.getElementById('intervalEasy').textContent = computeSm2(item, 'easy').label;
+
+      // Progress bar
+      const pct = Math.round(((currentIndex + 1) / VOCAB_DATA.length) * 100);
+      document.getElementById('progressText').innerHTML = `${currentIndex + 1} <span class="text-slate-500 text-xs">/ ${VOCAB_DATA.length}</span>`;
+      document.getElementById('progressBar').style.width = pct + '%';
+
+      // Reset flip state
+      isFlipped = false;
+      document.getElementById('cardInner').classList.remove('flipped');
+      document.getElementById('flipToggleLabel').textContent = "Lật mặt sau xem đáp án (Space)";
+      
+      lucide.createIcons();
+    }
+
+    function toggleCardFlip() {
+      isFlipped = !isFlipped;
+      const card = document.getElementById('cardInner');
+      if (isFlipped) {
+        card.classList.add('flipped');
+        document.getElementById('flipToggleLabel').textContent = "Xem lại mặt trước (Space)";
+      } else {
+        card.classList.remove('flipped');
+        document.getElementById('flipToggleLabel').textContent = "Lật mặt sau xem đáp án (Space)";
+      }
+    }
+
+    function speakTerm(event) {
+      if (event) event.stopPropagation();
+      const item = VOCAB_DATA[currentIndex];
+      if (!('speechSynthesis' in window)) {
+        alert("Web Speech API không được hỗ trợ trên trình duyệt này.");
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(item.term);
+      utter.lang = "en-US";
+      utter.rate = 0.88;
+      utter.pitch = 1.0;
+
+      const btn = document.getElementById('btnAudioSpeak');
+      btn.classList.add('ring-4', 'ring-amber-400/30', 'bg-amber-400', 'text-slate-950');
+
+      utter.onend = () => {
+        btn.classList.remove('ring-4', 'ring-amber-400/30', 'bg-amber-400', 'text-slate-950');
+      };
+      utter.onerror = () => {
+        btn.classList.remove('ring-4', 'ring-amber-400/30', 'bg-amber-400', 'text-slate-950');
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    function submitSm2Rating(rating) {
+      const item = VOCAB_DATA[currentIndex];
+      const sm2 = computeSm2(item, rating);
+      const timeSpent = Date.now() - startTime;
+
+      const xpMap = { again: 5, hard: 15, good: 20, easy: 25 };
+      const earnedXp = xpMap[rating];
+      totalXp += earnedXp;
+
+      // Update state
+      item.reps = sm2.reps;
+      item.interval = sm2.interval;
+      item.ef = sm2.ef;
+
+      // XP Animation
+      document.getElementById('sessionXp').textContent = `${totalXp} XP`;
+      const xpBadge = document.getElementById('xpFloatBadge');
+      xpBadge.textContent = `+${earnedXp} XP!`;
+      xpBadge.classList.remove('hidden');
+
+      // Update JSON preview for dev
+      const payload = {
+        vocabulary_id: item.id,
+        rating: rating,
+        quality: sm2.quality,
+        repetitions: sm2.reps,
+        interval_days: sm2.interval,
+        ease_factor: sm2.ef,
+        next_due_at: new Date(Date.now() + sm2.interval * 86400000).toISOString(),
+        time_spent_ms: timeSpent,
+        idempotency_key: `${item.id}-${Date.now()}`
+      };
+
+      document.getElementById('payloadJson').textContent = JSON.stringify(payload, null, 2);
+      document.getElementById('payloadStatus').textContent = `Emitted: rating=${rating} (${earnedXp} XP)`;
+
+      setTimeout(() => {
+        xpBadge.classList.add('hidden');
+        if (currentIndex + 1 < VOCAB_DATA.length) {
+          currentIndex += 1;
+          renderCard();
+        } else {
+          alert(`🎉 Chúc mừng! Bạn đã hoàn thành phiên học. Tổng XP: +${totalXp} XP!`);
+          currentIndex = 0;
+          renderCard();
+        }
+      }, 350);
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleCardFlip();
+      } else if (e.code === 'KeyR') {
+        e.preventDefault();
+        speakTerm();
+      } else if (isFlipped) {
+        if (e.key === '1') submitSm2Rating('again');
+        if (e.key === '2') submitSm2Rating('hard');
+        if (e.key === '3') submitSm2Rating('good');
+        if (e.key === '4') submitSm2Rating('easy');
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderCard();
+    });
+  </script>
+</body>
+</html>
+
