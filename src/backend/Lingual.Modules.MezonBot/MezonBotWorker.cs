@@ -50,6 +50,41 @@ public class MezonBotWorker : BackgroundService
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
+    /// <summary>
+    /// Phân giải định tuyến loại lệnh từ tin nhắn Mezon để kiểm soát dispatch chính xác và hỗ trợ unit test.
+    /// </summary>
+    public static string ResolveCommandType(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "unknown";
+        var trimmed = text.Trim();
+
+        if (trimmed.Equals("/ping", StringComparison.OrdinalIgnoreCase))
+            return "ping";
+        if (trimmed.Equals("/help", StringComparison.OrdinalIgnoreCase))
+            return "help";
+        if (trimmed.Equals("/learn", StringComparison.OrdinalIgnoreCase))
+            return "learn";
+        if (trimmed.Equals("/daily", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Equals("/checkin", StringComparison.OrdinalIgnoreCase))
+            return "daily";
+        if (trimmed.Equals("/streak", StringComparison.OrdinalIgnoreCase))
+            return "streak";
+        if (trimmed.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
+            return "quiz";
+        if (trimmed.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
+            return "roleplay";
+        if (trimmed.Equals("/top", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Equals("/leaderboard", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Equals("/bxh", StringComparison.OrdinalIgnoreCase))
+            return "leaderboard";
+        if (trimmed.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
+            return "ask";
+
+        return "unknown";
+    }
+
     public MezonBotWorker(
         ILogger<MezonBotWorker> logger,
         IOptions<MezonBotOptions> options,
@@ -336,7 +371,6 @@ public class MezonBotWorker : BackgroundService
                 await HandleLearnCommandAsync(data.ChannelId, data);
             }
             else if (text.Equals("/daily", StringComparison.OrdinalIgnoreCase) ||
-                     text.Equals("/streak", StringComparison.OrdinalIgnoreCase) ||
                      text.Equals("/checkin", StringComparison.OrdinalIgnoreCase))
             {
                 var senderId = data.SenderId.ToString();
@@ -361,8 +395,10 @@ public class MezonBotWorker : BackgroundService
             else if (text.Equals("/streak", StringComparison.OrdinalIgnoreCase))
             {
                 var senderId = data.SenderId.ToString();
-                var displayName = $"Learner_{senderId[..Math.Min(6, senderId.Length)]}";
-                await HandleStreakCommandAsync(data.ChannelId, senderId, displayName);
+                var displayName = string.IsNullOrWhiteSpace(data.Username)
+                    ? $"Member_{senderId[..Math.Min(6, senderId.Length)]}"
+                    : data.Username;
+                await HandleStreakCommandAsync(data.ChannelId, senderId, displayName, data);
             }
             else if (text.Equals("/top", StringComparison.OrdinalIgnoreCase) ||
                      text.Equals("/leaderboard", StringComparison.OrdinalIgnoreCase) ||
@@ -448,7 +484,7 @@ public class MezonBotWorker : BackgroundService
         await ReplyToChannelWithContentAsync(channelId, content, replyTo);
     }
 
-    private async Task HandleDailyCommandAsync(
+    public async Task HandleDailyCommandAsync(
         long channelId,
         string senderId,
         string displayName,
@@ -515,7 +551,7 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
-    private async Task HandleStreakCommandAsync(long channelId, string mezonUserId, string? displayName, ChannelMessageResponse? replyTo = null)
+    public async Task HandleStreakCommandAsync(long channelId, string mezonUserId, string? displayName, ChannelMessageResponse? replyTo = null)
     {
         try
         {
