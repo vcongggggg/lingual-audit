@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "set NODE_OPTIONS=--max-old-space-size=4096 && tsc --noEmit"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",

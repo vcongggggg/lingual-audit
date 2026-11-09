@@ -8,10 +8,11 @@ public interface IGamificationService
 
     Task<UserStreakDto> GetUserStreakAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<LeaderboardResponseDto> GetLeaderboardAsync(
         int limit = 20,
         string type = "all-time",
         Guid? currentUserId = null,
         CancellationToken cancellationToken = default);
 }
-

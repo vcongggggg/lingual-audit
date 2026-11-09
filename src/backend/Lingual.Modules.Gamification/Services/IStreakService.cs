@@ -12,5 +12,6 @@ public interface IStreakService
         int studySeconds = 0,
         int wordsCount = 0,
         CancellationToken cancellationToken = default);
-}
 
+    Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default);
+}

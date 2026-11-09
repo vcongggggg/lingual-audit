@@ -154,5 +154,47 @@ public class StreakServiceTests
         result.BestDays.Should().Be(10); // Kỷ lục cũ 10 ngày vẫn giữ nguyên
         result.IsActiveToday.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task CheckInAsync_FirstTime_Awards20XpAndSetsStreak1()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+
+        // Act
+        var result = await _streakService.CheckInAsync(userId);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        result.AlreadyCheckedInToday.Should().BeFalse();
+        result.CurrentDays.Should().Be(1);
+        result.XpAwarded.Should().Be(20);
+        result.FreezeUsed.Should().BeFalse();
+
+        // Sổ cái phải có bản ghi daily_checkin
+        var today = TimeZoneHelper.GetCurrentVietnamDate();
+        var expectedKey = $"daily_checkin_{userId}_{today:yyyyMMdd}";
+        var ledger = await _dbContext.XpLedgers.FirstOrDefaultAsync(x => x.IdempotencyKey == expectedKey);
+        ledger.Should().NotBeNull();
+        ledger!.XpDelta.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task CheckInAsync_SecondTimeSameDay_ReturnsAlreadyCheckedInWithZeroXp()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var first = await _streakService.CheckInAsync(userId);
+        first.IsSuccess.Should().BeTrue();
+
+        // Act
+        var second = await _streakService.CheckInAsync(userId);
+
+        // Assert
+        second.IsSuccess.Should().BeTrue();
+        second.AlreadyCheckedInToday.Should().BeTrue();
+        second.XpAwarded.Should().Be(0);
+        second.CurrentDays.Should().Be(1);
+    }
 }
 

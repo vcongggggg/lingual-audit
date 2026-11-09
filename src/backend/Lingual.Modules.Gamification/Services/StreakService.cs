@@ -133,7 +133,59 @@ public class StreakService(
         streak.FreezeHistory = JsonSerializer.Serialize(freezeHistory);
         streak.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            logger.LogWarning("Phát hiện xung đột đồng thời pk_user_streaks cho UserId {UserId}. Đang tải lại bản ghi...", userId);
+            dbContext.ChangeTracker.Clear();
+            var reloadedStreak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+            if (reloadedStreak != null)
+            {
+                var reloadedActivities = DeserializeDailyActivity(reloadedStreak.DailyActivity);
+                var reloadedFreezeHistory = DeserializeFreezeHistory(reloadedStreak.FreezeHistory);
+
+                int rOldTodayXp = reloadedActivities.TryGetValue(todayKey, out var rEntry) ? rEntry.Xp : 0;
+                int rNewTodayXp = rOldTodayXp + Math.Max(0, xpDelta);
+
+                if (rEntry == null)
+                {
+                    rEntry = new DailyActivityEntry
+                    {
+                        Xp = rNewTodayXp,
+                        StudySeconds = studySeconds,
+                        WordsCount = wordsCount,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    reloadedActivities[todayKey] = rEntry;
+                }
+                else
+                {
+                    rEntry.Xp = rNewTodayXp;
+                    rEntry.StudySeconds += studySeconds;
+                    rEntry.WordsCount += wordsCount;
+                    rEntry.UpdatedAt = DateTime.UtcNow;
+                }
+
+                bool rWasActiveToday = rOldTodayXp >= STREAK_XP_THRESHOLD;
+                bool rIsActiveNow = rNewTodayXp >= STREAK_XP_THRESHOLD;
+
+                if (!rWasActiveToday && rIsActiveNow)
+                {
+                    ApplyActiveDayStreak(reloadedStreak, today, reloadedFreezeHistory, logger);
+                }
+
+                reloadedStreak.DailyActivity = JsonSerializer.Serialize(reloadedActivities);
+                reloadedStreak.FreezeHistory = JsonSerializer.Serialize(reloadedFreezeHistory);
+                reloadedStreak.UpdatedAt = DateTime.UtcNow;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                streak = reloadedStreak;
+                newTodayXp = rNewTodayXp;
+            }
+        }
 
         int xpNeeded = Math.Max(0, STREAK_XP_THRESHOLD - newTodayXp);
 
@@ -147,6 +199,85 @@ public class StreakService(
             newTodayXp,
             xpNeeded,
             streak.UpdatedAt);
+    }
+
+    public async Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var today = TimeZoneHelper.GetCurrentVietnamDate();
+        var todayKey = today.ToString("yyyy-MM-dd");
+        var idempotencyKey = $"daily_checkin_{userId}_{today:yyyyMMdd}";
+
+        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        if (streak != null)
+        {
+            EvaluateStreakIntegrity(streak, today);
+
+            // Kiểm tra xem hôm nay đã điểm danh chưa
+            if (streak.LastActiveDate == today)
+            {
+                return new DailyCheckinResultDto(
+                    IsSuccess: true,
+                    AlreadyCheckedInToday: true,
+                    CurrentDays: streak.CurrentDays,
+                    BestDays: streak.BestDays,
+                    XpAwarded: 0,
+                    FreezeBalance: streak.FreezeBalance,
+                    FreezeUsed: false,
+                    Message: "Hôm nay bạn đã điểm danh giữ streak rồi! Hãy quay lại vào ngày mai nhé."
+                );
+            }
+        }
+
+        bool alreadyHasLedger = await dbContext.XpLedgers.AnyAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
+        if (alreadyHasLedger)
+        {
+            return new DailyCheckinResultDto(
+                IsSuccess: true,
+                AlreadyCheckedInToday: true,
+                CurrentDays: streak?.CurrentDays ?? 0,
+                BestDays: streak?.BestDays ?? 0,
+                XpAwarded: 0,
+                FreezeBalance: streak?.FreezeBalance ?? 1,
+                FreezeUsed: false,
+                Message: "Hôm nay bạn đã điểm danh giữ streak rồi! Hãy quay lại vào ngày mai nhé."
+            );
+        }
+
+        const int dailyXp = 20;
+        int prevFreeze = streak?.FreezeBalance ?? 1;
+
+        // Cập nhật hoạt động XP vào chuỗi streak
+        var updatedStreak = await RecordXpActivityAsync(userId, dailyXp, 0, 0, cancellationToken);
+        bool freezeUsed = prevFreeze > updatedStreak.FreezeBalance;
+
+        // Ghi nhận vào sổ cái xp_ledger với idempotency key
+        var ledger = new XpLedger
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            SourceType = "daily_checkin",
+            SourceId = Guid.NewGuid(),
+            XpDelta = dailyXp,
+            AwardedAt = DateTime.UtcNow,
+            IdempotencyKey = idempotencyKey,
+            Metadata = JsonSerializer.Serialize(new { type = "daily_checkin", date = todayKey })
+        };
+        dbContext.XpLedgers.Add(ledger);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("🔥 [StreakService] User {UserId} đã điểm danh thành công ngày {Date}! Chuỗi hiện tại: {Days} ngày",
+            userId, todayKey, updatedStreak.CurrentDays);
+
+        return new DailyCheckinResultDto(
+            IsSuccess: true,
+            AlreadyCheckedInToday: false,
+            CurrentDays: updatedStreak.CurrentDays,
+            BestDays: updatedStreak.BestDays,
+            XpAwarded: dailyXp,
+            FreezeBalance: updatedStreak.FreezeBalance,
+            FreezeUsed: freezeUsed,
+            Message: "Điểm danh hàng ngày thành công! Giữ vững ngọn lửa học tập nhé."
+        );
     }
 
     private static void ApplyActiveDayStreak(UserStreak streak, DateOnly today, List<FreezeHistoryEntry> freezeHistory, ILogger logger)

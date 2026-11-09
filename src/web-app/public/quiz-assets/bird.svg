@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <rect width="640" height="360" rx="28" fill="#f1eafa"/>
+  <path d="M250 245q0-125 105-125 80 0 80 90 0 85-105 85-80 0-80-50Z" fill="#b9a2d4"/>
+  <path d="m425 180 65 25-65 25Z" fill="#c68e56"/>
+  <circle cx="385" cy="155" r="9" fill="#252820"/>
+  <text x="320" y="320" text-anchor="middle" fill="#785b99" font-family="Arial" font-size="28" font-weight="700">BIRD</text>
+</svg>

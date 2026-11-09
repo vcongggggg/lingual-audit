@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "BXH & ti\u1ebfn \u0111\u1ed9", icon: Trophy },
+  { href: "/", label: "Tổng quan", icon: House },
   { href: "/learn", label: "Flashcard", icon: BookOpen },
+  { href: "/words", label: "Từ vựng", icon: Library },
   { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
+  { href: "/tutor", label: "LingLing AI", icon: Bot },
+  { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
 ];
 
 export default function AppNavigation() {
   const pathname = usePathname();
-
   return (
     <nav className="app-nav" aria-label="Điều hướng chính">
       <Link className="app-brand" href="/" aria-label="LinguaMezon, trang tổng quan">

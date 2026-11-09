@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <ProjectGuid>{540C0442-398B-41A6-8C3E-879C0FD99E1A}</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +29,9 @@
     <ProjectReference Include="..\..\..\src\backend\Lingual.Infrastructure\Lingual.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.MezonBot\Lingual.Modules.MezonBot.csproj" />
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.AITutor\Lingual.Modules.AITutor.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Lingual.Api\Lingual.Api.csproj" />
     <ProjectReference Include="..\..\..\src\backend\Lingual.Modules.Gamification.Contracts\Lingual.Modules.Gamification.Contracts.csproj" />
   </ItemGroup>
 
@@ -36,4 +40,3 @@
   </ItemGroup>
 
 </Project>
-
