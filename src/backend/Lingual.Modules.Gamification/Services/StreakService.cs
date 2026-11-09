@@ -133,7 +133,59 @@ public class StreakService(
         streak.FreezeHistory = JsonSerializer.Serialize(freezeHistory);
         streak.UpdatedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            logger.LogWarning("Phát hiện xung đột đồng thời pk_user_streaks cho UserId {UserId}. Đang tải lại bản ghi...", userId);
+            dbContext.ChangeTracker.Clear();
+            var reloadedStreak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+            if (reloadedStreak != null)
+            {
+                var reloadedActivities = DeserializeDailyActivity(reloadedStreak.DailyActivity);
+                var reloadedFreezeHistory = DeserializeFreezeHistory(reloadedStreak.FreezeHistory);
+
+                int rOldTodayXp = reloadedActivities.TryGetValue(todayKey, out var rEntry) ? rEntry.Xp : 0;
+                int rNewTodayXp = rOldTodayXp + Math.Max(0, xpDelta);
+
+                if (rEntry == null)
+                {
+                    rEntry = new DailyActivityEntry
+                    {
+                        Xp = rNewTodayXp,
+                        StudySeconds = studySeconds,
+                        WordsCount = wordsCount,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    reloadedActivities[todayKey] = rEntry;
+                }
+                else
+                {
+                    rEntry.Xp = rNewTodayXp;
+                    rEntry.StudySeconds += studySeconds;
+                    rEntry.WordsCount += wordsCount;
+                    rEntry.UpdatedAt = DateTime.UtcNow;
+                }
+
+                bool rWasActiveToday = rOldTodayXp >= STREAK_XP_THRESHOLD;
+                bool rIsActiveNow = rNewTodayXp >= STREAK_XP_THRESHOLD;
+
+                if (!rWasActiveToday && rIsActiveNow)
+                {
+                    ApplyActiveDayStreak(reloadedStreak, today, reloadedFreezeHistory, logger);
+                }
+
+                reloadedStreak.DailyActivity = JsonSerializer.Serialize(reloadedActivities);
+                reloadedStreak.FreezeHistory = JsonSerializer.Serialize(reloadedFreezeHistory);
+                reloadedStreak.UpdatedAt = DateTime.UtcNow;
+
+                await dbContext.SaveChangesAsync(cancellationToken);
+                streak = reloadedStreak;
+                newTodayXp = rNewTodayXp;
+            }
+        }
 
         int xpNeeded = Math.Max(0, STREAK_XP_THRESHOLD - newTodayXp);
 

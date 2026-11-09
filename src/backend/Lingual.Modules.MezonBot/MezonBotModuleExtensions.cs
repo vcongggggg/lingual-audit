@@ -12,6 +12,7 @@ public static class MezonBotModuleExtensions
         services.AddScoped<IClanQuizService, ClanQuizService>();
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
+        services.AddSingleton<IButtonInteractionObserver, ButtonInteractionObserver>();
         services.AddHostedService<MezonBotWorker>();
         return services;
     }
