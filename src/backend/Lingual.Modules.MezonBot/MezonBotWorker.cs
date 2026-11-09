@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -8,6 +9,8 @@ using Mezon.Net.Models;
 using Mezon.Net.Sdk.Builders;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
+using Lingual.Modules.Gamification.Contracts;
+using Lingual.Modules.MezonBot.Services;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
 namespace Lingual.Modules.MezonBot;
@@ -160,7 +163,7 @@ public class MezonBotWorker : BackgroundService
 
             if (text.Equals("/ping", StringComparison.OrdinalIgnoreCase))
             {
-                await ReplyToChannelAsync(data.ChannelId, "🏓 **Pong!** Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.7.0)");
+                await ReplyToChannelAsync(data.ChannelId, "🏓 Pong! Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.7.0)");
             }
             else if (text.Equals("/help", StringComparison.OrdinalIgnoreCase))
             {
@@ -170,6 +173,19 @@ public class MezonBotWorker : BackgroundService
             {
                 await HandleLearnCommandAsync(data.ChannelId);
             }
+            else if (text.Equals("/streak", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                var displayName = $"Learner_{senderId[..Math.Min(6, senderId.Length)]}";
+                await HandleStreakCommandAsync(data.ChannelId, senderId, displayName);
+            }
+            else if (text.Equals("/top", StringComparison.OrdinalIgnoreCase) ||
+                     text.Equals("/leaderboard", StringComparison.OrdinalIgnoreCase) ||
+                     text.Equals("/bxh", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                await HandleLeaderboardCommandAsync(data.ChannelId, senderId);
+            }
             else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
             {
@@ -178,7 +194,7 @@ public class MezonBotWorker : BackgroundService
 
                 if (string.IsNullOrWhiteSpace(query))
                 {
-                    await ReplyToChannelAsync(data.ChannelId, "🦉 **LingLing:** Bạn hãy nhập câu tiếng Anh cần kiểm tra sau lệnh `/ask` nhé!\n*Ví dụ:* `/ask I go to school yesterday`");
+                    await ReplyToChannelAsync(data.ChannelId, "🦉 LingLing: Bạn hãy nhập câu tiếng Anh cần kiểm tra sau lệnh `/ask` nhé!\nVí dụ: `/ask I go to school yesterday`");
                     return;
                 }
 
@@ -196,19 +212,21 @@ public class MezonBotWorker : BackgroundService
         var embed = new MessageEmbedBuilder()
             .SetColor("#3B82F6") // Blue Accent
             .SetTitle("🤖 LINGUAL BOT — TRỢ LÝ HỌC NGÔN NGỮ")
-            .SetDescription("Chào mừng bạn đến với **LINGUAL** trên nền tảng Mezon Campus Studio 2026!")
+            .SetDescription("Chào mừng bạn đến với LINGUAL trên nền tảng Mezon Campus Studio 2026!")
             .AddField("📚 Học tập & Luyện ngữ pháp", "• `/ask <câu>`: Mascot AI LingLing phân tích & sửa ngữ pháp\n• `/learn`: Mở Flashcard 3D ngắt quãng SRS SM-2", false)
+            .AddField("🔥 Thi đua & Thói quen", "• `/streak`: Tra cứu chuỗi học tập liên tục & tiến độ XP hôm nay\n• `/top`: Bảng xếp hạng tuần Top 10 cao thủ LINGUAL", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• `/ping`: Kiểm tra kết nối Bot & Gateway Mezon\n• `/help`: Xem menu hướng dẫn sử dụng", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
 
         var buttons = new ButtonBuilder()
             .AddButton("btn_open_miniapp", "🚀 Mở Mini-App", 1, false, "", "")
-            .AddButton("btn_guide_ask", "🦉 Hướng dẫn /ask", 2, false, "", "")
+            .AddButton("btn_view_streak", "🔥 Chuỗi của tôi", 2, false, "", "")
+            .AddButton("btn_view_leaderboard", "🏆 Bảng xếp hạng", 3, false, "", "")
             .BuildComponents();
 
         var content = new MessageContentBuilder()
-            .SetText("👋 **Danh sách các tính năng khả dụng:**")
+            .SetText("👋 Danh sách các tính năng khả dụng:")
             .AddEmbed(embed)
             .AddActionRow(buttons)
             .Build();
@@ -221,7 +239,7 @@ public class MezonBotWorker : BackgroundService
         var embed = new MessageEmbedBuilder()
             .SetColor("#6366F1") // Indigo Accent
             .SetTitle("📚 HỌC TỪ VỰNG TIẾNG ANH CÙNG LINGUAL")
-            .SetDescription("Bắt đầu phiên ôn tập thẻ ghi nhớ **Flashcard 3D** với thuật toán ngắt quãng **Spaced Repetition SM-2**!")
+            .SetDescription("Bắt đầu phiên ôn tập thẻ ghi nhớ Flashcard 3D với thuật toán ngắt quãng Spaced Repetition SM-2!")
             .AddField("💡 Mẹo nhỏ", "Gõ `/ask <câu tiếng Anh>` bất kỳ lúc nào để nhờ Mascot LingLing giải thích ngữ pháp hoặc từ mới.", false)
             .AddField("⚔️ Đấu trường Clan", "Chế độ 1vs1 Word Duel giữa các thành viên Clan sắp ra mắt trong Sprint 2!", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
@@ -229,15 +247,147 @@ public class MezonBotWorker : BackgroundService
 
         var buttons = new ButtonBuilder()
             .AddButton("btn_open_miniapp", "🚀 Bắt đầu học ngay", 1, false, "", "")
+            .AddButton("btn_view_streak", "🔥 Xem Streak", 2, false, "", "")
             .BuildComponents();
 
         var content = new MessageContentBuilder()
-            .SetText("🎯 **Sẵn sàng nâng cấp vốn từ vựng hôm nay!**")
+            .SetText("🎯 Sẵn sàng nâng cấp vốn từ vựng hôm nay!")
             .AddEmbed(embed)
             .AddActionRow(buttons)
             .Build();
 
         await ReplyToChannelWithContentAsync(channelId, content);
+    }
+
+    private async Task HandleStreakCommandAsync(long channelId, string mezonUserId, string? displayName)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+            var gamificationService = scope.ServiceProvider.GetService<IGamificationService>();
+
+            if (gamificationService == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ Gamification (Streak/Leaderboard) chưa sẵn sàng trên hệ thống.");
+                return;
+            }
+
+            var userId = await userResolver.ResolveUserIdAsync(mezonUserId, displayName);
+            var streak = await gamificationService.GetUserStreakAsync(userId);
+
+            var embedBuilder = new MessageEmbedBuilder()
+                .SetColor("#F59E0B") // Amber / Flame Orange
+                .SetTitle("🔥 CHUỖI HỌC TẬP (STREAK) — LINGUAL")
+                .SetDescription($"Chào {displayName ?? "bạn"}, đây là trạng thái chuỗi thói quen học tập của bạn:")
+                .AddField("🔥 Chuỗi hiện tại", $"{streak.CurrentDays} ngày liên tục\n(Kỷ lục: {streak.BestDays} ngày)", true)
+                .AddField("🛡️ Khiên đóng băng (Freeze)", $"{streak.FreezeBalance} lượt khả dụng\n(Tự động kích hoạt khi lỡ quên học)", true);
+
+            var targetXp = streak.TodayXp + streak.XpNeededForStreak;
+            if (targetXp <= 0) targetXp = 20;
+
+            var progressPct = targetXp > 0 ? Math.Min(100, (int)Math.Round((double)streak.TodayXp / targetXp * 100)) : 100;
+            var filledBlocks = Math.Min(10, progressPct / 10);
+            var emptyBlocks = Math.Max(0, 10 - filledBlocks);
+            var progressBar = new string('█', filledBlocks) + new string('░', emptyBlocks);
+
+            var progressMessage = streak.IsActiveToday
+                ? $"✅ Đã hoàn thành mục tiêu ngày! ({streak.TodayXp}/{targetXp} XP)\n`[{progressBar}] {progressPct}%` — Chuỗi ngày đã được bảo vệ trọn vẹn hôm nay! 🎉"
+                : $"⚡ Tiến độ hôm nay: {streak.TodayXp}/{targetXp} XP\n`[{progressBar}] {progressPct}%`\n⚠️ Cần thêm ít nhất {streak.XpNeededForStreak} XP trước 23:59 để giữ chuỗi!";
+
+            embedBuilder.AddField("⚡ Mục tiêu tích lũy ngày", progressMessage, false);
+            embedBuilder.SetFooter("Học đều đặn mỗi ngày để phản xạ tiếng Anh tự nhiên • LINGUAL", "");
+
+            var buttons = new ButtonBuilder()
+                .AddButton("btn_open_miniapp", "🚀 Học ngay", 1, false, "", "")
+                .AddButton("btn_view_leaderboard", "🏆 Bảng xếp hạng", 2, false, "", "")
+                .BuildComponents();
+
+            var content = new MessageContentBuilder()
+                .SetText($"🔥 Cố lên! Bạn đang duy trì chuỗi {streak.CurrentDays} ngày học liên tiếp.")
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttons)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /streak cho user {MezonUserId}", mezonUserId);
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Có chút gián đoạn khi kiểm tra chuỗi streak. Bạn vui lòng thử lại sau giây lát nhé!");
+        }
+    }
+
+    private async Task HandleLeaderboardCommandAsync(long channelId, string mezonUserId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+            var gamificationService = scope.ServiceProvider.GetService<IGamificationService>();
+
+            if (gamificationService == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ Gamification (Leaderboard) chưa sẵn sàng trên hệ thống.");
+                return;
+            }
+
+            var userId = await userResolver.ResolveUserIdAsync(mezonUserId);
+            var leaderboard = await gamificationService.GetLeaderboardAsync(limit: 10, type: "weekly", currentUserId: userId);
+
+            var embedBuilder = new MessageEmbedBuilder()
+                .SetColor("#EAB308") // Yellow Gold
+                .SetTitle("🏆 BẢNG XẾP HẠNG TUẦN — LINGUAL LEADERBOARD")
+                .SetDescription("Vinh danh những chiến binh chăm chỉ nhất trong tuần này (GMT+7):\n");
+
+            if (leaderboard.Entries.Count == 0)
+            {
+                embedBuilder.AddField("Chưa có dữ liệu", "Chưa có ai ghi điểm tuần này. Hãy là người đầu tiên bứt phá!", false);
+            }
+            else
+            {
+                var sb = new StringBuilder();
+                foreach (var entry in leaderboard.Entries)
+                {
+                    var medal = entry.Rank switch
+                    {
+                        1 => "🥇",
+                        2 => "🥈",
+                        3 => "🥉",
+                        _ => $"#{entry.Rank}"
+                    };
+                    sb.AppendLine($"{medal} {entry.Name} — `{(long)entry.Xp}` XP");
+                }
+                embedBuilder.AddField("👑 Top 10 cao thủ tuần", sb.ToString().TrimEnd(), false);
+            }
+
+            if (leaderboard.MyRank != null)
+            {
+                var myEntry = leaderboard.MyRank;
+                var rankDisplay = myEntry.Rank > 0 ? $"#{myEntry.Rank}" : "Chưa có hạng";
+                embedBuilder.AddField("📍 Vị trí của bạn", $"Hạng: {rankDisplay} • Điểm: {(long)myEntry.Xp} XP", false);
+            }
+
+            embedBuilder.SetFooter("Bảng xếp hạng cập nhật thời gian thực qua Redis • LINGUAL", "");
+
+            var buttons = new ButtonBuilder()
+                .AddButton("btn_open_miniapp", "🚀 Luyện tập tích XP", 1, false, "", "")
+                .AddButton("btn_view_streak", "🔥 Chuỗi của tôi", 2, false, "", "")
+                .BuildComponents();
+
+            var content = new MessageContentBuilder()
+                .SetText("🏆 Bảng vàng vinh danh LINGUAL tuần này:")
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttons)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(channelId, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /top cho user {MezonUserId}", mezonUserId);
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Đang gặp gián đoạn khi tải bảng xếp hạng. Bạn vui lòng thử lại sau nhé!");
+        }
     }
 
     private async Task HandleAskGrammarAsync(long channelId, string userQuery)
@@ -262,7 +412,7 @@ public class MezonBotWorker : BackgroundService
                 embedBuilder
                     .SetColor("#10B981") // Emerald Green - Chính xác
                     .SetTitle("🌟 LINGLING GRAMMAR COACH — CHUẨN XÁC")
-                    .SetDescription("✨ **Đánh giá: Hoàn hảo (100%)** • Bạn diễn đạt rất chuẩn và tự nhiên!")
+                    .SetDescription("✨ Đánh giá: Hoàn hảo (100%) • Bạn diễn đạt rất chuẩn và tự nhiên!")
                     .AddField("📝 Câu của bạn", $"`{analysis.OriginalText}`", false)
                     .AddField("📖 Phân tích cấu trúc", analysis.Explanation, false)
                     .AddField("🎯 Mẹo mở rộng", analysis.Tips, false);
@@ -272,9 +422,9 @@ public class MezonBotWorker : BackgroundService
                 embedBuilder
                     .SetColor("#F59E0B") // Amber Orange - Cần chú ý / học hỏi
                     .SetTitle("🦉 LINGLING GRAMMAR COACH — GỢI Ý CHỈNH SỬA")
-                    .SetDescription("💡 **Đánh giá: Cần hoàn thiện** • Xem chi tiết gợi ý chuẩn bản xứ bên dưới:")
+                    .SetDescription("💡 Đánh giá: Cần hoàn thiện • Xem chi tiết gợi ý chuẩn bản xứ bên dưới:")
                     .AddField("📝 Câu gốc của bạn", $"`{analysis.OriginalText}`", false)
-                    .AddField("✨ Câu chuẩn bản xứ", $"**{analysis.CorrectedText}**", false)
+                    .AddField("✨ Câu chuẩn bản xứ", $"{analysis.CorrectedText}", false)
                     .AddField("📖 Giải thích ngữ pháp", analysis.Explanation, false)
                     .AddField("🎯 Mẹo ghi nhớ", analysis.Tips, false);
             }
@@ -287,7 +437,7 @@ public class MezonBotWorker : BackgroundService
                 .BuildComponents();
 
             var content = new MessageContentBuilder()
-                .SetText("🦉 **LingLing:** Mình đã chấm câu của bạn xong! Cùng xem phân tích chi tiết nhé:")
+                .SetText("🦉 LingLing: Mình đã chấm câu của bạn xong! Cùng xem phân tích chi tiết nhé:")
                 .AddEmbed(embedBuilder.Build())
                 .AddActionRow(buttons)
                 .Build();
@@ -297,7 +447,7 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /ask cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "🦉 **LingLing:** Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!");
         }
     }
 
@@ -313,15 +463,26 @@ public class MezonBotWorker : BackgroundService
 
             if (buttonId == "btn_save_flashcard")
             {
-                await ReplyToChannelAsync(channelId, "💾 **LingLing:** Đã lưu mẫu câu và phân tích ngữ pháp này vào sổ tay Flashcard SRS của bạn!");
+                await ReplyToChannelAsync(channelId, "💾 LingLing: Đã lưu mẫu câu và phân tích ngữ pháp này vào sổ tay Flashcard SRS của bạn!");
             }
             else if (buttonId == "btn_open_miniapp")
             {
-                await ReplyToChannelAsync(channelId, "🚀 **LingLing:** Đang điều hướng đến Mini-App Flashcard 3D... Chúc bạn có một phiên học hiệu quả!");
+                await ReplyToChannelAsync(channelId, "🚀 LingLing: Đang điều hướng đến Mini-App Flashcard 3D... Chúc bạn có một phiên học hiệu quả!");
             }
             else if (buttonId == "btn_guide_ask")
             {
-                await ReplyToChannelAsync(channelId, "🦉 **LingLing:** Bạn chỉ cần gõ `/ask <câu tiếng Anh>` (Ví dụ: `/ask She don't like coffee`) là mình sẽ phân tích ngay!");
+                await ReplyToChannelAsync(channelId, "🦉 LingLing: Bạn chỉ cần gõ `/ask <câu tiếng Anh>` (Ví dụ: `/ask She don't like coffee`) là mình sẽ phân tích ngay!");
+            }
+            else if (buttonId == "btn_view_streak")
+            {
+                var mezonUserId = data.UserId.ToString();
+                var displayName = $"Learner_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
+                await HandleStreakCommandAsync(channelId, mezonUserId, displayName);
+            }
+            else if (buttonId == "btn_view_leaderboard")
+            {
+                var mezonUserId = data.UserId.ToString();
+                await HandleLeaderboardCommandAsync(channelId, mezonUserId);
             }
         }
         catch (Exception ex)
@@ -374,4 +535,3 @@ public class MezonBotWorker : BackgroundService
         }
     }
 }
-

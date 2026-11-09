@@ -31,4 +31,20 @@ public interface IRedisService
     Task<bool> RemoveAsync(string key);
 
     void Reset();
+
+    Task<bool> SortedSetAddAsync(string key, string member, double score);
+
+    Task<double> SortedSetIncrementAsync(string key, string member, double value);
+
+    Task<IEnumerable<(string Member, double Score)>> SortedSetRangeByRankWithScoresAsync(
+        string key,
+        long start = 0,
+        long stop = -1,
+        bool descending = true);
+
+    Task<long?> SortedSetRankAsync(string key, string member, bool descending = true);
+
+    Task<double?> SortedSetScoreAsync(string key, string member);
+
+    Task<bool> KeyExpireAsync(string key, TimeSpan expiration);
 }
