@@ -21,6 +21,7 @@ public static class Extension
         services.AddScoped<IStreakService, StreakService>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IXpService, XpService>();
+        services.AddScoped<IWordDuelService, WordDuelService>();
         services.AddScoped<IGamificationService, GamificationService>();
 
         return builder;

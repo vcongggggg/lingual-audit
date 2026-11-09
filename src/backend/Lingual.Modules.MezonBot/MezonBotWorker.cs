@@ -12,6 +12,7 @@ using Mezon.Net.Sdk.Builders;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
 using Lingual.Modules.Gamification.Contracts;
+using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.MezonBot.Services;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
@@ -25,6 +26,9 @@ public class MezonBotWorker : BackgroundService
     private readonly IButtonInteractionObserver _buttonObserver;
     private SdkClient? _client;
 
+    private static MezonBotWorker? ActiveInstance;
+    public static long LastActiveClanChannelId { get; private set; }
+
     public class UserRoleplaySession
     {
         public Guid ConversationId { get; set; }
@@ -34,6 +38,7 @@ public class MezonBotWorker : BackgroundService
 
     public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
     public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveQuizTimers = new();
+    public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveDuelNoShowTimers = new();
     private static readonly ConcurrentDictionary<string, DateTime> ButtonClickCooldowns = new();
     private static readonly ConcurrentDictionary<long, long> ChannelClanMap = new();
 
@@ -47,7 +52,28 @@ public class MezonBotWorker : BackgroundService
         bool IsPractice
     );
 
+    public record QuizExplanationMeta(
+        Guid SessionId,
+        string QuestionPrompt,
+        string Level,
+        string CorrectKey,
+        string CorrectText,
+        string WrongExampleText,
+        string? ExistingExplanation
+    );
+
+    public record DuelChallengeMessageMeta(
+        Guid MatchId,
+        long ChannelId,
+        long MessageId,
+        string ChallengerMezonId,
+        string ChallengerName,
+        string TargetOpponentHint
+    );
+
     public static readonly ConcurrentDictionary<Guid, QuizMessageMeta> ActiveQuizMessages = new();
+    public static readonly ConcurrentDictionary<Guid, QuizExplanationMeta> ConcludedQuizExplanations = new();
+    public static readonly ConcurrentDictionary<Guid, DuelChallengeMessageMeta> ActiveDuelChallenges = new();
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
@@ -72,6 +98,9 @@ public class MezonBotWorker : BackgroundService
             return "streak";
         if (trimmed.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
             return "quiz";
+        if (trimmed.Equals("/duel", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/duel ", StringComparison.OrdinalIgnoreCase))
+            return "duel";
         if (trimmed.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
             trimmed.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
             return "roleplay";
@@ -104,6 +133,7 @@ public class MezonBotWorker : BackgroundService
         _options = options.Value;
         _scopeFactory = scopeFactory;
         _buttonObserver = buttonObserver;
+        ActiveInstance = this;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -344,6 +374,10 @@ public class MezonBotWorker : BackgroundService
         {
             ChannelMessageResponse data = (ChannelMessageResponse)eventData;
             ChannelClanMap[data.ChannelId] = data.ClanId;
+            if (data.ClanId > 0)
+            {
+                LastActiveClanChannelId = data.ChannelId;
+            }
             _logger.LogInformation("📩 [MezonBot RAW] Channel: {ChannelId}, Clan: {ClanId}, Public: {IsPublic}, Sender: {SenderId}",
                 data.ChannelId, data.ClanId, data.IsPublic, data.SenderId);
 
@@ -394,6 +428,16 @@ public class MezonBotWorker : BackgroundService
             {
                 var senderId = data.SenderId.ToString();
                 await HandleQuizCommandAsync(data.ChannelId, senderId, isDm, data);
+            }
+            else if (text.Equals("/duel", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/duel ", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                var displayName = string.IsNullOrWhiteSpace(data.Username)
+                    ? $"Member_{senderId[..Math.Min(6, senderId.Length)]}"
+                    : data.Username;
+                var targetArg = text.Length > 5 ? text[5..].Trim() : string.Empty;
+                await HandleDuelCommandAsync(data.ChannelId, senderId, displayName, targetArg, data);
             }
             else if (text.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
@@ -447,8 +491,8 @@ public class MezonBotWorker : BackgroundService
             .SetDescription("Chào mừng bạn đến với LINGUAL trên nền tảng Mezon Campus Studio 2026!")
             .AddField("🔥 Duy trì Streak & Thi đua", "• /daily: Điểm danh nhận +20 XP và duy trì ngọn lửa Streak mỗi ngày\n• /streak: Tra cứu chuỗi ngày học và kỷ lục của bạn\n• /top: Bảng xếp hạng tuần Top 10 cao thủ LINGUAL", false)
             .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
-            .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
-            .AddField("🌐 Webview Miniapp Học tập", $"• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
+            .AddField("🏆 Đấu trường Clan & Word Duel 1vs1", "• /duel [@user]: Thách đấu từ vựng 1vs1 thời gian thực (5 vòng đồng bộ)\n• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
+            .AddField("🌐 Webview Miniapp Học tập", $"• Đấu trường 1vs1: {_options.WebAppUrl}/duel\n• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
@@ -468,6 +512,7 @@ public class MezonBotWorker : BackgroundService
             new List<TrackedButton>
             {
                 new("btn_daily_checkin", "🔥 Điểm danh /daily", 1),
+                new("btn_duel_start_prompt", "⚔️ Thách đấu 1vs1", 4),
                 new("btn_view_streak", "🔥 Chuỗi của tôi", 2),
                 new("btn_roleplay_menu", "🎭 Luyện Roleplay", 2),
                 new("btn_open_miniapp", "🚀 Mở Mini-App", 1),
@@ -860,11 +905,26 @@ public class MezonBotWorker : BackgroundService
             if (result == null) return;
 
             // Vô hiệu hóa toàn bộ nút trên tin nhắn câu hỏi gốc để ngăn chặn spam
+            QuizMessageMeta? removedMeta = null;
             if (ActiveQuizMessages.TryRemove(sessionId, out var quizMeta))
             {
+                removedMeta = quizMeta;
                 _buttonObserver.MarkMessageDisabled(quizMeta.MessageId);
                 await DisableQuizMessageButtonsAsync(channelId, quizMeta.MessageId, quizMeta);
             }
+
+            var wrongOptionSample = removedMeta?.Options
+                .FirstOrDefault(o => !o.Key.Equals(result.CorrectKey, StringComparison.OrdinalIgnoreCase))?.Text ?? "Đáp án khác";
+
+            ConcludedQuizExplanations[sessionId] = new QuizExplanationMeta(
+                SessionId: sessionId,
+                QuestionPrompt: removedMeta?.QuestionPrompt ?? "Vocabulary & Grammar Question",
+                Level: removedMeta?.Level ?? "A1-A2",
+                CorrectKey: result.CorrectKey,
+                CorrectText: result.CorrectText,
+                WrongExampleText: wrongOptionSample,
+                ExistingExplanation: result.Explanation
+            );
 
             var embedBuilder = new MessageEmbedBuilder();
 
@@ -905,6 +965,7 @@ public class MezonBotWorker : BackgroundService
                 embedBuilder.Build(),
                 new List<TrackedButton>
                 {
+                    new($"btn_quiz_explain_{sessionId}", "🦉 LingLing giải thích sâu", 2),
                     new("btn_open_miniapp", "🚀 Ôn tập từ vựng 3D", 1)
                 },
                 singleUse: true);
@@ -1023,6 +1084,14 @@ public class MezonBotWorker : BackgroundService
                 }
                 return;
             }
+            else if (buttonId.StartsWith("btn_quiz_explain_"))
+            {
+                var sessionRaw = buttonId["btn_quiz_explain_".Length..];
+                if (Guid.TryParse(sessionRaw, out var explainSessionId))
+                {
+                    await HandleQuizExplainButtonClickAsync(channelId, explainSessionId, mezonUserId);
+                }
+            }
             else if (buttonId.StartsWith("btn_quiz_"))
             {
                 // Format: btn_quiz_{sessionId}_{key}
@@ -1034,6 +1103,15 @@ public class MezonBotWorker : BackgroundService
 
                     await HandleQuizButtonClickAsync(channelId, sessionId, mezonUserId, username, selectedKey, data.MessageId);
                 }
+            }
+            else if (buttonId == "btn_duel_start_prompt")
+            {
+                var username = $"Duelist_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
+                await HandleDuelCommandAsync(channelId, mezonUserId, username, string.Empty);
+            }
+            else if (buttonId.StartsWith("btn_duel_accept_") || buttonId.StartsWith("btn_duel_bot_") || buttonId.StartsWith("btn_duel_decline_"))
+            {
+                await HandleDuelButtonClickAsync(channelId, messageId, buttonId, mezonUserId);
             }
             else if (buttonId == "btn_daily_checkin")
             {
@@ -1356,6 +1434,21 @@ public class MezonBotWorker : BackgroundService
                         embedBuilder
                             .AddField("🎯 Đáp án chính xác", $"{conclude.CorrectKey}. {conclude.CorrectText}", false)
                             .AddField("📖 Giải thích chi tiết", conclude.Explanation ?? "Không có giải thích bổ sung.", false);
+
+                        if (ActiveQuizMessages.TryGetValue(sessionId, out var activeQuizMeta))
+                        {
+                            var selectedOptText = activeQuizMeta.Options
+                                .FirstOrDefault(o => o.Key.Equals(selectedKey, StringComparison.OrdinalIgnoreCase))?.Text ?? selectedKey;
+                            ConcludedQuizExplanations[sessionId] = new QuizExplanationMeta(
+                                SessionId: sessionId,
+                                QuestionPrompt: activeQuizMeta.QuestionPrompt,
+                                Level: activeQuizMeta.Level ?? "A1-A2",
+                                CorrectKey: conclude.CorrectKey,
+                                CorrectText: conclude.CorrectText,
+                                WrongExampleText: selectedOptText,
+                                ExistingExplanation: conclude.Explanation
+                            );
+                        }
                     }
 
                     embedBuilder.SetFooter("Gõ /quiz để luyện tiếp câu mới • Ra kênh Clan để thi đấu tranh tài!", "");
@@ -1370,6 +1463,7 @@ public class MezonBotWorker : BackgroundService
                         embedBuilder.Build(),
                         new List<TrackedButton>
                         {
+                            new($"btn_quiz_explain_{sessionId}", "🦉 LingLing giải thích sâu", 2),
                             new("btn_open_miniapp", "🚀 Ôn tập từ vựng 3D", 1)
                         },
                         singleUse: true);
@@ -1411,6 +1505,421 @@ public class MezonBotWorker : BackgroundService
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý trả lời Quiz {SessionId} từ User {UserId}", sessionId, mezonUserId);
         }
+    }
+
+    private static Guid CreateDeterministicGuid(string input)
+    {
+        if (Guid.TryParse(input, out var parsed)) return parsed;
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes($"lingual_mezon_{input}"));
+        return new Guid(hash);
+    }
+
+    public static readonly Guid LingLingBotUserId = Guid.Parse("00000000-0000-0000-0000-00000000bb07");
+
+    public async Task HandleDuelCommandAsync(
+        long channelId,
+        string senderId,
+        string displayName,
+        string targetArg,
+        ChannelMessageResponse? replyTo = null)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var duelService = scope.ServiceProvider.GetService<IWordDuelService>();
+            if (duelService == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Dịch vụ Đấu trường Word Duel 1vs1 chưa sẵn sàng trên hệ thống.", replyTo);
+                return;
+            }
+
+            var challengerId = CreateDeterministicGuid(senderId);
+            var cleanTarget = (targetArg ?? string.Empty).Trim();
+            var isBotMode = cleanTarget.Equals("bot", StringComparison.OrdinalIgnoreCase) ||
+                            cleanTarget.Equals("@lingling", StringComparison.OrdinalIgnoreCase) ||
+                            cleanTarget.Equals("ai", StringComparison.OrdinalIgnoreCase);
+
+            var opponentId = Guid.Empty;
+            var opponentName = "Đối thủ thách đấu";
+
+            if (isBotMode)
+            {
+                opponentId = LingLingBotUserId;
+                opponentName = "🦉 LingLing AI Bot";
+            }
+            else if (!string.IsNullOrWhiteSpace(cleanTarget))
+            {
+                opponentName = cleanTarget.StartsWith('@') ? cleanTarget : $"@{cleanTarget}";
+                opponentId = CreateDeterministicGuid(cleanTarget.TrimStart('@'));
+            }
+
+            var match = await duelService.CreateChallengeAsync(new CreateDuelChallengeRequest(
+                ChallengerId: challengerId,
+                ChallengerName: displayName,
+                OpponentId: opponentId,
+                OpponentName: opponentName,
+                QuestionCount: 5,
+                ClanChannelId: channelId,
+                AutoAccept: isBotMode
+            ));
+
+            var arenaUrl = $"{_options.WebAppUrl.TrimEnd('/')}/duel?matchId={match.Id}";
+
+            if (isBotMode)
+            {
+                var botEmbed = new MessageEmbedBuilder()
+                    .SetColor("#8B5CF6")
+                    .SetTitle("⚔️ WORD DUEL 1vs1 — ĐẤU VỚI LINGLING AI BOT!")
+                    .SetDescription($"🔥 **{displayName}** đã mở trận đấu luyện tập tốc độ cùng **🦉 LingLing AI Bot**!\n\n⏱️ **Thể thức:** 5 vòng câu hỏi • 10 giây / câu • Chấm điểm tốc độ (100 - 200 điểm/câu)")
+                    .AddField("🆔 Mã phòng đấu", $"`{match.Id.ToString()[..8]}`", true)
+                    .AddField("⚡ Phần thưởng", "+30 XP (Thắng) • +15 XP (Hòa) • +10 XP (Tham gia)", true)
+                    .AddField("🌐 Link vào Đấu trường", arenaUrl, false)
+                    .SetFooter("Mở Đấu trường Webview để bắt đầu đếm ngược 5 vòng ngay! • LINGUAL Word Duel", "")
+                    .Build();
+
+                await ReplyWithTrackedButtonsAsync(
+                    channelId,
+                    $"⚔️ Trận đấu Word Duel 1vs1 của {displayName} vs LingLing AI đã sẵn sàng!",
+                    botEmbed,
+                    new List<TrackedButton>
+                    {
+                        new("btn_open_miniapp", "🚀 Mở Đấu trường Webview", 3, Url: arenaUrl)
+                    },
+                    replyTo: replyTo,
+                    singleUse: false);
+                return;
+            }
+
+            var targetDesc = string.IsNullOrWhiteSpace(cleanTarget)
+                ? $"🔥 **{displayName}** vừa gửi lời thách đấu **Word Duel 1vs1 mở rộng** tới toàn thể thành viên trong kênh!"
+                : $"🔥 **{displayName}** vừa gửi lời thách đấu **Word Duel 1vs1** trực tiếp tới **{opponentName}**!";
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor("#EF4444")
+                .SetTitle("⚔️ LỜI THÁCH ĐẤU WORD DUEL 1vs1 — AI DÁM NHẬN LỜI?")
+                .SetDescription($"{targetDesc}\n\n⏳ Lời mời thách đấu có hiệu lực trong **60 giây**. Bấm **Chấp nhận thách đấu** bên dưới để bước vào Đấu trường 5 câu hỏi tốc độ!")
+                .AddField("👤 Người thách đấu", displayName, true)
+                .AddField("🎯 Đối thủ", string.IsNullOrWhiteSpace(cleanTarget) ? "Bất kỳ ai bấm nhanh nhất" : opponentName, true)
+                .AddField("🏆 Giải thưởng", "+30 XP cho Nhà vô địch • Vinh danh bảng vàng Clan", false)
+                .SetFooter("Gõ /duel @user để thách đấu bạn bè hoặc /duel bot để luyện với AI • LINGUAL Word Duel", "")
+                .Build();
+
+            var msgId = await ReplyWithTrackedButtonsAsync(
+                channelId,
+                $"⚔️ Lời thách đấu Word Duel 1vs1 từ {displayName}:",
+                embed,
+                new List<TrackedButton>
+                {
+                    new($"btn_duel_accept_{match.Id}", "⚔️ Chấp nhận thách đấu", 3),
+                    new($"btn_duel_bot_{match.Id}", "🤖 Đấu với LingLing Bot", 1),
+                    new($"btn_duel_decline_{match.Id}", "❌ Từ chối", 4)
+                },
+                replyTo: replyTo,
+                singleUse: false);
+
+            ActiveDuelChallenges[match.Id] = new DuelChallengeMessageMeta(
+                MatchId: match.Id,
+                ChannelId: channelId,
+                MessageId: msgId,
+                ChallengerMezonId: senderId,
+                ChallengerName: displayName,
+                TargetOpponentHint: cleanTarget
+            );
+
+            // Tự động hết hạn sau 60s nếu không ai nhận lời
+            var cts = new CancellationTokenSource();
+            ActiveDuelNoShowTimers[match.Id] = cts;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(60), cts.Token);
+                    using var expireScope = _scopeFactory.CreateScope();
+                    var expireDuelSvc = expireScope.ServiceProvider.GetService<IWordDuelService>();
+                    if (expireDuelSvc != null)
+                    {
+                        var expiredMatch = await expireDuelSvc.ExpireNoShowMatchAsync(match.Id);
+                        if (expiredMatch != null && (expiredMatch.Status == "expired" || expiredMatch.Status == "no_show"))
+                        {
+                            ActiveDuelChallenges.TryRemove(match.Id, out _);
+                            _buttonObserver.MarkMessageDisabled(msgId);
+                            await ReplyToChannelAsync(channelId,
+                                $"⏰ Lời thách đấu Word Duel 1vs1 của **{displayName}** (Mã `{match.Id.ToString()[..8]}`) đã hết thời gian chờ 60 giây. Bạn có thể gõ `/duel bot` để so tài ngay với LingLing AI nhé!");
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Đã có người nhận lời hoặc từ chối trước 60s
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi trong bộ đếm hết hạn thách đấu Duel {MatchId}", match.Id);
+                }
+                finally
+                {
+                    ActiveDuelNoShowTimers.TryRemove(match.Id, out _);
+                    cts.Dispose();
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /duel tại channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Không thể khởi tạo phòng đấu lúc này. Bạn hãy thử lại sau ít giây nhé!", replyTo);
+        }
+    }
+
+    private async Task HandleDuelButtonClickAsync(
+        long channelId,
+        long messageId,
+        string buttonId,
+        string mezonUserId)
+    {
+        try
+        {
+            Guid matchId;
+            string action;
+
+            if (buttonId.StartsWith("btn_duel_accept_"))
+            {
+                action = "accept";
+                if (!Guid.TryParse(buttonId["btn_duel_accept_".Length..], out matchId)) return;
+            }
+            else if (buttonId.StartsWith("btn_duel_bot_"))
+            {
+                action = "bot";
+                if (!Guid.TryParse(buttonId["btn_duel_bot_".Length..], out matchId)) return;
+            }
+            else if (buttonId.StartsWith("btn_duel_decline_"))
+            {
+                action = "decline";
+                if (!Guid.TryParse(buttonId["btn_duel_decline_".Length..], out matchId)) return;
+            }
+            else
+            {
+                return;
+            }
+
+            if (ActiveDuelNoShowTimers.TryRemove(matchId, out var cts))
+            {
+                try { cts.Cancel(); cts.Dispose(); } catch { }
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var duelService = scope.ServiceProvider.GetService<IWordDuelService>();
+            if (duelService == null) return;
+
+            ActiveDuelChallenges.TryGetValue(matchId, out var meta);
+            var clickerName = $"Duelist_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
+            var clickerGuid = CreateDeterministicGuid(mezonUserId);
+
+            if (action == "decline")
+            {
+                await duelService.DeclineChallengeAsync(matchId, clickerGuid);
+                ActiveDuelChallenges.TryRemove(matchId, out _);
+                _buttonObserver.MarkMessageDisabled(messageId);
+
+                await ReplyToChannelAsync(channelId,
+                    $"🏳️ Lời thách đấu Word Duel (`{matchId.ToString()[..8]}`) đã bị từ chối hoặc huỷ bỏ bởi **{clickerName}**.");
+                return;
+            }
+
+            DuelMatchDto? accepted;
+            if (action == "bot")
+            {
+                accepted = await duelService.AcceptChallengeAsync(
+                    matchId,
+                    LingLingBotUserId,
+                    "🦉 LingLing AI Bot");
+            }
+            else
+            {
+                // Nếu chính người thách đấu tự bấm Chấp nhận trên lời mời của mình, chuyển sang đấu với LingLing Bot để trải nghiệm mượt mà
+                if (meta != null && meta.ChallengerMezonId == mezonUserId)
+                {
+                    accepted = await duelService.AcceptChallengeAsync(
+                        matchId,
+                        LingLingBotUserId,
+                        "🦉 LingLing AI Bot");
+                }
+                else
+                {
+                    accepted = await duelService.AcceptChallengeAsync(matchId, clickerGuid, clickerName);
+                }
+            }
+
+            if (accepted == null)
+            {
+                if (long.TryParse(mezonUserId, out var uid))
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, "⚠️ Trận thách đấu này đã hết hạn hoặc đã có người nhận lời trước đó!");
+                }
+                return;
+            }
+
+            ActiveDuelChallenges.TryRemove(matchId, out _);
+            _buttonObserver.MarkMessageDisabled(messageId);
+
+            var arenaUrl = $"{_options.WebAppUrl.TrimEnd('/')}/duel?matchId={accepted.Id}";
+            var readyEmbed = new MessageEmbedBuilder()
+                .SetColor("#10B981")
+                .SetTitle("🔥 TRẬN ĐẤU WORD DUEL ĐÃ CHÍNH THỨC BẮT ĐẦU!")
+                .SetDescription($"⚔️ **{accepted.ChallengerName}** vs **{accepted.OpponentName}**\n\n⏳ Đếm ngược **5 giây** trước khi câu hỏi số 1 xuất hiện! Cả 2 đấu thủ hãy bấm nút bên dưới để vào Đấu trường ngay!")
+                .AddField("🆔 Mã trận đấu", $"`{accepted.Id.ToString()[..8]}`", true)
+                .AddField("🎯 Số vòng đấu", "5 câu hỏi • 10 giây/câu", true)
+                .AddField("🌐 Đường dẫn Đấu trường", arenaUrl, false)
+                .SetFooter("Hệ thống sẽ tự động tổng kết và vinh danh người chiến thắng tại kênh Clan • LINGUAL Word Duel", "")
+                .Build();
+
+            await ReplyWithTrackedButtonsAsync(
+                channelId,
+                $"🚀 Đấu trường đã mở cho **{accepted.ChallengerName}** và **{accepted.OpponentName}**!",
+                readyEmbed,
+                new List<TrackedButton>
+                {
+                    new("btn_open_miniapp", "⚔️ Vào Đấu Trường Ngay", 3, Url: arenaUrl)
+                },
+                singleUse: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý nút bấm thách đấu Duel {ButtonId}", buttonId);
+        }
+    }
+
+    private async Task HandleQuizExplainButtonClickAsync(
+        long channelId,
+        Guid sessionId,
+        string mezonUserId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+            if (aiTutor == null)
+            {
+                if (long.TryParse(mezonUserId, out var uid))
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, "⚠️ Dịch vụ AI LingLing chưa sẵn sàng.");
+                }
+                return;
+            }
+
+            ConcludedQuizExplanations.TryGetValue(sessionId, out var meta);
+            var questionPrompt = meta?.QuestionPrompt ?? "She ___ to the office every morning.";
+            var correctKey = meta?.CorrectKey ?? "B";
+            var correctText = meta?.CorrectText ?? "goes";
+            var selectedText = meta?.WrongExampleText ?? "go";
+
+            var deepAnalysis = await aiTutor.ExplainQuizMistakeAsync(new QuizMistakeAnalysisRequest(
+                QuestionPrompt: questionPrompt,
+                SelectedOptionText: selectedText,
+                CorrectOptionText: correctText,
+                Level: meta?.Level ?? "A1-A2",
+                ExistingExplanation: meta?.ExistingExplanation
+            ));
+
+            var synonyms = deepAnalysis.Synonyms.Count > 0
+                ? string.Join(", ", deepAnalysis.Synonyms)
+                : "N/A";
+            var antonyms = deepAnalysis.Antonyms.Count > 0
+                ? string.Join(", ", deepAnalysis.Antonyms)
+                : "N/A";
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor("#8B5CF6")
+                .SetTitle("🦉 LINGLING DEEP AI — PHÂN TÍCH CHUYÊN SÂU")
+                .SetDescription($"📝 **Câu hỏi:** {questionPrompt}\n✅ **Đáp án chuẩn:** {correctKey}. {correctText}")
+                .AddField("🔍 Vì sao dễ nhầm lẫn?", deepAnalysis.WhyWrong, false)
+                .AddField("📐 Quy tắc ngữ pháp & Ngữ cảnh", deepAnalysis.GrammarAndContextRule, false)
+                .AddField("🔄 Từ đồng nghĩa (Synonyms)", synonyms, true)
+                .AddField("↔️ Từ trái nghĩa (Antonyms)", antonyms, true)
+                .AddField("💡 Mẹo ghi nhớ siêu tốc", deepAnalysis.MnemonicTip, false)
+                .AddField("🗣️ Ví dụ thực tế", deepAnalysis.ExampleSentence, false)
+                .SetFooter("Powered by LingLing Deep AI Tutor v2.0 • LINGUAL", "")
+                .Build();
+
+            var isClan = await IsClanChannelAsync(channelId);
+            long? ephemeralUid = null;
+            if (isClan && long.TryParse(mezonUserId, out var parsedUid))
+            {
+                ephemeralUid = parsedUid;
+            }
+
+            await ReplyWithTrackedButtonsAsync(
+                channelId,
+                "🦉 LingLing đã phân tích chuyên sâu câu hỏi này cho bạn:",
+                embed,
+                new List<TrackedButton>
+                {
+                    new("btn_save_flashcard", "💾 Lưu vào sổ tay", 1),
+                    new("btn_open_miniapp", "🚀 Luyện thêm trên Webview", 2)
+                },
+                singleUse: true,
+                ephemeralReceiverId: ephemeralUid);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi giải thích sâu câu hỏi Quiz {SessionId}", sessionId);
+        }
+    }
+
+    public static async Task<bool> SendDuelHonorCardToChannelAsync(long channelId, DuelMatchDto match)
+    {
+        var worker = ActiveInstance;
+        if (worker == null || worker._client == null)
+        {
+            return false;
+        }
+
+        var targetChannelId = channelId > 0 ? channelId : LastActiveClanChannelId;
+        if (targetChannelId <= 0)
+        {
+            return false;
+        }
+
+        var isDraw = match.WinnerId == null;
+        var winnerName = isDraw
+            ? "Hòa kịch tính"
+            : (match.WinnerId == match.ChallengerId ? match.ChallengerName : match.OpponentName);
+
+        var title = isDraw
+            ? "⚔️ KẾT QUẢ WORD DUEL 1vs1 — BẤT PHÂN THẮNG BẠI!"
+            : $"🏆 VINH DANH CHIẾN THẮNG WORD DUEL — {winnerName.ToUpper()}!";
+
+        var desc = isDraw
+            ? $"🔥 Trận so tài 5 vòng giữa **{match.ChallengerName}** và **{match.OpponentName}** đã khép lại với tỷ số hòa kịch tính! Cả hai cùng nhận **+15 XP**!"
+            : $"🎉 Chúc mừng **{winnerName}** đã xuất sắc vượt qua đối thủ trong trận đấu tốc độ 5 vòng và giành phần thưởng **+30 XP** (Người tham gia nhận **+10 XP**)!";
+
+        if (match.Status == "forfeit" || match.Status == "disconnect_timeout")
+        {
+            desc += "\n⚠️ *(Kết thúc sớm do đối thủ rời trận / mất kết nối quá 10 giây)*";
+        }
+
+        var embed = new MessageEmbedBuilder()
+            .SetColor(isDraw ? "#F59E0B" : "#10B981")
+            .SetTitle(title)
+            .SetDescription(desc)
+            .AddField($"⚔️ {match.ChallengerName}", $"**{match.ChallengerScore}** điểm", true)
+            .AddField($"🛡️ {match.OpponentName}", $"**{match.OpponentScore}** điểm", true)
+            .AddField("🏅 Phần thưởng XP", isDraw ? "+15 XP mỗi đấu thủ" : $"+30 XP ({winnerName}) • +10 XP (Tham gia)", false)
+            .SetFooter("Gõ /duel @user để thách đấu hoặc /leaderboard để xem Bảng Phong Thần • LINGUAL Word Duel", "")
+            .Build();
+
+        await worker.ReplyWithTrackedButtonsAsync(
+            targetChannelId,
+            "📢 Bảng vàng vinh danh kết quả Đấu trường Word Duel 1vs1:",
+            embed,
+            new List<TrackedButton>
+            {
+                new("btn_duel_start_prompt", "⚔️ Thách đấu ván mới", 3),
+                new("btn_view_leaderboard", "🏆 Bảng xếp hạng", 1)
+            },
+            singleUse: true);
+
+        return true;
     }
 
     private async Task DisableQuizMessageButtonsAsync(

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Swords } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Tổng quan", icon: House },
   { href: "/learn", label: "Flashcard", icon: BookOpen },
   { href: "/words", label: "Từ vựng", icon: Library },
   { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
+  { href: "/duel", label: "Đấu trường", icon: Swords },
   { href: "/tutor", label: "LingLing AI", icon: Bot },
   { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
 ];

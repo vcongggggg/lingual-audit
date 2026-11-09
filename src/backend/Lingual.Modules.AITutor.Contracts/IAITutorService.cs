@@ -9,4 +9,6 @@ public interface IAITutorService
     Task<IReadOnlyList<ScenarioDto>> GetAvailableScenariosAsync(CancellationToken cancellationToken = default);
 
     Task<RoleplayTurnResponse> ProcessRoleplayTurnAsync(RoleplayTurnRequest request, CancellationToken cancellationToken = default);
+
+    Task<QuizMistakeAnalysisResponse> ExplainQuizMistakeAsync(QuizMistakeAnalysisRequest request, CancellationToken cancellationToken = default);
 }

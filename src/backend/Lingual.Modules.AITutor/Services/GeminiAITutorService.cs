@@ -617,6 +617,172 @@ public class GeminiAITutorService : IAITutorService
             Tips: "Mẹo: Bạn có thể thử kiểm tra lại cấu trúc câu đơn giản hơn."
         );
 
+    private const string MistakeExplanationSystemPrompt =
+        "Bạn là LingLing, gia sư AI tiếng Anh chuyên sâu của nền tảng LINGUAL trên Mezon.\n" +
+        "Nhiệm vụ của bạn là phân tích sâu một câu hỏi trắc nghiệm từ vựng/ngữ pháp mà học viên đã trả lời sai (hoặc muốn tìm hiểu kỹ sau trận Word Duel / Quiz).\n" +
+        "Hãy giải thích ngắn gọn, súc tích, dễ hiểu bằng tiếng Việt:\n" +
+        "1. why_wrong: Giải thích vì sao đáp án học viên chọn chưa phù hợp trong ngữ cảnh câu hỏi.\n" +
+        "2. grammar_and_context_rule: Phân tích ngữ cảnh ngữ pháp và ý nghĩa chính xác của đáp án đúng.\n" +
+        "3. synonyms: Mảng từ 2 đến 4 từ/cụm từ tiếng Anh đồng nghĩa hoặc cùng trường nghĩa với đáp án đúng.\n" +
+        "4. antonyms: Mảng từ 1 đến 3 từ/cụm từ tiếng Anh trái nghĩa với đáp án đúng.\n" +
+        "5. mnemonic_tip: Mẹo ghi nhớ ấn tượng giúp học viên không bao giờ quên từ này.\n" +
+        "6. example_sentence: Một câu ví dụ thực tế ngắn gọn bằng tiếng Anh kèm dịch nghĩa tiếng Việt trong ngoặc.\n" +
+        "BẮT BUỘC chỉ trả về định dạng JSON hợp lệ với đúng 6 trường sau:\n" +
+        "{\n" +
+        "  \"why_wrong\": \"...\",\n" +
+        "  \"grammar_and_context_rule\": \"...\",\n" +
+        "  \"synonyms\": [\"...\", \"...\"],\n" +
+        "  \"antonyms\": [\"...\"],\n" +
+        "  \"mnemonic_tip\": \"...\",\n" +
+        "  \"example_sentence\": \"...\"\n" +
+        "}";
+
+    public async Task<QuizMistakeAnalysisResponse> ExplainQuizMistakeAsync(
+        QuizMistakeAnalysisRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var promptText = request.QuestionPrompt?.Trim() ?? string.Empty;
+        var selectedText = request.SelectedOptionText?.Trim() ?? string.Empty;
+        var correctText = request.CorrectOptionText?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            _logger.LogInformation("ℹ️ [GeminiAITutor] Sử dụng bộ phân tích ngữ nghĩa nội bộ cho câu hỏi '{Prompt}'.", promptText);
+            return CreateMistakeFallbackResponse(request);
+        }
+
+        var userContent =
+            $"Câu hỏi ({request.Level ?? "A1"}): \"{promptText}\"\n" +
+            $"Đáp án học viên đã chọn (Sai): \"{selectedText}\"\n" +
+            $"Đáp án đúng: \"{correctText}\"" +
+            (!string.IsNullOrWhiteSpace(request.ExistingExplanation)
+                ? $"\nGhi chú gốc của câu hỏi: \"{request.ExistingExplanation}\""
+                : string.Empty);
+
+        var payload = new
+        {
+            system_instruction = new
+            {
+                parts = new[] { new { text = MistakeExplanationSystemPrompt } }
+            },
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new[] { new { text = userContent } }
+                }
+            },
+            generationConfig = new
+            {
+                temperature = 0.25,
+                maxOutputTokens = 1000,
+                responseMimeType = "application/json"
+            }
+        };
+
+        foreach (var model in GetCandidateModels())
+        {
+            var endpoint = $"{_options.BaseUrl.TrimEnd('/')}/models/{model}:generateContent";
+            try
+            {
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint);
+                httpRequest.Headers.Add("x-goog-api-key", _options.ApiKey);
+                httpRequest.Content = JsonContent.Create(payload);
+
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
+                    var rawJsonText = result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+                    if (!string.IsNullOrWhiteSpace(rawJsonText))
+                    {
+                        var cleanJson = CleanJsonString(rawJsonText);
+                        var parsed = JsonSerializer.Deserialize<GeminiMistakeJsonModel>(cleanJson, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
+                        if (parsed != null && !string.IsNullOrWhiteSpace(parsed.GrammarAndContextRule))
+                        {
+                            return new QuizMistakeAnalysisResponse(
+                                QuestionPrompt: promptText,
+                                SelectedOptionText: selectedText,
+                                CorrectOptionText: correctText,
+                                WhyWrong: parsed.WhyWrong ?? $"Đáp án '{selectedText}' chưa phù hợp với ngữ cảnh của câu hỏi.",
+                                GrammarAndContextRule: parsed.GrammarAndContextRule,
+                                Synonyms: parsed.Synonyms is { Count: > 0 } ? parsed.Synonyms : GetHeuristicSynonyms(correctText),
+                                Antonyms: parsed.Antonyms is { Count: > 0 } ? parsed.Antonyms : GetHeuristicAntonyms(correctText),
+                                MnemonicTip: parsed.MnemonicTip ?? $"Hãy gắn '{correctText}' với hình ảnh thực tế trong câu hỏi để nhớ lâu hơn!",
+                                ExampleSentence: parsed.ExampleSentence ?? $"We often use '{correctText}' in daily conversation."
+                            );
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Lỗi khi phân tích sâu lỗi sai qua model {Model}.", model);
+            }
+        }
+
+        return CreateMistakeFallbackResponse(request);
+    }
+
+    private static QuizMistakeAnalysisResponse CreateMistakeFallbackResponse(QuizMistakeAnalysisRequest request)
+    {
+        var prompt = request.QuestionPrompt?.Trim() ?? string.Empty;
+        var selected = request.SelectedOptionText?.Trim() ?? "Chưa chọn";
+        var correct = request.CorrectOptionText?.Trim() ?? string.Empty;
+        var level = string.IsNullOrWhiteSpace(request.Level) ? "A1-A2" : request.Level;
+
+        var whyWrong = selected.Equals("TIMEOUT", StringComparison.OrdinalIgnoreCase) || selected.Equals("Hết giờ", StringComparison.OrdinalIgnoreCase)
+            ? "Bạn chưa kịp đưa ra câu trả lời trong thời gian giới hạn của vòng đấu."
+            : $"Lựa chọn '{selected}' khác trường nghĩa hoặc không khớp với dấu hiệu ngữ cảnh trong đề bài.";
+
+        var rule = !string.IsNullOrWhiteSpace(request.ExistingExplanation)
+            ? $"{request.ExistingExplanation} (Trình độ {level}: Đáp án chuẩn xác nhất là '{correct}')."
+            : $"Trong ngữ cảnh câu hỏi \"{prompt}\", đáp án '{correct}' là từ vựng/cấu trúc chuẩn xác nhất ở cấp độ {level} về mặt ngữ nghĩa và collocation.";
+
+        var synonyms = GetHeuristicSynonyms(correct);
+        var antonyms = GetHeuristicAntonyms(correct);
+        var tip = $"💡 Mẹo liên tưởng: Hãy đặt '{correct}' vào một cụm từ ngắn quen thuộc và đọc to 3 lần để kích hoạt trí nhớ âm thanh!";
+        var example = $"Example: Understanding \"{correct}\" helps you communicate much more naturally in daily English.";
+
+        return new QuizMistakeAnalysisResponse(
+            QuestionPrompt: prompt,
+            SelectedOptionText: selected,
+            CorrectOptionText: correct,
+            WhyWrong: whyWrong,
+            GrammarAndContextRule: rule,
+            Synonyms: synonyms,
+            Antonyms: antonyms,
+            MnemonicTip: tip,
+            ExampleSentence: example
+        );
+    }
+
+    private static IReadOnlyList<string> GetHeuristicSynonyms(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        if (lower.Contains("airport") || lower.Contains("flight")) return new[] { "terminal", "airfield", "aviation hub" };
+        if (lower.Contains("doctor") || lower.Contains("hospital")) return new[] { "physician", "clinician", "medical practitioner" };
+        if (lower.Contains("happy") || lower.Contains("glad")) return new[] { "joyful", "delighted", "pleased" };
+        if (lower.Contains("fast") || lower.Contains("quick")) return new[] { "rapid", "swift", "speedy" };
+        if (lower.Contains("important") || lower.Contains("key")) return new[] { "crucial", "essential", "vital" };
+        return new[] { $"related to '{text}'", "contextual match", "standard expression" };
+    }
+
+    private static IReadOnlyList<string> GetHeuristicAntonyms(string text)
+    {
+        var lower = text.ToLowerInvariant();
+        if (lower.Contains("happy") || lower.Contains("glad")) return new[] { "sad", "upset" };
+        if (lower.Contains("fast") || lower.Contains("quick")) return new[] { "slow", "sluggish" };
+        if (lower.Contains("early")) return new[] { "late", "delayed" };
+        if (lower.Contains("expensive")) return new[] { "cheap", "affordable" };
+        return new[] { "opposite context", "non-matching term" };
+    }
+
     public class ConversationTurnMessage
     {
         [JsonPropertyName("role")]
@@ -696,5 +862,26 @@ public class GeminiAITutorService : IAITutorService
 
         [JsonPropertyName("explanation")]
         public string? Explanation { get; set; }
+    }
+
+    private class GeminiMistakeJsonModel
+    {
+        [JsonPropertyName("why_wrong")]
+        public string? WhyWrong { get; set; }
+
+        [JsonPropertyName("grammar_and_context_rule")]
+        public string? GrammarAndContextRule { get; set; }
+
+        [JsonPropertyName("synonyms")]
+        public List<string>? Synonyms { get; set; }
+
+        [JsonPropertyName("antonyms")]
+        public List<string>? Antonyms { get; set; }
+
+        [JsonPropertyName("mnemonic_tip")]
+        public string? MnemonicTip { get; set; }
+
+        [JsonPropertyName("example_sentence")]
+        public string? ExampleSentence { get; set; }
     }
 }

@@ -74,6 +74,15 @@ export default function QuizPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [awardedXp, setAwardedXp] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
+  const [deepLoading, setDeepLoading] = useState(false);
+  const [deepExplanation, setDeepExplanation] = useState<{
+    whyWrong: string;
+    grammarAndContextRule: string;
+    synonyms: string[];
+    antonyms: string[];
+    mnemonicTip: string;
+    exampleSentence: string;
+  } | null>(null);
   const sessionId = useRef(newId());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const current = questions[index];
@@ -102,7 +111,32 @@ export default function QuizPage() {
   }, [demoMode]);
 
   useEffect(() => { if (!started) { const timer = window.setTimeout(() => void load(mode, type, difficulty), 0); return () => window.clearTimeout(timer); } }, [difficulty, load, mode, started, type]);
-  const resetQuestionState = () => { setSelected(null); setTextAnswer(""); setOrderedTokens([]); setMatched({}); setMatchingLeft(null); setFeedback(null); setSeconds(30); };
+  const resetQuestionState = () => { setSelected(null); setTextAnswer(""); setOrderedTokens([]); setMatched({}); setMatchingLeft(null); setFeedback(null); setSeconds(30); setDeepExplanation(null); setDeepLoading(false); };
+  const requestDeepAiExplanation = async () => {
+    if (!current || deepLoading || deepExplanation) return;
+    setDeepLoading(true);
+    const chosenOpt = current.options?.find((o) => o.key === selected)?.text || selected || "Chưa chọn đáp án";
+    const correctOpt = current.options?.find((o) => o.key === current.correct_answer)?.text || current.correct_answer || "";
+    try {
+      const res = await fetch("/api/ai/explain-mistake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionPrompt: current.prompt,
+          selectedOptionText: chosenOpt,
+          correctOptionText: correctOpt,
+          level: current.level || "A2",
+          existingExplanation: current.explanation || "",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDeepExplanation(data);
+      }
+    } finally {
+      setDeepLoading(false);
+    }
+  };
   const chooseSettings = (nextType: MockQuestionType, nextDifficulty: Difficulty) => {
     if (type === nextType && difficulty === nextDifficulty) return;
     setType(nextType); setDifficulty(nextDifficulty); setQuestions([]); setStarted(false); setCompleted(false); resetQuestionState();
@@ -210,6 +244,6 @@ export default function QuizPage() {
 
   return <main className="quiz-page"><header className="quiz-heading"><div><p className="quiz-eyebrow">LINGUAL · LUYỆN TẬP</p><h1>Quiz đa dạng kỹ năng</h1><p>Chọn loại bài và độ khó trước khi bắt đầu.</p></div><div className="quiz-heading-actions"><label className="demo-toggle"><input type="checkbox" checked={demoMode} onChange={(event) => { setDemoMode(event.target.checked); setStarted(false); }} /><span /> Mock data</label><Link href="/leaderboard" className="quiz-back"><ArrowLeft size={16}/> Bảng xếp hạng</Link></div></header>
     {!started && <section className="quiz-start"><div className="quiz-start-visual"><LinguaMascot mood="idle" /><div><p className="quiz-eyebrow">THIẾT LẬP PHIÊN HỌC</p><h2>{selectedType?.label}</h2><p>{selectedType?.description}. {loading ? "Đang tải dữ liệu…" : "Dữ liệu thật sẽ được dùng khi máy chủ sẵn sàng; mock data dùng để xem trước."}</p></div></div><div className="quiz-start-modes" aria-label="Chọn loại quiz">{quizTypeOptions.map((item) => <button key={item.id} onClick={() => chooseSettings(item.id, difficulty)} className={type === item.id ? "is-active" : ""} aria-pressed={type === item.id}><strong>{item.label}</strong><span>{item.description}</span></button>)}</div><div className="quiz-start-modes" aria-label="Chọn độ khó">{difficulties.map((item) => <button key={item.id} onClick={() => chooseSettings(type, item.id)} className={difficulty === item.id ? "is-active" : ""} aria-pressed={difficulty === item.id}><strong>{item.label}</strong></button>)}</div><div className="quiz-start-modes" aria-label="Chọn nhịp học">{modes.map((item) => <button key={item.id} onClick={() => setMode(item.id)} className={mode === item.id ? "is-active" : ""}><strong>{item.label}</strong><span>{item.detail}</span></button>)}</div><button className="quiz-primary quiz-start-button" disabled={loading || !questions.length} onClick={start}><Zap size={16}/> Bắt đầu phiên học <ArrowRight size={16}/></button>{error && <p className="quiz-demo-banner">{error}</p>}</section>}
-    {started && current && !completed && <><nav className="quiz-modes" aria-label="Chọn chế độ quiz">{modes.map((item) => <button key={item.id} onClick={() => { setMode(item.id); setStarted(false); }} className={mode === item.id ? "is-active" : ""}><strong>{item.label}</strong><span>{item.detail}</span></button>)}</nav>{demo && <p className="quiz-demo-banner">Mock data · Kết quả chỉ dùng để xem trước giao diện.</p>}<section className="quiz-session"><div className="quiz-progress-top"><span>Câu <strong>{index + 1}</strong> / {questions.length}</span><div className="quiz-progress-track"><span style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div><article className={`quiz-question ${feedback ? `has-feedback feedback-${feedback}` : ""}`}><div className="quiz-question-mascot"><LinguaMascot mood={mascotMood} compact /></div><div className="quiz-question-meta"><span>{current.level} · Độ khó {current.difficulty}/3</span><span className={seconds <= 5 && selected === null ? "is-urgent" : ""}><Clock3 size={15}/>{selected === null ? `${seconds} giây` : "Đã trả lời"}</span></div><h2>{current.prompt}</h2>{renderQuestion()}{selected !== null && <div className={`quiz-feedback feedback-${feedback}`} role="status"><span>{feedback === "correct" ? "✨" : feedback === "timeout" ? "⏰" : "💡"}</span><strong>{feedback === "correct" ? "Chính xác!" : feedback === "timeout" ? "Đã hết giờ" : `Đáp án: ${current.correct_answer}`}</strong><p>{current.explanation}</p></div>}</article><div className="quiz-controls"><span>Hoàn thành thao tác để tiếp tục</span><div className="quiz-control-actions"><button className="quiz-end-button" onClick={finish}>Kết thúc bài</button>{selected !== null && <button className="quiz-primary" onClick={next}>{index + 1 === questions.length ? "Xem kết quả" : "Câu tiếp theo"}<ArrowRight size={16}/></button>}</div></div></section></>}
+    {started && current && !completed && <><nav className="quiz-modes" aria-label="Chọn chế độ quiz">{modes.map((item) => <button key={item.id} onClick={() => { setMode(item.id); setStarted(false); }} className={mode === item.id ? "is-active" : ""}><strong>{item.label}</strong><span>{item.detail}</span></button>)}</nav>{demo && <p className="quiz-demo-banner">Mock data · Kết quả chỉ dùng để xem trước giao diện.</p>}<section className="quiz-session"><div className="quiz-progress-top"><span>Câu <strong>{index + 1}</strong> / {questions.length}</span><div className="quiz-progress-track"><span style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div><article className={`quiz-question ${feedback ? `has-feedback feedback-${feedback}` : ""}`}><div className="quiz-question-mascot"><LinguaMascot mood={mascotMood} compact /></div><div className="quiz-question-meta"><span>{current.level} · Độ khó {current.difficulty}/3</span><span className={seconds <= 5 && selected === null ? "is-urgent" : ""}><Clock3 size={15}/>{selected === null ? `${seconds} giây` : "Đã trả lời"}</span></div><h2>{current.prompt}</h2>{renderQuestion()}{selected !== null && <div className={`quiz-feedback feedback-${feedback}`} role="status"><span>{feedback === "correct" ? "✨" : feedback === "timeout" ? "⏰" : "💡"}</span><strong>{feedback === "correct" ? "Chính xác!" : feedback === "timeout" ? "Đã hết giờ" : `Đáp án: ${current.correct_answer}`}</strong><p>{current.explanation}</p><div style={{ marginTop: "0.75rem" }}><button type="button" className="quiz-secondary" onClick={requestDeepAiExplanation} disabled={deepLoading}>{deepLoading ? "🦉 LingLing đang phân tích sâu…" : deepExplanation ? "🦉 Đã mở giải thích chuyên sâu" : "🦉 LingLing giải thích sâu"}</button></div>{deepExplanation && <div style={{ marginTop: "0.85rem", padding: "0.9rem", borderRadius: "0.75rem", background: "rgba(139, 92, 246, 0.12)", border: "1px solid rgba(139, 92, 246, 0.35)", fontSize: "0.9rem", lineHeight: 1.55 }}><p><strong>🔍 Vì sao dễ nhầm:</strong> {deepExplanation.whyWrong}</p><p><strong>📐 Quy tắc ngữ pháp &amp; Ngữ cảnh:</strong> {deepExplanation.grammarAndContextRule}</p><p><strong>🔄 Đồng nghĩa (Synonyms):</strong> {deepExplanation.synonyms.join(", ")} · <strong>↔️ Trái nghĩa (Antonyms):</strong> {deepExplanation.antonyms.join(", ")}</p><p><strong>💡 Mẹo ghi nhớ siêu tốc:</strong> {deepExplanation.mnemonicTip}</p><p><strong>🗣️ Ví dụ thực tế:</strong> &ldquo;{deepExplanation.exampleSentence}&rdquo;</p></div>}</div>}</article><div className="quiz-controls"><span>Hoàn thành thao tác để tiếp tục</span><div className="quiz-control-actions"><button className="quiz-end-button" onClick={finish}>Kết thúc bài</button>{selected !== null && <button className="quiz-primary" onClick={next}>{index + 1 === questions.length ? "Xem kết quả" : "Câu tiếp theo"}<ArrowRight size={16}/></button>}</div></div></section></>}
     {started && completed && <section className="quiz-results"><LinguaMascot mood="complete" /><span className="quiz-result-icon"><Trophy size={30}/></span><p className="quiz-eyebrow">HOÀN THÀNH PHIÊN HỌC</p><h2>{score >= questions.length / 2 ? "Bạn đang tiến bộ!" : "Mỗi lần luyện tập đều có ích."}</h2><div className="quiz-result-stats"><div><span>Câu đúng</span><strong>{score}<small> / {questions.length}</small></strong></div><div><span>Độ chính xác</span><strong>{Math.round(score / questions.length * 100)}%</strong></div><div><span>XP đã nhận</span><strong>{awardedXp ?? "—"}</strong></div><div><span>Thời gian</span><strong>{Math.floor(elapsedSeconds / 60)}<small> phút</small></strong></div></div><p className="quiz-save-state">{saveState === "failed" ? "Không thể lưu kết quả." : saveState === "saved" ? "Kết quả đã được lưu." : "Đang gửi kết quả…"}</p><div className="quiz-result-actions"><button className="quiz-primary" onClick={() => { setStarted(false); setCompleted(false); resetQuestionState(); }}><RotateCcw size={16}/> Chọn bài khác</button><Link className="quiz-secondary" href="/"><BookOpen size={16}/> Về trang chủ</Link></div></section>}</main>;
 }

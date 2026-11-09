@@ -50,4 +50,18 @@ public class AITutorController : ControllerBase
         var result = await _aiTutorService.ProcessRoleplayTurnAsync(request, cancellationToken);
         return Ok(result);
     }
+
+    [HttpPost("explain-mistake")]
+    public async Task<ActionResult<QuizMistakeAnalysisResponse>> ExplainMistake(
+        [FromBody] QuizMistakeAnalysisRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.QuestionPrompt) || string.IsNullOrWhiteSpace(request.CorrectOptionText))
+        {
+            return BadRequest(new { message = "Vui lòng cung cấp câu hỏi và đáp án đúng để LingLing phân tích." });
+        }
+
+        var result = await _aiTutorService.ExplainQuizMistakeAsync(request, cancellationToken);
+        return Ok(result);
+    }
 }

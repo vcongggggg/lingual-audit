@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.MezonBot.Services;
 
 namespace Lingual.Modules.MezonBot;
@@ -12,6 +13,7 @@ public static class MezonBotModuleExtensions
         services.AddScoped<IClanQuizService, ClanQuizService>();
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
+        services.AddSingleton<IDuelClanNotifier, DuelClanNotifier>();
         services.AddSingleton<IButtonInteractionObserver, ButtonInteractionObserver>();
         services.AddHostedService<MezonBotWorker>();
         return services;
