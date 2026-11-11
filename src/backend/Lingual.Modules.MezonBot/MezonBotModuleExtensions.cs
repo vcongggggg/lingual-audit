@@ -10,7 +10,9 @@ public static class MezonBotModuleExtensions
     {
         services.Configure<MezonBotOptions>(configuration.GetSection(MezonBotOptions.SectionName));
         services.AddSingleton<ReactionBookmarkRateLimiter>();
+        services.AddSingleton<DmConversationRateLimiter>();
         services.AddScoped<IClanQuizService, ClanQuizService>();
+        services.AddScoped<IReactionQuizService, ReactionQuizService>();
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
         services.AddScoped<ISrsReminderService, SrsReminderService>();
