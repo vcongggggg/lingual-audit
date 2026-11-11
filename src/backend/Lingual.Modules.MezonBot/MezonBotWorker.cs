@@ -402,44 +402,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
             var joinedCount = 0;
 
-            // 1. Quét từ DmChannelManager của SDK
-            var dmProp = typeof(SdkClient).GetProperty("DmChannels", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            var dmManager = dmProp?.GetValue(_client);
-            if (dmManager != null)
-            {
-                var dmListProp = dmManager.GetType().GetProperty("DmChannelDescriptions");
-                var dmList = dmListProp?.GetValue(dmManager) as System.Collections.IEnumerable;
-                if (dmList != null)
-                {
-                    foreach (var dmObj in dmList)
-                    {
-                        var chIdProp = dmObj.GetType().GetProperty("ChannelId");
-                        var typeProp = dmObj.GetType().GetProperty("Type");
-                        var clanIdProp = dmObj.GetType().GetProperty("ClanId");
-                        var privProp = dmObj.GetType().GetProperty("ChannelPrivate");
-
-                        var chId = (long)(chIdProp?.GetValue(dmObj) ?? 0L);
-                        var chType = (int)(typeProp?.GetValue(dmObj) ?? 0);
-                        var cId = (long)(clanIdProp?.GetValue(dmObj) ?? 0L);
-                        var priv = (int)(privProp?.GetValue(dmObj) ?? 0);
-
-                        if (chId > 0)
-                        {
-                            ChannelClanMap[chId] = cId;
-                            await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
-                                clanId: cId,
-                                channelId: chId,
-                                channelType: chType,
-                                isPublic: priv == 0 && cId > 0
-                            ));
-                            joinedCount++;
-                            _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM {ChannelId} thành công!", chId);
-                        }
-                    }
-                }
-            }
-
-            // 2. Dự phòng: Quét từ ListChannelByUserIdAsync
+            // Quét kênh DM/Private từ ListChannelByUserIdAsync (SDK API công khai)
             try
             {
                 var userChannels = await engine.ListChannelByUserIdAsync();
@@ -1594,52 +1557,23 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
         try
         {
-            var engineField = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
-            var engine = engineField?.GetValue(_client) as Mezon.Net.Client.MezonClient;
-            if (engine == null)
+            var channel = await _client.GetChannelAsync(channelId);
+            if (channel == null)
             {
-                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy field _engine)", emoji, messageId);
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy Channel {ChannelId})", emoji, messageId, channelId);
                 ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
                 return false;
             }
 
-            var method = engine.GetType().GetMethod("SendMessageReactionRtAsync");
-            if (method == null)
+            if (!channel.Messages.TryGet(messageId, out var message) || message == null)
             {
-                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy method SendMessageReactionRtAsync)", emoji, messageId);
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy Message trong Channel cache)", emoji, messageId);
                 ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
                 return false;
             }
 
-            var paramType = method.GetParameters()[0].ParameterType;
-            var ctor = paramType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
-            if (ctor == null)
-            {
-                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy constructor cho {ParamType})", emoji, messageId, paramType.Name);
-                ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
-                return false;
-            }
-
-            var ctorParams = ctor.GetParameters();
-            var args = new object?[ctorParams.Length];
-            for (int i = 0; i < ctorParams.Length; i++)
-            {
-                var name = ctorParams[i].Name?.ToLowerInvariant();
-                if (name == "clanid") args[i] = clanId;
-                else if (name == "channelid") args[i] = channelId;
-                else if (name == "messageid") args[i] = messageId;
-                else if (name == "emoji") args[i] = emoji;
-                else if (name == "action") args[i] = true;
-                else if (ctorParams[i].ParameterType == typeof(bool)) args[i] = true;
-                else if (ctorParams[i].HasDefaultValue) args[i] = ctorParams[i].DefaultValue;
-                else args[i] = null;
-            }
-            var reactObj = ctor.Invoke(args);
-            var task = method.Invoke(engine, new[] { reactObj, null }) as Task;
-            if (task != null)
-            {
-                await task;
-            }
+            var botId = _options.GetEffectiveBotId();
+            await message.AddReactionAsync(0, emoji, botId);
 
             _logger.LogInformation("✅ [MezonBot] Đã thêm reaction {Emoji} vào Message {MessageId} tại Channel {ChannelId}", emoji, messageId, channelId);
             ReactionHistory.Add((clanId, channelId, messageId, emoji, true));
@@ -1647,8 +1581,58 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thêm reaction vào Message {MessageId}", messageId);
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thêm reaction vào Message {MessageId} qua Message.AddReactionAsync", messageId);
             ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gửi tin nhắn trực tiếp (DM 1-1) tới Mezon User thông qua API công khai User.SendDMAsync (SDK 1.11.0).
+    /// </summary>
+    public virtual async Task<bool> SendDirectMessageAsync(long mezonUserId, MessageContent content)
+    {
+        if (_client == null || mezonUserId <= 0) return false;
+        try
+        {
+            var user = await _client.GetUserAsync(mezonUserId);
+            if (user == null)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy User {UserId} để gửi DM", mezonUserId);
+                return false;
+            }
+            await user.SendDMAsync(content);
+            _logger.LogInformation("📨 [MezonBot] Đã gửi DM tới User {UserId} thành công qua API SDK User.SendDMAsync", mezonUserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gửi DM tới User {UserId} qua User.SendDMAsync", mezonUserId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gửi tin nhắn text trực tiếp (DM 1-1) tới Mezon User thông qua API công khai User.SendDMTextAsync (SDK 1.11.0).
+    /// </summary>
+    public virtual async Task<bool> SendDirectMessageTextAsync(long mezonUserId, string text)
+    {
+        if (_client == null || mezonUserId <= 0) return false;
+        try
+        {
+            var user = await _client.GetUserAsync(mezonUserId);
+            if (user == null)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy User {UserId} để gửi DM text", mezonUserId);
+                return false;
+            }
+            await user.SendDMTextAsync(text);
+            _logger.LogInformation("📨 [MezonBot] Đã gửi DM text tới User {UserId} thành công qua API SDK User.SendDMTextAsync", mezonUserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gửi DM text tới User {UserId} qua User.SendDMTextAsync", mezonUserId);
             return false;
         }
     }
@@ -1696,8 +1680,28 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 .AddActionRow(buttons)
                 .Build();
 
+            // 1. Thử gửi trực tiếp qua API công khai User.SendDMAsync (SDK 1.11.0)
+            if (mezonUserId > 0)
+            {
+                try
+                {
+                    var user = await _client.GetUserAsync(mezonUserId, cancellationToken);
+                    if (user != null)
+                    {
+                        await user.SendDMAsync(content);
+                        _logger.LogInformation("🔔 [MezonBot] Đã gửi thông báo nhắc SRS qua User.SendDMAsync tới Mezon User {MezonUserId}", mezonUserId);
+                        return true;
+                    }
+                }
+                catch (Exception exDm)
+                {
+                    _logger.LogDebug(exDm, "Gửi qua User.SendDMAsync chưa hoàn tất, chuyển sang gửi qua ephemeral channel");
+                }
+            }
+
+            // 2. Dự phòng qua Ephemeral Channel nếu có channelId
             await SendEphemeralMessageWithContentAsync(channelId, mezonUserId, content);
-            _logger.LogInformation("🔔 [MezonBot] Đã gửi thông báo nhắc SRS tới User {UserId} (Mezon {MezonUserId})", userId, mezonUserId);
+            _logger.LogInformation("🔔 [MezonBot] Đã gửi thông báo nhắc SRS tới User {UserId} (Mezon {MezonUserId}) qua Ephemeral", userId, mezonUserId);
             return true;
         }
         catch (Exception ex)
