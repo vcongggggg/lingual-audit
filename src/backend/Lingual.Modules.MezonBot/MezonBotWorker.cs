@@ -254,6 +254,25 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     public readonly ConcurrentBag<(long ChannelId, long UserId, MessageContent Content)> SentEphemeralContents = new();
     public readonly ConcurrentBag<(long ClanId, long ChannelId, long MessageId, string Emoji, bool Success)> ReactionHistory = new();
 
+    /// <summary>
+    /// Provider hàm delay cho các tác vụ retry (cho phép unit test override để chạy tức thì không bị sleep).
+    /// </summary>
+    public Func<TimeSpan, Task> RetryDelayProvider { get; set; } = Task.Delay;
+
+    /// <summary>
+    /// Delegate thực hiện gọi API thả reaction lên message (cho phép unit test bypass network Gateway thực tế).
+    /// </summary>
+    public Func<Mezon.Net.Sdk.Entities.Message, long, string, long, Task> MessageReactionSender { get; set; } =
+        (msg, emojiId, emoji, botId) => msg.AddReactionAsync(emojiId, emoji, botId);
+
+    /// <summary>
+    /// Cho phép unit test thiết lập SdkClient giả lập để kiểm thử logic xử lý nội bộ.
+    /// </summary>
+    public void SetClientForTesting(SdkClient client)
+    {
+        _client = client;
+    }
+
     public MezonBotWorker(
         ILogger<MezonBotWorker> logger,
         IOptions<MezonBotOptions> options,
@@ -397,13 +416,17 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         if (_client == null) return;
         try
         {
+            // [SDK 1.11.0 LIMITATION - BLOCKED EVIDENCE]:
+            // Mezon.Net.Sdk.MezonClient chỉ công khai API ListChannelDescsAsync(ListChannelDescsParams) yêu cầu ClanId và không hỗ trợ liệt kê DM channels (ClanId = 0).
+            // Endpoint liệt kê DM duy nhất là ListChannelByUserIdAsync() nằm trên underlying client Mezon.Net.Client.MezonClient (internal Engine).
+            // Sau khi lấy danh sách kênh DM, bot sử dụng API công khai Channel.JoinAsync() qua GetChannelAsync.
             var engineProp = typeof(SdkClient).GetProperty("Engine", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             var engine = engineProp?.GetValue(_client) as Mezon.Net.Client.MezonClient;
             if (engine == null) return;
 
             var joinedCount = 0;
 
-            // Quét kênh DM/Private từ ListChannelByUserIdAsync (SDK API công khai)
+            // Quét kênh DM/Private từ ListChannelByUserIdAsync (internal Engine API)
             try
             {
                 var userChannels = await engine.ListChannelByUserIdAsync();
@@ -414,14 +437,24 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                         if (ch.ClanId == 0 || ch.ChannelPrivate > 0)
                         {
                             ChannelClanMap[ch.ChannelId] = ch.ClanId;
-                            await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
-                                clanId: ch.ClanId,
-                                channelId: ch.ChannelId,
-                                channelType: ch.Type,
-                                isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
-                            ));
-                            joinedCount++;
-                            _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM/Private {ChannelId} thành công!", ch.ChannelId);
+                            var channel = await _client.GetChannelAsync(ch.ChannelId);
+                            if (channel != null)
+                            {
+                                await channel.JoinAsync();
+                                joinedCount++;
+                                _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM/Private {ChannelId} thành công qua Channel.JoinAsync!", ch.ChannelId);
+                            }
+                            else
+                            {
+                                await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
+                                    clanId: ch.ClanId,
+                                    channelId: ch.ChannelId,
+                                    channelType: ch.Type,
+                                    isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
+                                ));
+                                joinedCount++;
+                                _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM/Private {ChannelId} thành công!", ch.ChannelId);
+                            }
                         }
                     }
                 }
@@ -447,17 +480,15 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             var ch = response.ChannelDesc;
             if (ch.ClanId == 0 || ch.ChannelPrivate > 0)
             {
-                var engineProp = typeof(SdkClient).GetProperty("Engine", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                var engine = engineProp?.GetValue(_client) as Mezon.Net.Client.MezonClient;
-                if (engine != null)
+                ChannelClanMap[ch.ChannelId] = ch.ClanId;
+                if (_client != null)
                 {
-                    await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
-                        clanId: ch.ClanId,
-                        channelId: ch.ChannelId,
-                        channelType: ch.Type,
-                        isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
-                    ));
-                    _logger.LogInformation("🔗 [MezonBot] Đã tự động kết nối lắng nghe kênh DM mới {ChannelId}!", ch.ChannelId);
+                    var channel = await _client.GetChannelAsync(ch.ChannelId);
+                    if (channel != null)
+                    {
+                        await channel.JoinAsync();
+                        _logger.LogInformation("🔗 [MezonBot] Đã tự động kết nối lắng nghe kênh DM mới {ChannelId} qua Channel.JoinAsync!", ch.ChannelId);
+                    }
                 }
             }
         }
@@ -1728,15 +1759,30 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 return false;
             }
 
-            if (!channel.Messages.TryGet(messageId, out var message) || message == null)
+            Mezon.Net.Sdk.Entities.Message? message = null;
+            const int maxRetries = 5;
+            for (var attempt = 1; attempt <= maxRetries; attempt++)
             {
-                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy Message trong Channel cache)", emoji, messageId);
+                if (channel.Messages.TryGet(messageId, out message) && message != null)
+                {
+                    break;
+                }
+
+                if (attempt < maxRetries)
+                {
+                    await RetryDelayProvider(TimeSpan.FromMilliseconds(400));
+                }
+            }
+
+            if (message == null)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} sau {MaxRetries} lần thử (không tìm thấy Message trong Channel cache)", emoji, messageId, maxRetries);
                 ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
                 return false;
             }
 
             var botId = _options.GetEffectiveBotId();
-            await message.AddReactionAsync(0, emoji, botId);
+            await MessageReactionSender(message, 0, emoji, botId);
 
             _logger.LogInformation("✅ [MezonBot] Đã thêm reaction {Emoji} vào Message {MessageId} tại Channel {ChannelId}", emoji, messageId, channelId);
             ReactionHistory.Add((clanId, channelId, messageId, emoji, true));
