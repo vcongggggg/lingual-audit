@@ -1300,6 +1300,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 return;
             }
 
+            // Bỏ qua reaction của chính Bot (tránh bot tự trả lời quiz hoặc tự bookmark)
+            var botId = _options.GetEffectiveBotId();
+            if (botId > 0 && reaction.SenderId == botId)
+            {
+                _logger.LogInformation("ℹ️ [MezonBot] Bỏ qua reaction từ chính bot (SenderId={SenderId})", reaction.SenderId);
+                return;
+            }
+
             // 1. ADV-03: Reaction Bookmark (nếu là emoji bookmark)
             if (IsBookmarkEmoji(reaction.Emoji))
             {
@@ -1343,6 +1351,12 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         string emoji,
         bool action)
     {
+        var botId = _options.GetEffectiveBotId();
+        if (botId > 0 && senderId == botId)
+        {
+            _logger.LogInformation("ℹ️ [MezonBot] Bỏ qua reaction bookmark từ chính Bot (SenderId={SenderId})", senderId);
+            return false;
+        }
         if (!action)
         {
             return false;
@@ -1433,6 +1447,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         string emoji)
     {
         if (senderId <= 0 || channelId <= 0 || messageId <= 0) return null;
+
+        // Bỏ qua nếu người react chính là Bot (tránh bot tự trả lời quiz của chính mình)
+        var botId = _options.GetEffectiveBotId();
+        if (botId > 0 && senderId == botId)
+        {
+            _logger.LogInformation("ℹ️ [MezonBot] Bỏ qua reaction quiz từ chính Bot (SenderId={SenderId})", senderId);
+            return null;
+        }
 
         using var scope = _scopeFactory.CreateScope();
         var reactionQuizService = scope.ServiceProvider.GetRequiredService<IReactionQuizService>();

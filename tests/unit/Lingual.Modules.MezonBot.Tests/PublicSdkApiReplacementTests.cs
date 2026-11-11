@@ -1,6 +1,8 @@
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Mezon.Net.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,9 +16,7 @@ public class PublicSdkApiReplacementTests
     [Fact]
     public void GrepBackend_HasZeroOccurrencesOfPrivateReflection()
     {
-        // Root directory của src/backend
         var currentDir = Directory.GetCurrentDirectory();
-        // Traverse up to find src/backend
         var dirInfo = new DirectoryInfo(currentDir);
         while (dirInfo != null && !Directory.Exists(Path.Combine(dirInfo.FullName, "src", "backend")))
         {

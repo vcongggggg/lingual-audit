@@ -431,5 +431,137 @@ public class AdvancedFeaturesMilestone24Tests
     }
 
     #endregion
+
+    #region Fix F1: Bot Ignored Own Reactions (Quiz & Bookmark)
+
+    [Fact]
+    public async Task ReactionQuiz_WhenReactionIsFromBotItself_IsCompletelyIgnored_NoDbResponse_NoXp()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateBotDbContext(dbName);
+
+        var quizServiceMock = new Mock<IReactionQuizService>();
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var gamificationMock = new Mock<IGamificationService>();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton(quizServiceMock.Object);
+        services.AddSingleton(userResolverMock.Object);
+        services.AddSingleton(gamificationMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        long botId = 987654321;
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = botId.ToString(),
+            Token = "test-token",
+            Enabled = true
+        });
+
+        var loggerMock = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(loggerMock.Object, options, scopeFactory);
+
+        long channelId = 12345;
+        long messageId = 88899;
+
+        // Act 1: Thử gọi HandleMessageReactionQuizAsync trực tiếp với SenderId = BotId
+        var directResult = await worker.HandleMessageReactionQuizAsync(
+            clanId: 1,
+            channelId: channelId,
+            messageId: messageId,
+            senderId: botId,
+            senderName: "LingualBot",
+            emoji: "🇦");
+
+        // Assert 1: Phải bị bỏ qua hoàn toàn, trả về null
+        directResult.Should().BeNull("Reaction từ chính BotId phải bị bỏ qua hoàn toàn");
+
+        // Act 2: Thử gửi qua OnMessageReactionReceivedAsync với event data từ chính bot
+        var reactionJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            clan_id = 1L,
+            channel_id = channelId,
+            message_id = messageId,
+            sender_id = botId,
+            sender_name = "LingualBot",
+            emoji = "🇦",
+            action = true
+        });
+        var eventData = System.Text.Json.JsonSerializer.Deserialize<Mezon.Net.Models.MessageReactionResponse>(reactionJson,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        await worker.OnMessageReactionReceivedAsync(eventData);
+
+        // Assert 2: ProcessReactionAnswerAsync tuyệt đối KHÔNG bao giờ được gọi
+        quizServiceMock.Verify(s => s.ProcessReactionAnswerAsync(
+            It.IsAny<long>(),
+            It.IsAny<long>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never, "Tuyệt đối không xử lý câu trả lời nếu reaction là của chính Bot");
+
+        // Gamification tuyệt đối không bao giờ được cộng XP
+        gamificationMock.Verify(g => g.AwardXpAsync(
+            It.IsAny<AwardXpRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never, "Tuyệt đối không cộng XP cho chính bot");
+
+        // Log Information ghi nhận đã bỏ qua reaction từ chính bot
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Bỏ qua reaction") && v.ToString()!.Contains("chính Bot")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ReactionBookmark_WhenReactionIsFromBotItself_IsCompletelyIgnored()
+    {
+        var services = new ServiceCollection();
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        long botId = 987654321;
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = botId.ToString(),
+            Token = "test-token",
+            Enabled = true
+        });
+
+        var loggerMock = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(loggerMock.Object, options, scopeFactory);
+
+        // Act - Bot thả reaction bookmark vào tin nhắn
+        var result = await worker.HandleMessageReactionBookmarkAsync(
+            clanId: 1,
+            channelId: 12345,
+            messageId: 88899,
+            senderId: botId,
+            senderName: "LingualBot",
+            emoji: "🔖",
+            action: true);
+
+        // Assert - Bị từ chối, trả về false
+        result.Should().BeFalse("Reaction bookmark từ chính Bot phải bị bỏ qua");
+
+        // Log ghi nhận bỏ qua
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Bỏ qua reaction bookmark từ chính Bot")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
 }
 
