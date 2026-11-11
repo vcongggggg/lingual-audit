@@ -111,18 +111,15 @@ public class VoiceStudyRoomTracker : IVoiceStudyRoomTracker
         if (_sessions.TryGetValue((channelId, userId), out var existing))
         {
             var now = leftAt ?? DateTime.UtcNow;
-            var elapsed = now - existing.JoinedAtUtc;
-            var updatedDuration = existing.SpeakingDuration < elapsed ? elapsed : existing.SpeakingDuration;
 
             var closedSession = existing with
             {
-                LeftAtUtc = now,
-                SpeakingDuration = updatedDuration
+                LeftAtUtc = now
             };
 
             _sessions[(channelId, userId)] = closedSession;
-            _logger.LogInformation("🎙️ [VoiceTracker] Học viên {UserId} rời phòng Voice {ChannelId}. Tổng thời gian: {Duration:hh\\:mm\\:ss}",
-                userId, channelId, updatedDuration);
+            _logger.LogInformation("🎙️ [VoiceTracker] Học viên {UserId} rời phòng Voice {ChannelId}. Tổng thời gian nói: {Duration:hh\\:mm\\:ss}",
+                userId, channelId, existing.SpeakingDuration);
 
             return closedSession;
         }
@@ -238,18 +235,17 @@ public class VoiceStudyRoomTracker : IVoiceStudyRoomTracker
             }
             else
             {
-                // Fallback nếu không có database context (chạy isolated unit test)
-                session.AwardedBucketIndices.Add(bucketIndex);
-                _awardedKeys[idempotencyKey] = true;
+                // KHÔNG có GamificationService hoặc không resolve được UserGuid -> KHÔNG trao XP (0 XP)
+                _logger.LogWarning("⚠️ [VoiceTracker] Không thể trao XP cho User {UserId} tại Channel {ChannelId}: Chưa cấu hình GamificationService hoặc không thể resolve MezonUserId sang LingualUserId.", userId, channelId);
 
                 results.Add(new VoiceXpAwardResult(
                     UserId: userId,
                     ChannelId: channelId,
                     BucketIndex: bucketIndex,
-                    AwardedXp: 50,
+                    AwardedXp: 0,
                     AlreadyAwarded: false,
                     IdempotencyKey: idempotencyKey,
-                    Message: $"Đã ghi nhận +50 XP cho mốc {bucketIndex * 15} phút luyện nói."
+                    Message: "Chưa cấu hình dịch vụ Gamification hoặc không thể xác thực tài khoản học viên để trao XP."
                 ));
             }
         }

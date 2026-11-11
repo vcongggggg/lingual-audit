@@ -1,6 +1,10 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Lingual.Modules.MezonBot.Services;
+
+[assembly: InternalsVisibleTo("Lingual.Modules.MezonBot.Tests")]
 
 namespace Lingual.Modules.MezonBot;
 
@@ -17,7 +21,18 @@ public static class MezonBotModuleExtensions
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
         services.AddScoped<ISrsReminderService, SrsReminderService>();
         services.AddSingleton<IVoiceStudyRoomTracker, VoiceStudyRoomTracker>();
-        services.AddSingleton<IAiEssayCoachService, AiEssayCoachService>();
+        services.AddHttpClient("GeminiEssayClient");
+        services.AddSingleton<IAiEssayCoachService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<AiEssayCoachService>>();
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var httpClientFactory = sp.GetService<IHttpClientFactory>();
+            var httpClient = httpClientFactory?.CreateClient("GeminiEssayClient") ?? new System.Net.Http.HttpClient();
+            var apiKey = configuration["Gemini:ApiKey"];
+            var baseUrl = configuration["Gemini:BaseUrl"];
+            var model = configuration["Gemini:Model"];
+            return new AiEssayCoachService(logger, null, scopeFactory, httpClient, apiKey, baseUrl, model);
+        });
         services.AddSingleton<EssayRateLimiter>();
 
         services.AddSingleton<MezonBotWorker>();

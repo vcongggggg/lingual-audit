@@ -7,6 +7,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mezon.Net.Sdk;
 using Mezon.Net.Client;
@@ -84,6 +85,7 @@ public class EssayRateLimiter
 public class AiEssayCoachService : IAiEssayCoachService
 {
     private readonly IAITutorService? _aiTutorService;
+    private readonly IServiceScopeFactory? _scopeFactory;
     private readonly HttpClient? _httpClient;
     private readonly string? _geminiApiKey;
     private readonly string _geminiBaseUrl;
@@ -93,6 +95,7 @@ public class AiEssayCoachService : IAiEssayCoachService
     public AiEssayCoachService(
         ILogger<AiEssayCoachService> logger,
         IAITutorService? aiTutorService = null,
+        IServiceScopeFactory? scopeFactory = null,
         HttpClient? httpClient = null,
         string? geminiApiKey = null,
         string? geminiBaseUrl = null,
@@ -100,6 +103,7 @@ public class AiEssayCoachService : IAiEssayCoachService
     {
         _logger = logger;
         _aiTutorService = aiTutorService;
+        _scopeFactory = scopeFactory;
         _httpClient = httpClient;
         _geminiApiKey = geminiApiKey;
         _geminiBaseUrl = geminiBaseUrl ?? "https://generativelanguage.googleapis.com/v1beta";
@@ -133,8 +137,8 @@ public class AiEssayCoachService : IAiEssayCoachService
         var words = text.Trim().Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         var wordCount = words.Length;
 
-        // Nếu có cấu hình Gemini và HttpClient, gọi trực tiếp Gemini với prompt 4 tiêu chí học thuật chuẩn
-        if (_httpClient != null && !string.IsNullOrWhiteSpace(_geminiApiKey))
+        // 1. ĐƯỜNG 1: Gọi Gemini trực tiếp qua HttpClient nếu có ApiKey hợp lệ
+        if (_httpClient != null && !string.IsNullOrWhiteSpace(_geminiApiKey) && _geminiApiKey != "YOUR_GEMINI_API_KEY")
         {
             try
             {
@@ -146,12 +150,117 @@ public class AiEssayCoachService : IAiEssayCoachService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ [AiEssayCoach] Lỗi khi gọi Gemini trực tiếp, sử dụng đánh giá học thuật dự phòng.");
+                _logger.LogWarning(ex, "⚠️ [AiEssayCoach] Lỗi khi gọi Gemini trực tiếp, thử tiếp qua IAITutorService.");
             }
         }
 
-        // Đánh giá học thuật dự phòng (fallback / offline evaluator)
+        // 2. ĐƯỜNG 2: Gọi qua IAITutorService (được inject trực tiếp hoặc giải quyết từ ScopeFactory)
+        IAITutorService? aiTutor = _aiTutorService;
+        IServiceScope? scope = null;
+        if (aiTutor == null && _scopeFactory != null)
+        {
+            try
+            {
+                scope = _scopeFactory.CreateScope();
+                aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+            }
+            catch (Exception exScope)
+            {
+                _logger.LogDebug(exScope, "Không thể tạo scope để resolve IAITutorService.");
+            }
+        }
+
+        if (aiTutor != null)
+        {
+            try
+            {
+                var analysisRequest = new GrammarAnalysisRequest(
+                    Text: text,
+                    Context: topic ?? "academic_essay");
+
+                var grammarResponse = await aiTutor.AnalyzeGrammarAsync(analysisRequest, cancellationToken);
+                if (grammarResponse != null)
+                {
+                    return MapAITutorResponseToEssayResult(grammarResponse, text, topic, wordCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [AiEssayCoach] Lỗi khi gọi IAITutorService, sử dụng đánh giá học thuật dự phòng.");
+            }
+            finally
+            {
+                scope?.Dispose();
+            }
+        }
+
+        // 3. ĐƯỜNG 3 (DỰ PHÒNG): Đánh giá học thuật dự phòng (fallback / offline evaluator)
+        // Ghi rõ ràng 'ước tính thô, chưa qua AI' và KHÔNG trình bày band score như điểm chấm thật (OverallBandScore = 0.0)
         return EvaluateHeuristically(text, topic, wordCount);
+    }
+
+    private static EssayEvaluationResult MapAITutorResponseToEssayResult(
+        GrammarAnalysisResponse response,
+        string text,
+        string? topic,
+        int wordCount)
+    {
+        var corrections = new List<EssayCorrectionItem>();
+        if (!string.IsNullOrWhiteSpace(response.OriginalText) &&
+            !string.IsNullOrWhiteSpace(response.CorrectedText) &&
+            !response.OriginalText.Equals(response.CorrectedText, StringComparison.OrdinalIgnoreCase))
+        {
+            corrections.Add(new EssayCorrectionItem(
+                OriginalSnippet: response.OriginalText,
+                SuggestedReplacement: response.CorrectedText,
+                RuleExplanation: string.IsNullOrWhiteSpace(response.Explanation) ? "AI Tutor gợi ý câu viết chuẩn xác hơn." : response.Explanation
+            ));
+        }
+
+        double band = response.IsCorrect
+            ? (wordCount >= 150 ? 7.5 : 7.0)
+            : (wordCount >= 150 ? 6.5 : 6.0);
+        string cefr = band >= 7.5 ? "C1" : (band >= 6.5 ? "B2" : "B1");
+
+        return new EssayEvaluationResult(
+            IsSuccess: true,
+            OriginalText: text,
+            WordCount: wordCount,
+            OverallBandScore: band,
+            CefrLevel: cefr,
+            TaskAchievement: new EssayCriteriaScore(
+                CriteriaName: "Task Achievement / Coherence",
+                Score: band,
+                Summary: $"AI Đánh giá: Bài viết gồm {wordCount} từ. Chủ đề: {topic ?? "Tự do"}.",
+                Strengths: new[] { "Nội dung đầy đủ", "Bố cục câu rõ ràng" },
+                Improvements: new[] { "Mở rộng phát triển thêm ý luận để tăng sức thuyết phục" }
+            ),
+            LexicalResource: new EssayCriteriaScore(
+                CriteriaName: "Lexical Resource",
+                Score: Math.Max(5.0, band - 0.5),
+                Summary: string.IsNullOrWhiteSpace(response.Tips) ? "Vốn từ vựng tương đối phong phú." : response.Tips,
+                Strengths: new[] { "Sử dụng đúng từ loại cơ bản" },
+                Improvements: new[] { "Thêm cụm từ học thuật và collocations nâng cao" }
+            ),
+            GrammaticalAccuracy: new EssayCriteriaScore(
+                CriteriaName: "Grammatical Range & Accuracy",
+                Score: response.IsCorrect ? band : Math.Max(5.0, band - 1.0),
+                Summary: string.IsNullOrWhiteSpace(response.Explanation) ? "Ngữ pháp chuẩn xác." : response.Explanation,
+                Strengths: response.IsCorrect ? new[] { "Không phát hiện lỗi ngữ pháp cơ bản" } : new[] { "Cấu trúc câu hoàn chỉnh" },
+                Improvements: new[] { "Đa dạng hóa mệnh đề quan hệ và đảo ngữ" }
+            ),
+            NativeSuggestions: new EssayCriteriaScore(
+                CriteriaName: "Native Suggestions",
+                Score: band,
+                Summary: string.IsNullOrWhiteSpace(response.CorrectedText) ? "Diễn đạt tự nhiên." : $"Gợi ý bản xứ: \"{response.CorrectedText}\"",
+                Strengths: new[] { "Văn phong học thuật" },
+                Improvements: new[] { "Sử dụng từ nối tự nhiên hơn" }
+            ),
+            Corrections: corrections,
+            GeneralFeedback: $"AI Tutor (Gemini) Đánh giá: Bài viết đạt trình độ {cefr} (Band {band:0.0}). {response.Explanation}",
+            AwardedXp: 0,
+            ErrorMessage: null
+        );
     }
 
     private async Task<EssayEvaluationResult?> CallGeminiForEssayEvaluationAsync(
@@ -291,32 +400,6 @@ public class AiEssayCoachService : IAiEssayCoachService
     {
         var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         var sentenceCount = Math.Max(1, sentences.Length);
-        var avgSentenceLength = (double)wordCount / sentenceCount;
-
-        // Ước tính Band Score học thuật
-        double band = 5.5;
-        string cefr = "B1";
-
-        if (wordCount >= 150 && avgSentenceLength >= 12)
-        {
-            band = 7.0;
-            cefr = "C1";
-        }
-        else if (wordCount >= 80 && avgSentenceLength >= 8)
-        {
-            band = 6.5;
-            cefr = "B2";
-        }
-        else if (wordCount >= 40)
-        {
-            band = 5.5;
-            cefr = "B1";
-        }
-        else
-        {
-            band = 4.5;
-            cefr = "A2";
-        }
 
         var corrections = new List<EssayCorrectionItem>();
         if (text.Contains(" i ", StringComparison.Ordinal))
@@ -332,35 +415,36 @@ public class AiEssayCoachService : IAiEssayCoachService
             IsSuccess: true,
             OriginalText: text,
             WordCount: wordCount,
-            OverallBandScore: band,
-            CefrLevel: cefr,
+            OverallBandScore: 0.0, // KHÔNG trình bày band score như điểm chấm thật
+            CefrLevel: "Ước tính sơ bộ",
             TaskAchievement: new EssayCriteriaScore(
                 "Task Achievement & Coherence",
-                band,
-                $"Bài viết gồm {wordCount} từ, phân chia khoảng {sentenceCount} câu mạch lạc.",
-                new[] { "Bố cục rõ ràng", "Bám sát chủ đề" },
-                wordCount < 100 ? new[] { "Nên mở rộng thêm luận điểm và ví dụ minh họa" } : new[] { "Tốt, duy trì phong độ" }),
+                0.0,
+                $"[Ước tính thô, chưa qua AI] Bài viết gồm {wordCount} từ, phân chia khoảng {sentenceCount} câu.",
+                new[] { "Bố cục câu cơ bản" },
+                new[] { "Cần kết nối AI để đánh giá độ mạch lạc theo chủ đề" }),
             LexicalResource: new EssayCriteriaScore(
                 "Lexical Resource",
-                band,
-                "Sử dụng từ vựng phù hợp với ngữ cảnh.",
-                new[] { "Từ vựng cơ bản chính xác" },
-                new[] { "Nên đưa thêm các collocations và phrasal verbs tự nhiên" }),
+                0.0,
+                $"[Ước tính thô, chưa qua AI] Đếm từ vựng sơ bộ ({wordCount} từ).",
+                new[] { "Vốn từ cơ bản" },
+                new[] { "Cần kết nối AI để kiểm tra collocations và từ nâng cao" }),
             GrammaticalAccuracy: new EssayCriteriaScore(
                 "Grammatical Range & Accuracy",
-                band,
-                "Cấu trúc câu hoàn chỉnh, thì động từ tương đối nhất quán.",
-                new[] { "Dùng đúng các thì cơ bản" },
-                new[] { "Có thể thử nghiệm thêm mệnh đề quan hệ và câu phức" }),
+                0.0,
+                "[Ước tính thô, chưa qua AI] Kiểm tra cú pháp cơ bản offline.",
+                new[] { "Có dấu câu kết thúc" },
+                new[] { "Cần kết nối AI để phát hiện lỗi ngữ pháp chuyên sâu" }),
             NativeSuggestions: new EssayCriteriaScore(
                 "Native Suggestions",
-                band,
-                "Lời văn tự nhiên, dễ hiểu.",
-                new[] { "Giọng văn tích cực" },
-                new[] { "Gợi ý thay các từ nối thông dụng bằng cụm liên kết tự nhiên hơn" }),
+                0.0,
+                "[Ước tính thô, chưa qua AI] Chưa có gợi ý bản xứ khi chưa qua AI.",
+                Array.Empty<string>(),
+                new[] { "Kết nối Gemini AI để nhận gợi ý câu viết lại hoàn thiện" }),
             Corrections: corrections,
-            GeneralFeedback: $"Bài viết đạt ước tính Band {band:0.0} (CEFR {cefr}). Cố gắng rèn luyện thêm để phát triển kỹ năng viết toàn diện!",
-            AwardedXp: 0
+            GeneralFeedback: "⚠️ [ƯỚC TÍNH THÔ, CHƯA QUA AI]: Kết quả này chỉ mang tính tham khảo sơ bộ dựa trên số lượng từ và cấu trúc câu, chưa qua phân tích chuyên sâu của AI Tutor. Điểm Band Score không được tính là điểm chấm thật.",
+            AwardedXp: 0,
+            ErrorMessage: "Ước tính thô, chưa qua AI"
         );
     }
 
@@ -412,17 +496,41 @@ public class AiEssayCoachService : IAiEssayCoachService
 
     public MessageContent BuildEvaluationResultCard(EssayEvaluationResult result)
     {
-        var embedBuilder = new MessageEmbedBuilder()
-            .SetColor("#10B981")
-            .SetTitle($"📊 KẾT QUẢ CHẤM BÀI VIẾT: BAND {result.OverallBandScore:0.0} (CEFR {result.CefrLevel})")
-            .SetDescription(
-                $"**Số lượng từ:** {result.WordCount} từ\n" +
-                $"**Nhận xét tổng quan:** {result.GeneralFeedback}\n\n" +
-                $"🎯 **1. Task Achievement & Coherence ({result.TaskAchievement.Score:0.0}):** {result.TaskAchievement.Summary}\n" +
-                $"📚 **2. Lexical Resource ({result.LexicalResource.Score:0.0}):** {result.LexicalResource.Summary}\n" +
-                $"⚖️ **3. Grammatical Range & Accuracy ({result.GrammaticalAccuracy.Score:0.0}):** {result.GrammaticalAccuracy.Summary}\n" +
-                $"✨ **4. Native Suggestions ({result.NativeSuggestions.Score:0.0}):** {result.NativeSuggestions.Summary}")
-            .SetFooter("LINGUAL AI Essay Coach • Kết quả bảo mật riêng tư (Ephemeral)", "");
+        bool isHeuristic = result.OverallBandScore <= 0.0 || result.ErrorMessage?.Contains("chưa qua AI") == true;
+
+        var embedBuilder = new MessageEmbedBuilder();
+
+        if (isHeuristic)
+        {
+            embedBuilder
+                .SetColor("#F59E0B") // Amber Warning
+                .SetTitle("⚠️ KẾT QUẢ ĐÁNH GIÁ SƠ BỘ — [ƯỚC TÍNH THÔ, CHƯA QUA AI]")
+                .SetDescription(
+                    "📌 **LƯU Ý:** Kết quả này là **ước tính thô sơ bộ, chưa qua AI chấm điểm**.\n" +
+                    $"📝 **Số lượng từ:** {result.WordCount} từ\n" +
+                    "⚠️ **Điểm Band Score:** *Không áp dụng (Chưa qua AI kiểm định chuyên sâu)*\n\n" +
+                    $"{result.GeneralFeedback}")
+                .AddField("1. Task Achievement (Ước tính thô)", result.TaskAchievement.Summary, false)
+                .AddField("2. Lexical Resource (Ước tính thô)", result.LexicalResource.Summary, false)
+                .AddField("3. Grammatical Accuracy (Ước tính thô)", result.GrammaticalAccuracy.Summary, false)
+                .AddField("4. Native Suggestions (Ước tính thô)", result.NativeSuggestions.Summary, false)
+                .SetFooter("LINGUAL AI Essay Coach • Dự phòng Offline (Chưa qua AI)", "");
+        }
+        else
+        {
+            embedBuilder
+                .SetColor("#10B981") // Green Emerald
+                .SetTitle($"🎯 KẾT QUẢ CHẤM BÀI VIẾT — AI ESSAY COACH (GEMINI): BAND {result.OverallBandScore:0.0} (CEFR {result.CefrLevel})")
+                .SetDescription(
+                    $"⭐ **Điểm tổng quan (Overall Band):** **{result.OverallBandScore:0.0}** • Trình độ: **{result.CefrLevel}**\n" +
+                    $"📝 **Số lượng từ:** {result.WordCount} từ\n\n" +
+                    $"💬 **Nhận xét từ AI:** {result.GeneralFeedback}\n\n" +
+                    $"🎯 **1. Task Achievement & Coherence ({result.TaskAchievement.Score:0.0}):** {result.TaskAchievement.Summary}\n" +
+                    $"📚 **2. Lexical Resource ({result.LexicalResource.Score:0.0}):** {result.LexicalResource.Summary}\n" +
+                    $"⚖️ **3. Grammatical Range & Accuracy ({result.GrammaticalAccuracy.Score:0.0}):** {result.GrammaticalAccuracy.Summary}\n" +
+                    $"✨ **4. Native Suggestions ({result.NativeSuggestions.Score:0.0}):** {result.NativeSuggestions.Summary}")
+                .SetFooter("LINGUAL AI Essay Coach • Kết quả bảo mật riêng tư (Ephemeral)", "");
+        }
 
         var contentBuilder = new MessageContentBuilder()
             .AddEmbed(embedBuilder.Build());

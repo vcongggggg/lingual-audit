@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -266,6 +267,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     public ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> UserChannelMap => _userChannelMap;
     public readonly ConcurrentBag<(long ChannelId, long UserId, string Text)> SentEphemeralMessages = new();
     public readonly ConcurrentBag<(long ChannelId, long UserId, MessageContent Content)> SentEphemeralContents = new();
+    public readonly ConcurrentBag<(long ChannelId, MessageContent Content)> SentChannelContents = new();
     public readonly ConcurrentBag<(long ClanId, long ChannelId, long MessageId, string Emoji, bool Success)> ReactionHistory = new();
 
     /// <summary>
@@ -303,7 +305,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         _reactionRateLimiter = reactionRateLimiter ?? new ReactionBookmarkRateLimiter(10);
         _dmRateLimiter = dmRateLimiter ?? new DmConversationRateLimiter(20);
         _voiceTracker = voiceTracker ?? new VoiceStudyRoomTracker(new Microsoft.Extensions.Logging.Abstractions.NullLogger<VoiceStudyRoomTracker>());
-        _essayCoachService = essayCoachService ?? new AiEssayCoachService(new Microsoft.Extensions.Logging.Abstractions.NullLogger<AiEssayCoachService>());
+        _essayCoachService = essayCoachService ?? new AiEssayCoachService(new Microsoft.Extensions.Logging.Abstractions.NullLogger<AiEssayCoachService>(), scopeFactory: scopeFactory);
         _essayRateLimiter = essayRateLimiter ?? new EssayRateLimiter(3);
     }
 
@@ -364,6 +366,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 _client.MessageReactionReceived += OnMessageReactionReceivedAsync;
                 _client.VoiceJoined += OnVoiceJoinedAsync;
                 _client.VoiceLeaved += OnVoiceLeavedAsync;
+                _client.VoiceInteractiveReceived += OnVoiceInteractiveReceivedAsync;
 
                 await _client.LoginAsync();
                 _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
@@ -1276,7 +1279,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         long senderId,
         string essayContent,
         bool isDm,
-        ChannelMessageResponse data)
+        ChannelMessageResponse? data = null)
     {
         try
         {
@@ -1343,7 +1346,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         long channelId,
         long clanId,
         long senderId,
-        ChannelMessageResponse data)
+        ChannelMessageResponse? data = null)
     {
         try
         {
@@ -1425,7 +1428,27 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         }
     }
 
-    private async Task OnMessageButtonClickedAsync(MessageButtonClickedEventData eventData)
+    internal Task OnVoiceInteractiveReceivedAsync(VoiceInteractiveEventEventData eventData)
+    {
+        try
+        {
+            VoiceInteractiveEventResponse response = (VoiceInteractiveEventResponse)eventData;
+            var channelId = response.VoiceChannelId;
+            var userId = response.SenderId;
+            if (channelId > 0 && userId > 0)
+            {
+                _voiceTracker.RecordSpeakingTick(channelId, userId, TimeSpan.FromSeconds(5));
+                _logger.LogInformation("🎙️ [MezonBot] Ghi nhận Voice Activity từ User {UserId} tại Channel {ChannelId}", userId, channelId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi xử lý sự kiện VoiceInteractiveReceived");
+        }
+        return Task.CompletedTask;
+    }
+
+    internal async Task OnMessageButtonClickedAsync(MessageButtonClickedEventData eventData)
     {
         try
         {
@@ -1520,6 +1543,58 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             {
                 var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
                 await HandleLeaderboardCommandAsync(channelId, mezonUserId, ephemeralUserId: uid > 0 ? uid : null);
+            }
+            else if (buttonId == "btn_submit_essay")
+            {
+                var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
+                ChannelClanMap.TryGetValue(channelId, out var clanId);
+                var isDm = ChannelClanMap.TryGetValue(channelId, out var cid) ? (cid <= 0) : false;
+
+                string submittedText = string.Empty;
+                if (!string.IsNullOrWhiteSpace(data.ExtraData))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(data.ExtraData);
+                        if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                        {
+                            if (doc.RootElement.TryGetProperty("essay_text_input", out var prop))
+                            {
+                                submittedText = prop.GetString() ?? string.Empty;
+                            }
+                            else
+                            {
+                                foreach (var p in doc.RootElement.EnumerateObject())
+                                {
+                                    if (p.Value.ValueKind == JsonValueKind.String)
+                                    {
+                                        submittedText = p.Value.GetString() ?? string.Empty;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        submittedText = data.ExtraData;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(submittedText))
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, "⚠️ Vui lòng nhập nội dung bài viết tiếng Anh vào ô văn bản trước khi bấm chấm bài!");
+                }
+                else
+                {
+                    await HandleEssayCommandAsync(channelId, clanId, uid, submittedText, isDm, null);
+                }
+            }
+            else if (buttonId == "btn_voice_refresh")
+            {
+                var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
+                ChannelClanMap.TryGetValue(channelId, out var clanId);
+                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null);
             }
             else if (buttonId == "btn_srs_review_now")
             {
@@ -2791,6 +2866,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         MessageContent content,
         ChannelMessageResponse? replyTo = null)
     {
+        SentChannelContents.Add((channelId, content));
+
         if (_client == null || channelId <= 0) return 0;
 
         try
