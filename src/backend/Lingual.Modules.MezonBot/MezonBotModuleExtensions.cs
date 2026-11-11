@@ -16,6 +16,9 @@ public static class MezonBotModuleExtensions
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
         services.AddScoped<ISrsReminderService, SrsReminderService>();
+        services.AddSingleton<IVoiceStudyRoomTracker, VoiceStudyRoomTracker>();
+        services.AddSingleton<IAiEssayCoachService, AiEssayCoachService>();
+        services.AddSingleton<EssayRateLimiter>();
 
         services.AddSingleton<MezonBotWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<MezonBotWorker>());

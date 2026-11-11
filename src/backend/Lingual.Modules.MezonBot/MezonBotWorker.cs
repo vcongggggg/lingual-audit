@@ -242,13 +242,26 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         if (trimmed.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
             trimmed.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
             return "ask";
+        if (trimmed.StartsWith("/grade", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/essay", StringComparison.OrdinalIgnoreCase))
+            return "essay";
+        if (trimmed.StartsWith("/voice", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/meet", StringComparison.OrdinalIgnoreCase))
+            return "voice";
 
         return "unknown";
     }
 
     private readonly DmConversationRateLimiter _dmRateLimiter;
+    private readonly IVoiceStudyRoomTracker _voiceTracker;
+    private readonly IAiEssayCoachService _essayCoachService;
+    private readonly EssayRateLimiter _essayRateLimiter;
+
     public ReactionBookmarkRateLimiter ReactionRateLimiter => _reactionRateLimiter;
     public DmConversationRateLimiter DmRateLimiter => _dmRateLimiter;
+    public IVoiceStudyRoomTracker VoiceTracker => _voiceTracker;
+    public IAiEssayCoachService EssayCoachService => _essayCoachService;
+    public EssayRateLimiter EssayRateLimiter => _essayRateLimiter;
     public ConcurrentDictionary<long, string> RecentMessageContentCache => _recentMessageContentCache;
     public ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> UserChannelMap => _userChannelMap;
     public readonly ConcurrentBag<(long ChannelId, long UserId, string Text)> SentEphemeralMessages = new();
@@ -279,13 +292,19 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         IOptions<MezonBotOptions> options,
         IServiceScopeFactory scopeFactory,
         ReactionBookmarkRateLimiter? reactionRateLimiter = null,
-        DmConversationRateLimiter? dmRateLimiter = null)
+        DmConversationRateLimiter? dmRateLimiter = null,
+        IVoiceStudyRoomTracker? voiceTracker = null,
+        IAiEssayCoachService? essayCoachService = null,
+        EssayRateLimiter? essayRateLimiter = null)
     {
         _logger = logger;
         _options = options.Value;
         _scopeFactory = scopeFactory;
         _reactionRateLimiter = reactionRateLimiter ?? new ReactionBookmarkRateLimiter(10);
         _dmRateLimiter = dmRateLimiter ?? new DmConversationRateLimiter(20);
+        _voiceTracker = voiceTracker ?? new VoiceStudyRoomTracker(new Microsoft.Extensions.Logging.Abstractions.NullLogger<VoiceStudyRoomTracker>());
+        _essayCoachService = essayCoachService ?? new AiEssayCoachService(new Microsoft.Extensions.Logging.Abstractions.NullLogger<AiEssayCoachService>());
+        _essayRateLimiter = essayRateLimiter ?? new EssayRateLimiter(3);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -343,6 +362,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 _client.DropdownBoxSelected += OnDropdownBoxSelectedAsync;
                 _client.UserChannelAdded += OnUserChannelAddedAsync;
                 _client.MessageReactionReceived += OnMessageReactionReceivedAsync;
+                _client.VoiceJoined += OnVoiceJoinedAsync;
+                _client.VoiceLeaved += OnVoiceLeavedAsync;
 
                 await _client.LoginAsync();
                 _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
@@ -636,6 +657,18 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
                 await HandleAskGrammarAsync(data.ChannelId, query, data);
             }
+            else if (text.StartsWith("/grade", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/essay", StringComparison.OrdinalIgnoreCase))
+            {
+                var prefixLength = text.StartsWith("/grade", StringComparison.OrdinalIgnoreCase) ? 6 : 6;
+                var essayContent = text[prefixLength..].Trim();
+                await HandleEssayCommandAsync(data.ChannelId, data.ClanId, data.SenderId, essayContent, isDm, data);
+            }
+            else if (text.StartsWith("/voice", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/meet", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleVoiceRoomCommandAsync(data.ChannelId, data.ClanId, data.SenderId, data);
+            }
             else if (isDm && !text.StartsWith("/"))
             {
                 var senderId = data.SenderId.ToString();
@@ -660,6 +693,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             .AddField("🔥 Duy trì Streak & Thi đua", "• /daily: Điểm danh nhận +20 XP và duy trì ngọn lửa Streak mỗi ngày\n• /streak: Tra cứu chuỗi ngày học và kỷ lục của bạn\n• /top: Bảng xếp hạng tuần Top 10 cao thủ LINGUAL", false)
             .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh qua Dropdown Select Menu\n• /vocab: Chọn bộ từ vựng luyện tập theo chủ đề qua Dropdown Select\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
             .AddField("🏆 Đấu trường Clan & Khảo sát", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan\n• /poll: Tham gia cuộc thi đố vui nhận +10 XP (/poll quiz) hoặc bình chọn chủ đề (/poll vote)", false)
+            .AddField("✍️ Chấm bài viết & Phòng luyện nói", "• /grade <bài viết> (hoặc /essay): AI Essay Coach chấm điểm đoạn văn 4 tiêu chí chuẩn IELTS/TOEIC (kết quả riêng tư)\n• /voice (hoặc /meet): Phòng học thoại Speaking Lounge (+50 XP mỗi 15 phút nói thật)", false)
             .AddField("🌐 Webview Miniapp Học tập", $"• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
@@ -1233,6 +1267,161 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /ask cho channel {ChannelId}", channelId);
             await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!", replyTo);
+        }
+    }
+
+    public virtual async Task HandleEssayCommandAsync(
+        long channelId,
+        long clanId,
+        long senderId,
+        string essayContent,
+        bool isDm,
+        ChannelMessageResponse data)
+    {
+        try
+        {
+            // 1. Rate Limiting: 3 bài / phút / user
+            if (!_essayRateLimiter.TryAcquire(senderId, out var retryAfterSeconds))
+            {
+                var rateLimitMsg = $"⏳ Bạn đã gửi bài quá nhanh! Vui lòng chờ {retryAfterSeconds} giây nữa trước khi gửi bài chấm tiếp theo.";
+                if (isDm)
+                {
+                    await ReplyToChannelAsync(channelId, rateLimitMsg, data);
+                }
+                else
+                {
+                    await SendEphemeralMessageAsync(channelId, senderId, rateLimitMsg);
+                }
+                return;
+            }
+
+            // 2. Nếu người dùng không nhập nội dung bài viết sau lệnh /grade hoặc /essay:
+            // Gửi Form Interactive Card có ButtonBuilder.AddInput để người dùng nhập bài!
+            if (string.IsNullOrWhiteSpace(essayContent))
+            {
+                var formCard = _essayCoachService.BuildEssayInputCard();
+                if (isDm)
+                {
+                    await ReplyToChannelWithContentAsync(channelId, formCard, data);
+                }
+                else
+                {
+                    await SendEphemeralMessageWithContentAsync(channelId, senderId, formCard);
+                }
+                return;
+            }
+
+            // 3. Tiến hành thẩm định và chấm điểm bằng AI Essay Coach
+            var evalResult = await _essayCoachService.EvaluateEssayAsync(essayContent);
+            var resultCard = _essayCoachService.BuildEvaluationResultCard(evalResult);
+
+            // 4. Trả kết quả: bắt buộc đi Ephemeral (hoặc DM riêng) để bảo vệ quyền riêng tư học viên
+            if (isDm)
+            {
+                await ReplyToChannelWithContentAsync(channelId, resultCard, data);
+            }
+            else
+            {
+                await SendEphemeralMessageWithContentAsync(channelId, senderId, resultCard);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh chấm bài viết cho User {UserId}", senderId);
+            if (isDm)
+            {
+                await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi chấm bài viết. Vui lòng thử lại sau!", data);
+            }
+            else
+            {
+                await SendEphemeralMessageAsync(channelId, senderId, "❌ Đã có lỗi xảy ra khi chấm bài viết. Vui lòng thử lại sau!");
+            }
+        }
+    }
+
+    public virtual async Task HandleVoiceRoomCommandAsync(
+        long channelId,
+        long clanId,
+        long senderId,
+        ChannelMessageResponse data)
+    {
+        try
+        {
+            var activeSessions = _voiceTracker.GetActiveSessions(channelId);
+            var activeCount = activeSessions.Count;
+
+            var embedBuilder = new MessageEmbedBuilder()
+                .SetColor("#3B82F6")
+                .SetTitle("🎙️ LINGUAL VOICE STUDY ROOM — PHÒNG LUYỆN NÓI TIẾNG ANH")
+                .SetDescription(
+                    "Chào mừng bạn đến với **Phòng luyện nói tiếng Anh Clan**!\n\n" +
+                    $"👥 **Đang tham gia:** {activeCount} học viên\n" +
+                    "🔥 **Quy tắc tính điểm XP:** Luyện nói tối thiểu **15 phút** trong phòng để nhận **+50 XP** (Server-side Idempotent).\n" +
+                    "💡 **Chủ đề thảo luận hôm nay:** *Technology & Artificial Intelligence in Everyday Life*\n" +
+                    "1. How does AI impact your daily learning routine?\n" +
+                    "2. What are the pros and cons of remote work/study?\n" +
+                    "3. In what ways can students improve English pronunciation effectively?\n\n" +
+                    "Tham gia kênh thoại của Clan hoặc tạo Meet Token để bắt đầu luyện phản xạ nói!")
+                .SetFooter("LINGUAL Voice Study Room • Speaking Club Tracker", "");
+
+            var buttonBuilder = new ButtonBuilder();
+            buttonBuilder.AddButton("btn_voice_refresh", "🔄 Làm mới danh sách", 2);
+
+            var contentBuilder = new MessageContentBuilder()
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttonBuilder.BuildComponents());
+
+            await ReplyToChannelWithContentAsync(channelId, contentBuilder.Build(), data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /voice cho Channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi tải thông tin phòng thoại.", data);
+        }
+    }
+
+    private Task OnVoiceJoinedAsync(VoiceJoinedEventEventData eventData)
+    {
+        try
+        {
+            VoiceJoinedEventResponse response = (VoiceJoinedEventResponse)eventData;
+            var username = !string.IsNullOrWhiteSpace(response.Participant) ? response.Participant : $"User_{response.UserId}";
+            _voiceTracker.OnUserJoinedVoice(response.ClanId, response.VoiceChannelId, response.UserId, username);
+            _logger.LogInformation("🎙️ [MezonBot] User {UserId} ({Username}) tham gia Voice {ChannelId} (Clan {ClanId})",
+                response.UserId, username, response.VoiceChannelId, response.ClanId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi xử lý sự kiện VoiceJoined");
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task OnVoiceLeavedAsync(VoiceLeavedEventEventData eventData)
+    {
+        try
+        {
+            VoiceLeavedEventResponse response = (VoiceLeavedEventResponse)eventData;
+            var session = _voiceTracker.OnUserLeftVoice(response.VoiceChannelId, response.VoiceUserId);
+            if (session != null)
+            {
+                _logger.LogInformation("🎙️ [MezonBot] User {UserId} rời Voice {ChannelId}. Tổng thời gian: {Duration:0.0}m",
+                    response.VoiceUserId, response.VoiceChannelId, session.SpeakingDuration.TotalMinutes);
+
+                using var scope = _scopeFactory.CreateScope();
+                var awards = await _voiceTracker.AwardSpeakingXpAsync(response.VoiceChannelId, response.VoiceUserId, scope.ServiceProvider);
+                foreach (var aw in awards)
+                {
+                    if (aw.AwardedXp > 0)
+                    {
+                        _logger.LogInformation("🎉 [MezonBot] Thưởng +{Xp} XP luyện nói phòng thoại cho User {UserId}!", aw.AwardedXp, response.VoiceUserId);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi xử lý sự kiện VoiceLeaved");
         }
     }
 
