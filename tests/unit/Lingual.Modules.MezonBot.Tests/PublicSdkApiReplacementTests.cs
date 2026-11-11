@@ -37,6 +37,8 @@ public class PublicSdkApiReplacementTests
             content.Should().NotContain("SendMessageReactionRtAsync", $"File {file} không được chứa reflection SendMessageReactionRtAsync");
             content.Should().NotContain("typeof(SdkClient).GetProperty(\"DmChannels\"", $"File {file} không được chứa reflection DmChannels");
             content.Should().NotContain("GetProperty(\"DmChannels\"", $"File {file} không được chứa reflection DmChannels");
+            content.Should().NotContain("GetProperty(\"Engine\"", $"File {file} không được chứa reflection Engine");
+            content.Should().NotContain("ListChannelByUserIdAsync", $"File {file} không được chứa internal engine method ListChannelByUserIdAsync");
         }
     }
 
@@ -262,7 +264,7 @@ public class PublicSdkApiReplacementTests
     }
 
     [Fact]
-    public void OnUserChannelAddedAsync_UsesChannelJoinAsync_AndEnsureDmChannelsJoinedAsync_HasBlockedEvidenceComment()
+    public void OnUserChannelAddedAsync_And_EnsureDmChannelsJoinedAsync_UsePublicSdkApis_AndNoEngineReflection()
     {
         var currentDir = Directory.GetCurrentDirectory();
         var dirInfo = new DirectoryInfo(currentDir);
@@ -276,16 +278,27 @@ public class PublicSdkApiReplacementTests
 
         var content = File.ReadAllText(workerFile);
 
-        // 1. OnUserChannelAddedAsync phải dùng Channel.JoinAsync và không chứa reflection Engine
+        // 1. OnUserChannelAddedAsync phải dùng Channel.JoinAsync, không chứa reflection Engine, và log Warning khi channel entity null
         var onUserChannelAddedIndex = content.IndexOf("OnUserChannelAddedAsync(UserChannelAddedEventData");
         onUserChannelAddedIndex.Should().BeGreaterThan(0);
-        var methodSnippet = content.Substring(onUserChannelAddedIndex, 700);
+        var nextMethodIndex = content.IndexOf("OnChannelMessageReceivedAsync", onUserChannelAddedIndex);
+        var methodSnippet = content.Substring(onUserChannelAddedIndex, nextMethodIndex - onUserChannelAddedIndex);
 
         methodSnippet.Should().NotContain("GetProperty(\"Engine\"", "OnUserChannelAddedAsync không được dùng reflection Engine nữa");
         methodSnippet.Should().Contain("await channel.JoinAsync()", "OnUserChannelAddedAsync phải dùng public API Channel.JoinAsync");
+        methodSnippet.Should().Contain("LogWarning", "OnUserChannelAddedAsync phải log Warning khi channel entity null");
 
-        // 2. EnsureDmChannelsJoinedAsync có giải thích lý do blocked limitation của SDK 1.11.0
-        content.Should().Contain("SDK 1.11.0 LIMITATION - BLOCKED EVIDENCE", "EnsureDmChannelsJoinedAsync phải có chú thích bằng chứng SDK limitation");
-        content.Should().Contain("ListChannelByUserIdAsync", "EnsureDmChannelsJoinedAsync phải nêu rõ endpoint ListChannelByUserIdAsync");
+        // 2. EnsureDmChannelsJoinedAsync phải dùng public API _client.ListChannelDescsAsync với clanId: 0 và ChannelType.Dm
+        var ensureDmIndex = content.IndexOf("EnsureDmChannelsJoinedAsync()");
+        ensureDmIndex.Should().BeGreaterThan(0);
+        var ensureDmSnippet = content.Substring(ensureDmIndex, onUserChannelAddedIndex - ensureDmIndex);
+
+        ensureDmSnippet.Should().NotContain("GetProperty(\"Engine\"", "EnsureDmChannelsJoinedAsync không được dùng reflection Engine");
+        ensureDmSnippet.Should().NotContain("ListChannelByUserIdAsync", "EnsureDmChannelsJoinedAsync không được dùng ListChannelByUserIdAsync");
+        ensureDmSnippet.Should().Contain("_client.ListChannelDescsAsync", "EnsureDmChannelsJoinedAsync phải dùng public API ListChannelDescsAsync");
+        ensureDmSnippet.Should().Contain("clanId: 0", "EnsureDmChannelsJoinedAsync phải truy vấn clanId: 0 cho kênh DM");
+        ensureDmSnippet.Should().Contain("channelType: (int)ChannelType.Dm", "EnsureDmChannelsJoinedAsync phải truyền channelType Dm");
+        ensureDmSnippet.Should().Contain("await channel.JoinAsync()", "EnsureDmChannelsJoinedAsync phải dùng public API Channel.JoinAsync");
+        ensureDmSnippet.Should().Contain("LogWarning", "EnsureDmChannelsJoinedAsync phải log Warning khi channel entity null");
     }
 }

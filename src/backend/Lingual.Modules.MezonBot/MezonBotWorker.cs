@@ -8,6 +8,7 @@ using System.Reflection;
 using Mezon.Net.Sdk;
 using Mezon.Net.Client;
 using Mezon.Net.Models;
+using Mezon.Net.Core;
 using Mezon.Net.Sdk.Builders;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
@@ -416,20 +417,21 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         if (_client == null) return;
         try
         {
-            // [SDK 1.11.0 LIMITATION - BLOCKED EVIDENCE]:
-            // Mezon.Net.Sdk.MezonClient chỉ công khai API ListChannelDescsAsync(ListChannelDescsParams) yêu cầu ClanId và không hỗ trợ liệt kê DM channels (ClanId = 0).
-            // Endpoint liệt kê DM duy nhất là ListChannelByUserIdAsync() nằm trên underlying client Mezon.Net.Client.MezonClient (internal Engine).
-            // Sau khi lấy danh sách kênh DM, bot sử dụng API công khai Channel.JoinAsync() qua GetChannelAsync.
-            var engineProp = typeof(SdkClient).GetProperty("Engine", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            var engine = engineProp?.GetValue(_client) as Mezon.Net.Client.MezonClient;
-            if (engine == null) return;
-
             var joinedCount = 0;
 
-            // Quét kênh DM/Private từ ListChannelByUserIdAsync (internal Engine API)
+            // Quét danh sách kênh DM/Private qua API công khai _client.ListChannelDescsAsync (clanId: 0, channelType: Dm)
             try
             {
-                var userChannels = await engine.ListChannelByUserIdAsync();
+                var requestParams = new ListChannelDescsParams(
+                    limit: null,
+                    state: null,
+                    cursor: null,
+                    clanId: 0,
+                    channelType: (int)ChannelType.Dm,
+                    isMobile: null,
+                    page: null
+                );
+                var userChannels = await _client.ListChannelDescsAsync(requestParams, null);
                 if (userChannels.Channeldesc.Count > 0)
                 {
                     foreach (var ch in userChannels.Channeldesc)
@@ -446,14 +448,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                             }
                             else
                             {
-                                await engine.JoinChannelChatRtAsync(new ChannelJoinParams(
-                                    clanId: ch.ClanId,
-                                    channelId: ch.ChannelId,
-                                    channelType: ch.Type,
-                                    isPublic: ch.ChannelPrivate == 0 && ch.ClanId > 0
-                                ));
-                                joinedCount++;
-                                _logger.LogInformation("🔗 [MezonBot] Đã kết nối lắng nghe kênh DM/Private {ChannelId} thành công!", ch.ChannelId);
+                                _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel entity cho kênh DM {ChannelId} để join qua Channel.JoinAsync", ch.ChannelId);
                             }
                         }
                     }
@@ -461,7 +456,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             }
             catch (Exception exUser)
             {
-                _logger.LogDebug(exUser, "ListChannelByUserIdAsync quét hoàn tất.");
+                _logger.LogDebug(exUser, "ListChannelDescsAsync quét kênh DM hoàn tất hoặc gặp lỗi kết nối ban đầu.");
             }
 
             _logger.LogInformation("✅ [MezonBot] Tổng cộng đã kích hoạt lắng nghe {Count} kênh DM/Private.", joinedCount);
@@ -488,6 +483,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                     {
                         await channel.JoinAsync();
                         _logger.LogInformation("🔗 [MezonBot] Đã tự động kết nối lắng nghe kênh DM mới {ChannelId} qua Channel.JoinAsync!", ch.ChannelId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("⚠️ [MezonBot] Không tìm thấy Channel entity cho kênh DM mới {ChannelId} để tự động kết nối qua Channel.JoinAsync", ch.ChannelId);
                     }
                 }
             }
