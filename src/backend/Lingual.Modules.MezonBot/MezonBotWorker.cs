@@ -12,6 +12,7 @@ using Mezon.Net.Sdk.Builders;
 using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
 using Lingual.Modules.Gamification.Contracts;
+using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.MezonBot.Services;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
@@ -47,6 +48,42 @@ public class MezonBotWorker : BackgroundService
     );
 
     public static readonly ConcurrentDictionary<Guid, QuizMessageMeta> ActiveQuizMessages = new();
+
+    public class ActiveQuizPollSession
+    {
+        public string PollKey { get; set; } = string.Empty;
+        public long ChannelId { get; set; }
+        public long MessageId { get; set; }
+        public long PollId { get; set; }
+        public int CorrectIndex { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime ExpireAt { get; set; } = DateTime.UtcNow.AddMinutes(30);
+        public bool IsSettled { get; set; }
+        public object LockObj { get; } = new();
+
+        public ActiveQuizPollSession(string pollKey, long channelId, long messageId, int correctIndex, long pollId = 0)
+        {
+            PollKey = pollKey;
+            ChannelId = channelId;
+            MessageId = messageId;
+            CorrectIndex = correctIndex;
+            PollId = pollId > 0 ? pollId : messageId;
+        }
+    }
+
+    public record PollSettlementResult(
+        string PollKey,
+        long ChannelId,
+        bool AlreadySettled,
+        int TotalVoters,
+        int CorrectVotersCount,
+        int WrongVotersCount,
+        int TotalXpAwarded,
+        List<string> AwardedUserIds
+    );
+
+    public static readonly ConcurrentDictionary<string, ActiveQuizPollSession> ActiveQuizPollSessions = new();
+    public static readonly ConcurrentDictionary<string, CancellationTokenSource> ActivePollTimers = new();
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
@@ -606,7 +643,8 @@ public class MezonBotWorker : BackgroundService
         long channelId,
         string senderId,
         string displayName,
-        ChannelMessageResponse? replyTo = null)
+        ChannelMessageResponse? replyTo = null,
+        long? ephemeralUserId = null)
     {
         try
         {
@@ -660,7 +698,14 @@ public class MezonBotWorker : BackgroundService
                 .AddActionRow(buttons)
                 .Build();
 
-            await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+            if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
+            {
+                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content);
+            }
+            else
+            {
+                await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+            }
         }
         catch (Exception ex)
         {
@@ -1079,7 +1124,8 @@ public class MezonBotWorker : BackgroundService
             else if (buttonId == "btn_daily_checkin")
             {
                 var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
-                await HandleDailyCommandAsync(channelId, mezonUserId, username);
+                long.TryParse(mezonUserId, out var uid);
+                await HandleDailyCommandAsync(channelId, mezonUserId, username, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId == "btn_quiz_start_prompt")
             {
@@ -1266,16 +1312,203 @@ public class MezonBotWorker : BackgroundService
         {
             await HandlePollVoteCommandAsync(channelId, senderId, subCommand, replyTo);
         }
+        else if (subCommand.StartsWith("settle", StringComparison.OrdinalIgnoreCase) ||
+                 subCommand.StartsWith("end", StringComparison.OrdinalIgnoreCase))
+        {
+            var session = ActiveQuizPollSessions.Values
+                .Where(s => s.ChannelId == channelId && !s.IsSettled)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefault();
+
+            if (session != null)
+            {
+                await SettleQuizPollAsync(session);
+            }
+            else
+            {
+                await ReplyToChannelAsync(channelId, "ℹ️ Hiện không có phiên Clan Quiz Poll nào đang chờ tổng kết trên kênh này.", replyTo);
+            }
+        }
         else
         {
             await HandlePollQuizCommandAsync(channelId, senderId, subCommand, replyTo);
         }
     }
 
-    private async Task HandlePollQuizCommandAsync(long channelId, string senderId, string query, ChannelMessageResponse? replyTo = null)
+    public async Task HandlePollQuizCommandAsync(long channelId, string senderId, string query, ChannelMessageResponse? replyTo = null)
     {
-        var content = BuildPollQuizMessage("poll_vocab_meticulous");
-        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+        var pollKey = "poll_vocab_meticulous";
+        if (!RegisteredClanQuizPolls.TryGetValue(pollKey, out var quizData))
+        {
+            quizData = RegisteredClanQuizPolls["poll_vocab_meticulous"];
+        }
+
+        var content = BuildPollQuizMessage(pollKey);
+        var sentMessageId = await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+
+        var sessionKey = $"poll_session_{channelId}_{sentMessageId}";
+        var pollSession = new ActiveQuizPollSession(pollKey, channelId, sentMessageId, quizData.CorrectIndex, sentMessageId);
+        ActiveQuizPollSessions[sessionKey] = pollSession;
+
+        // Tự động lên lịch giải quyết và cộng XP sau khi poll hết hạn (30 phút)
+        var cts = new CancellationTokenSource();
+        ActivePollTimers[sessionKey] = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(30), cts.Token);
+                if (!pollSession.IsSettled)
+                {
+                    await SettleQuizPollAsync(pollSession);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Poll đã được settle thủ công hoặc bot shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ [MezonBot] Lỗi khi tự động giải quyết Quiz Poll {SessionKey}", sessionKey);
+            }
+            finally
+            {
+                ActivePollTimers.TryRemove(sessionKey, out _);
+                cts.Dispose();
+            }
+        });
+    }
+
+    public async Task<PollSettlementResult> SettleQuizPollAsync(
+        ActiveQuizPollSession pollSession,
+        Mezon.Net.Models.GetPollResponse? injectedResponse = null,
+        IServiceScope? externalScope = null)
+    {
+        lock (pollSession.LockObj)
+        {
+            if (pollSession.IsSettled)
+            {
+                return new PollSettlementResult(
+                    pollSession.PollKey,
+                    pollSession.ChannelId,
+                    AlreadySettled: true,
+                    TotalVoters: 0,
+                    CorrectVotersCount: 0,
+                    WrongVotersCount: 0,
+                    TotalXpAwarded: 0,
+                    AwardedUserIds: new List<string>()
+                );
+            }
+            pollSession.IsSettled = true;
+        }
+
+        Mezon.Net.Models.GetPollResponse? pollResult = injectedResponse;
+        if (pollResult == null && _client != null)
+        {
+            try
+            {
+                var pollParams = new GetPollParams(
+                    pollId: pollSession.PollId > 0 ? pollSession.PollId : null,
+                    messageId: pollSession.MessageId > 0 ? pollSession.MessageId : null,
+                    channelId: pollSession.ChannelId > 0 ? pollSession.ChannelId : null
+                );
+                pollResult = await _client.GetPollAsync(pollParams);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gọi SDK GetPollAsync cho poll {PollId}", pollSession.PollId);
+            }
+        }
+
+        using var scope = externalScope ?? _scopeFactory.CreateScope();
+        var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+        var xpService = scope.ServiceProvider.GetService<IGamificationService>();
+
+        int correctCount = 0;
+        int wrongCount = 0;
+        int totalXpAwarded = 0;
+        var awardedUsers = new List<string>();
+
+        if (pollResult != null)
+        {
+            var pResp = (Mezon.Net.Models.GetPollResponse)pollResult;
+            foreach (var voterDetail in pResp.VoterDetails)
+            {
+                bool isCorrect = voterDetail.AnswerIndex == pollSession.CorrectIndex;
+
+                foreach (var platformUserId in voterDetail.UserIds)
+                {
+                    if (platformUserId <= 0) continue;
+                    var strUserId = platformUserId.ToString();
+
+                    if (isCorrect)
+                    {
+                        correctCount++;
+                        if (xpService != null)
+                        {
+                            var internalGuid = await userResolver.ResolveUserIdAsync(strUserId);
+                            var xpRequest = new AwardXpRequest(
+                                UserId: internalGuid,
+                                XpDelta: 10,
+                                SourceType: "clan_poll_quiz",
+                                IdempotencyKey: $"clan_poll_{pollSession.PollKey}_{internalGuid}"
+                            );
+
+                            var xpResult = await xpService.AwardXpAsync(xpRequest);
+                            if (xpResult.IsSuccess && !xpResult.AlreadyAwarded)
+                            {
+                                totalXpAwarded += xpResult.AwardedXp;
+                                awardedUsers.Add(strUserId);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        wrongCount++;
+                    }
+                }
+            }
+        }
+
+        // Đăng thông báo kết quả vào kênh
+        try
+        {
+            var totalVoters = correctCount + wrongCount;
+            var correctLetter = (char)('A' + pollSession.CorrectIndex);
+            var embed = new MessageEmbedBuilder()
+                .SetColor("#10B981")
+                .SetTitle("🏁 KẾT QUẢ ĐỐ VUI CLAN POLL — TỔNG KẾT & TRAO THƯỞNG")
+                .SetDescription($"Cuộc thi đố vui Clan đã kết thúc!\n🎯 Đáp án chính xác: Phương án **{correctLetter}**")
+                .AddField("📊 Thống kê bình chọn", $"• Tổng lượt tham gia: {totalVoters}\n• Trả lời chính xác: {correctCount} bạn\n• Trả lời chưa đúng: {wrongCount} bạn", false)
+                .AddField("⚡ Thưởng XP Server-Side", correctCount > 0
+                    ? $"🎉 Đã tự động cộng **+10 XP** cho {correctCount} chiến binh trả lời chính xác!"
+                    : "Chưa có bạn nào chọn đúng phương án lần này. Hãy cố gắng ở câu đố sau nhé!", false)
+                .SetFooter("LINGUAL Clan Gamification • Mezon Campus Studio 2026", "")
+                .Build();
+
+            var content = new MessageContentBuilder()
+                .SetText("📢 Tổng kết cuộc thi đố vui Clan Poll:")
+                .AddEmbed(embed)
+                .Build();
+
+            await ReplyToChannelWithContentAsync(pollSession.ChannelId, content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi tin nhắn tổng kết Poll settlement");
+        }
+
+        return new PollSettlementResult(
+            pollSession.PollKey,
+            pollSession.ChannelId,
+            AlreadySettled: false,
+            TotalVoters: correctCount + wrongCount,
+            CorrectVotersCount: correctCount,
+            WrongVotersCount: wrongCount,
+            TotalXpAwarded: totalXpAwarded,
+            AwardedUserIds: awardedUsers
+        );
     }
 
     private async Task HandlePollVoteCommandAsync(long channelId, string senderId, string query, ChannelMessageResponse? replyTo = null)
@@ -1784,6 +2017,37 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi Ephemeral message tới User {UserId}", userId);
+        }
+    }
+
+    /// <summary>
+    /// Gửi tin nhắn Ephemeral với nội dung đầy đủ (Embed + Buttons) tới người dùng chỉ định.
+    /// </summary>
+    public async Task SendEphemeralMessageWithContentAsync(long channelId, long userId, MessageContent content)
+    {
+        if (_client == null || channelId <= 0 || userId <= 0) return;
+
+        try
+        {
+            var innerMessage = new SendChannelMessageParams(
+                clanId: 0,
+                channelId: channelId,
+                content: content.ToJson(),
+                topicId: null,
+                isPublic: false
+            );
+
+            var ephParams = new SendEphemeralMessageParams(
+                receiverIds: new[] { userId },
+                message: innerMessage
+            );
+
+            await _client.SendEphemeralMessageToBotAsync(ephParams);
+            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral Content tới User {UserId} tại Channel {ChannelId}", userId, channelId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi Ephemeral Content tới User {UserId}", userId);
         }
     }
 }

@@ -337,13 +337,10 @@ public class ContentController : ControllerBase
             return Unauthorized(new { error = "Yêu cầu đăng nhập hợp lệ để nộp câu trả lời Poll và nhận thưởng XP." });
         }
 
-        // 2. Kiểm tra đáp án chuẩn xác phía server
+        // 2. Kiểm tra đáp án chuẩn xác phía server - Bắt buộc đúng PollId, không fallback ngầm
         if (!MezonBotWorker.RegisteredClanQuizPolls.TryGetValue(request.PollId, out var pollData))
         {
-            if (!MezonBotWorker.RegisteredClanQuizPolls.TryGetValue("poll_vocab_meticulous", out pollData))
-            {
-                return NotFound(new { error = "Không tìm thấy dữ liệu Quiz Poll tương ứng." });
-            }
+            return NotFound(new { error = $"Không tìm thấy dữ liệu Quiz Poll với mã '{request.PollId}'." });
         }
 
         bool isCorrect = request.SelectedAnswerIndex == pollData.CorrectIndex;

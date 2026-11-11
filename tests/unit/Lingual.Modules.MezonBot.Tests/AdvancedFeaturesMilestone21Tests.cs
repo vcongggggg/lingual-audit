@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Lingual.Api.Controllers;
+using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Infrastructure.Data;
 using Lingual.Modules.Gamification.Services;
@@ -17,6 +18,7 @@ using Mezon.Net.Client;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -335,6 +337,209 @@ public class AdvancedFeaturesMilestone21Tests
         json.Should().Contain("\"alreadyAwarded\":true");
         json.Should().Contain("\"xpAwarded\":0");
     }
+
+    #region Fix N1 & F1 Tests: Poll Answer Validation and Automated Settlement
+
+    [Fact]
+    public async Task SubmitPollAnswer_UnknownPollId_ReturnsNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var xpMock = new Mock<IXpService>();
+        var controller = CreateControllerWithUser(userId, xpMock);
+
+        var unknownPollRequest = new PollAnswerSubmitRequest("poll_non_existent_999", 1);
+
+        // Act
+        var result = await controller.SubmitPollAnswer(unknownPollRequest);
+
+        // Assert: N1 - Bắt buộc trả về NotFound khi PollId không tồn tại, tuyệt đối không fallback ngầm
+        result.Should().BeOfType<NotFoundObjectResult>();
+        var notFoundResult = result as NotFoundObjectResult;
+        notFoundResult.Should().NotBeNull();
+
+        var json = System.Text.Json.JsonSerializer.Serialize(notFoundResult!.Value);
+        json.Should().Contain("poll_non_existent_999");
+        xpMock.Verify(x => x.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Mezon.Net.Models.GetPollResponse BuildMockPollResponse(
+        long pollId,
+        long correctVoterUserId,
+        long wrongVoterUserId)
+    {
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var voterCtor = typeof(Mezon.Net.Models.PollVoterDetailResponse).GetConstructors(flags)[0];
+
+        // Voter 1: Chọn đáp án đúng (AnswerIndex = 1)
+        var rawVoter1 = new Mezon.Net.Internal.Api.PollVoterDetail { AnswerIndex = 1 };
+        rawVoter1.UserIds.Add(correctVoterUserId);
+        var voter1 = (Mezon.Net.Models.PollVoterDetailResponse)voterCtor.Invoke(new object[] { rawVoter1 });
+
+        // Voter 2: Chọn đáp án sai (AnswerIndex = 0)
+        var rawVoter2 = new Mezon.Net.Internal.Api.PollVoterDetail { AnswerIndex = 0 };
+        rawVoter2.UserIds.Add(wrongVoterUserId);
+        var voter2 = (Mezon.Net.Models.PollVoterDetailResponse)voterCtor.Invoke(new object[] { rawVoter2 });
+
+        var rawPoll = new Mezon.Net.Internal.Api.GetPollResponse
+        {
+            PollId = pollId,
+            Question = "📚 [ĐỐ VUI CLAN] Từ đồng nghĩa của 'Meticulous' là gì?",
+            TotalVotes = 2,
+            IsClosed = true
+        };
+        rawPoll.VoterDetails.Add(rawVoter1);
+        rawPoll.VoterDetails.Add(rawVoter2);
+
+        var pollCtor = typeof(Mezon.Net.Models.GetPollResponse).GetConstructors(flags)[0];
+        return (Mezon.Net.Models.GetPollResponse)pollCtor.Invoke(new object[] { rawPoll });
+    }
+
+    [Fact]
+    public async Task SettleQuizPollAsync_Awards10XpToCorrectVoter_AndZeroToWrongVoter()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var gamificationServiceMock = new Mock<IGamificationService>();
+
+        long correctPlatformUserId = 111222333L;
+        long wrongPlatformUserId = 444555666L;
+
+        var correctInternalId = Guid.NewGuid();
+        var wrongInternalId = Guid.NewGuid();
+
+        userResolverMock.Setup(u => u.ResolveUserIdAsync(correctPlatformUserId.ToString(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(correctInternalId);
+        userResolverMock.Setup(u => u.ResolveUserIdAsync(wrongPlatformUserId.ToString(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(wrongInternalId);
+
+        AwardXpRequest? capturedAwardRequest = null;
+        gamificationServiceMock.Setup(g => g.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AwardXpRequest, CancellationToken>((req, _) => capturedAwardRequest = req)
+            .ReturnsAsync(new AwardXpResult(
+                IsSuccess: true,
+                AwardedXp: 10,
+                TotalXp: 100,
+                CurrentStreak: 5,
+                IsStreakActiveToday: true,
+                AlreadyAwarded: false,
+                Message: "Thành công"));
+
+        services.AddSingleton(userResolverMock.Object);
+        services.AddSingleton(gamificationServiceMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Microsoft.Extensions.Options.Options.Create(new MezonBotOptions
+        {
+            BotId = "1234567890",
+            Token = "fake-token",
+            Enabled = false
+        });
+
+        var worker = new MezonBotWorker(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MezonBotWorker>.Instance,
+            options,
+            scopeFactory);
+
+        var pollSession = new MezonBotWorker.ActiveQuizPollSession(
+            pollKey: "poll_vocab_meticulous",
+            channelId: 998877L,
+            messageId: 554433L,
+            correctIndex: 1,
+            pollId: 123456L);
+
+        var mockGetPollResponse = BuildMockPollResponse(123456L, correctPlatformUserId, wrongPlatformUserId);
+
+        // Act
+        var result = await worker.SettleQuizPollAsync(pollSession, mockGetPollResponse);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.AlreadySettled.Should().BeFalse();
+        result.TotalVoters.Should().Be(2);
+        result.CorrectVotersCount.Should().Be(1);
+        result.WrongVotersCount.Should().Be(1);
+        result.TotalXpAwarded.Should().Be(10);
+        result.AwardedUserIds.Should().Contain(correctPlatformUserId.ToString());
+        result.AwardedUserIds.Should().NotContain(wrongPlatformUserId.ToString());
+
+        // Kiểm tra đúng voter nhận +10 XP với SourceType và IdempotencyKey chuẩn
+        capturedAwardRequest.Should().NotBeNull();
+        capturedAwardRequest!.UserId.Should().Be(correctInternalId);
+        capturedAwardRequest.XpDelta.Should().Be(10);
+        capturedAwardRequest.SourceType.Should().Be("clan_poll_quiz");
+        capturedAwardRequest.IdempotencyKey.Should().Be($"clan_poll_poll_vocab_meticulous_{correctInternalId}");
+
+        // GamificationService chỉ được gọi duy nhất 1 lần (cho người đúng, người sai không gọi)
+        gamificationServiceMock.Verify(g => g.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SettleQuizPollAsync_RepeatedRun_IsIdempotent_ReturnsZeroAdditionalXp()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var gamificationServiceMock = new Mock<IGamificationService>();
+
+        long correctPlatformUserId = 888999111L;
+        var correctInternalId = Guid.NewGuid();
+
+        userResolverMock.Setup(u => u.ResolveUserIdAsync(correctPlatformUserId.ToString(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(correctInternalId);
+
+        gamificationServiceMock.Setup(g => g.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AwardXpResult(true, 10, 100, 5, true, false, "Thành công"));
+
+        services.AddSingleton(userResolverMock.Object);
+        services.AddSingleton(gamificationServiceMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Microsoft.Extensions.Options.Options.Create(new MezonBotOptions
+        {
+            BotId = "1234567890",
+            Token = "fake-token",
+            Enabled = false
+        });
+
+        var worker = new MezonBotWorker(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MezonBotWorker>.Instance,
+            options,
+            scopeFactory);
+
+        var pollSession = new MezonBotWorker.ActiveQuizPollSession(
+            pollKey: "poll_vocab_meticulous",
+            channelId: 998877L,
+            messageId: 554433L,
+            correctIndex: 1,
+            pollId: 123456L);
+
+        var mockGetPollResponse = BuildMockPollResponse(123456L, correctPlatformUserId, 999999L);
+
+        // Act 1: Chạy settlement lần đầu
+        var firstResult = await worker.SettleQuizPollAsync(pollSession, mockGetPollResponse);
+        firstResult.TotalXpAwarded.Should().Be(10);
+        firstResult.AlreadySettled.Should().BeFalse();
+
+        // Act 2: Chạy settlement lần thứ hai trên cùng phiên
+        var secondResult = await worker.SettleQuizPollAsync(pollSession, mockGetPollResponse);
+
+        // Assert 2: Idempotent - không được cộng thêm XP, báo AlreadySettled = true
+        secondResult.Should().NotBeNull();
+        secondResult.AlreadySettled.Should().BeTrue();
+        secondResult.TotalXpAwarded.Should().Be(0);
+        secondResult.AwardedUserIds.Should().BeEmpty();
+
+        // Không gọi thêm AwardXpAsync ở lần chạy thứ hai
+        gamificationServiceMock.Verify(g => g.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    #endregion
 
     #endregion
 }
