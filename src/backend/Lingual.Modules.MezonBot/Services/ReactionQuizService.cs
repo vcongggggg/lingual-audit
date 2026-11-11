@@ -93,7 +93,7 @@ public class ReactionQuizService : IReactionQuizService
         var session = new ClanQuizSession
         {
             Id = sessionId,
-            ChannelMezonId = $"reaction_quiz_pending_{sessionId}",
+            ChannelMezonId = $"reaction_quiz_{channelId}_pending_{sessionId}",
             QuestionId = question.Id,
             Status = "open",
             OpenedAt = now,
@@ -123,16 +123,84 @@ public class ReactionQuizService : IReactionQuizService
         var session = await _dbContext.ClanQuizSessions.FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
         if (session != null)
         {
-            session.ChannelMezonId = $"reaction_quiz_{messageId}";
+            // Trích xuất channelId từ pending nếu có dạng reaction_quiz_{channelId}_pending_{sessionId}
+            var channelPrefix = string.Empty;
+            if (session.ChannelMezonId.StartsWith("reaction_quiz_") && session.ChannelMezonId.Contains("_pending_"))
+            {
+                var parts = session.ChannelMezonId.Split('_');
+                if (parts.Length >= 4 && long.TryParse(parts[2], out var chId))
+                {
+                    channelPrefix = $"{chId}_";
+                }
+            }
+
+            session.ChannelMezonId = $"reaction_quiz_{channelPrefix}{messageId}";
             await _dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("🔗 [ReactionQuiz] Đã liên kết phiên {SessionId} với Message {MessageId}", sessionId, messageId);
+            _logger.LogInformation("🔗 [ReactionQuiz] Đã liên kết phiên {SessionId} với Message {MessageId} (ChannelMezonId: {ChannelMezonId})",
+                sessionId, messageId, session.ChannelMezonId);
         }
     }
 
     public async Task<bool> IsReactionQuizMessageAsync(long messageId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ClanQuizSessions
-            .AnyAsync(s => s.ChannelMezonId == $"reaction_quiz_{messageId}", cancellationToken);
+            .AnyAsync(s => s.ChannelMezonId == $"reaction_quiz_{messageId}" ||
+                           s.ChannelMezonId.EndsWith($"_{messageId}"), cancellationToken);
+    }
+
+    public async Task<ActiveReactionQuizInfo> GetActiveSessionAsync(long channelId, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var prefix = $"reaction_quiz_{channelId}_";
+        var activeSession = await _dbContext.ClanQuizSessions
+            .Include(s => s.Question)
+            .Where(s => s.Status == "open" && s.ClosesAt > now && s.ChannelMezonId.StartsWith(prefix))
+            .OrderByDescending(s => s.OpenedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeSession != null)
+        {
+            return new ActiveReactionQuizInfo(
+                HasActive: true,
+                SessionId: activeSession.Id,
+                ClosesAt: activeSession.ClosesAt,
+                QuestionPrompt: activeSession.Question?.Prompt
+            );
+        }
+
+        return new ActiveReactionQuizInfo(false, null, null, null);
+    }
+
+    public async Task<ExpiredQuizConclusionResult?> ConcludeExpiredQuizAsync(long messageId, CancellationToken cancellationToken = default)
+    {
+        var session = await _dbContext.ClanQuizSessions
+            .Include(s => s.Question)
+            .FirstOrDefaultAsync(s => s.ChannelMezonId == $"reaction_quiz_{messageId}" ||
+                                      s.ChannelMezonId.EndsWith($"_{messageId}"), cancellationToken);
+
+        if (session == null) return null;
+
+        if (session.Status == "open")
+        {
+            session.Status = "expired";
+            session.ClosedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var correctKey = string.Empty;
+        if (session.Question != null)
+        {
+            var options = ParseOptions(session.Question.Options);
+            correctKey = options.FirstOrDefault(o => o.IsCorrect)?.Key ?? string.Empty;
+        }
+
+        return new ExpiredQuizConclusionResult(
+            Success: true,
+            SessionId: session.Id,
+            MessageId: messageId,
+            QuestionPrompt: session.Question?.Prompt ?? string.Empty,
+            CorrectKey: correctKey
+        );
     }
 
     public async Task<ReactionQuizAnswerResult> ProcessReactionAnswerAsync(
@@ -159,7 +227,8 @@ public class ReactionQuizService : IReactionQuizService
         // 2. Tra cứu trạng thái phiên Quiz trong CSDL theo messageId
         var session = await _dbContext.ClanQuizSessions
             .Include(s => s.Question)
-            .FirstOrDefaultAsync(s => s.ChannelMezonId == $"reaction_quiz_{messageId}", cancellationToken);
+            .FirstOrDefaultAsync(s => s.ChannelMezonId == $"reaction_quiz_{messageId}" ||
+                                      s.ChannelMezonId.EndsWith($"_{messageId}"), cancellationToken);
 
         if (session == null)
         {
@@ -177,11 +246,25 @@ public class ReactionQuizService : IReactionQuizService
         var now = DateTime.UtcNow;
         if (session.Status != "open" || session.ClosesAt <= now)
         {
+            if (session.Status == "open")
+            {
+                session.Status = "expired";
+                session.ClosedAt = now;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            var expiredCorrectKey = string.Empty;
+            if (session.Question != null)
+            {
+                var expiredOptions = ParseOptions(session.Question.Options);
+                expiredCorrectKey = expiredOptions.FirstOrDefault(o => o.IsCorrect)?.Key ?? string.Empty;
+            }
+
             return new ReactionQuizAnswerResult(
                 ReactionQuizAnswerStatus.Expired,
                 IsCorrect: false,
                 XpAwarded: 0,
-                CorrectKey: string.Empty,
+                CorrectKey: expiredCorrectKey,
                 Message: "⚠️ LingLing: Quiz này đã hết hạn rồi nhé (thời gian làm bài tối đa 10 phút)!"
             );
         }

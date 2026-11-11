@@ -563,5 +563,153 @@ public class AdvancedFeaturesMilestone24Tests
     }
 
     #endregion
+
+    #region Quiz Anti-Spam & Expired Marking Tests
+
+    [Fact]
+    public async Task ReactionQuiz_WhenChannelHasActiveOpenQuiz_RejectsSecondQuizCommand_AndDoesNotCreateNewSessionInDb()
+    {
+        MezonBotWorker.ChannelQuizCooldowns.Clear();
+
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateBotDbContext(dbName);
+
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var loggerMock = new Mock<ILogger<ReactionQuizService>>();
+        var quizService = new ReactionQuizService(db, userResolverMock.Object, loggerMock.Object);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton<IReactionQuizService>(quizService);
+        services.AddSingleton(userResolverMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123456",
+            Token = "test-token",
+            Enabled = false
+        });
+
+        var workerLogger = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(workerLogger.Object, options, scopeFactory);
+
+        long channelId = 55501;
+
+        // Lần 1: Tạo quiz thành công
+        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+
+        var sessionsCountAfterFirst = await db.ClanQuizSessions.CountAsync();
+        sessionsCountAfterFirst.Should().Be(1, "Lần 1 phải tạo 1 session trong DB");
+
+        // Giả lập xóa cooldown nhưng giữ nguyên session đang open trong DB
+        MezonBotWorker.ChannelQuizCooldowns.Clear();
+
+        // Lần 2: Gọi tiếp /quiz trong cùng kênh khi session 1 vẫn đang open
+        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+
+        // Assert:
+        // 1. Số lượng session trong DB vẫn giữ nguyên là 1, không tạo thêm session rác
+        var sessionsCountAfterSecond = await db.ClanQuizSessions.CountAsync();
+        sessionsCountAfterSecond.Should().Be(1, "Không được tạo session thứ 2 khi kênh đang có quiz mở");
+
+        // 2. User nhận được thông báo kênh đang có quiz
+        worker.SentEphemeralMessages.Should().Contain(m =>
+            m.ChannelId == channelId &&
+            m.UserId == 12345678 &&
+            m.Text.Contains("đang có một câu hỏi Quiz đang diễn ra"));
+    }
+
+    [Fact]
+    public async Task ReactionQuiz_WhenCalledWithin60SecondsCooldown_RejectsQuizCommand_EvenIfPreviousQuizClosed()
+    {
+        MezonBotWorker.ChannelQuizCooldowns.Clear();
+
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateBotDbContext(dbName);
+
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var loggerMock = new Mock<ILogger<ReactionQuizService>>();
+        var quizService = new ReactionQuizService(db, userResolverMock.Object, loggerMock.Object);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton<IReactionQuizService>(quizService);
+        services.AddSingleton(userResolverMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123456",
+            Token = "test-token",
+            Enabled = false
+        });
+
+        var workerLogger = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(workerLogger.Object, options, scopeFactory);
+
+        long channelId = 55502;
+
+        // Giả lập kênh vừa tạo quiz cách đây 20 giây (vẫn trong thời gian cooldown 60 giây)
+        MezonBotWorker.ChannelQuizCooldowns[channelId] = DateTime.UtcNow.AddSeconds(-20);
+
+        // Act - Gọi /quiz lại
+        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+
+        // Assert:
+        // 1. Không tạo session nào trong DB
+        var count = await db.ClanQuizSessions.CountAsync();
+        count.Should().Be(0);
+
+        // 2. Nhận được thông báo Cooldown
+        worker.SentEphemeralMessages.Should().Contain(m =>
+            m.ChannelId == channelId &&
+            m.UserId == 12345678 &&
+            m.Text.Contains("cooldown"));
+    }
+
+    [Fact]
+    public async Task ReactionQuiz_WhenQuizExpires_ConcludeExpiredQuiz_MarksStatusExpired_AndExtractsCorrectAnswer()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateBotDbContext(dbName);
+
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var loggerMock = new Mock<ILogger<ReactionQuizService>>();
+        var quizService = new ReactionQuizService(db, userResolverMock.Object, loggerMock.Object);
+
+        long channelId = 55503;
+        long messageId = 999123;
+
+        var prompt = await quizService.CreateQuizAsync(channelId, 1);
+        await quizService.LinkMessageAsync(prompt.SessionId, messageId);
+
+        // Giả lập ClosesAt lùi về quá khứ (đã quá hạn 10 phút)
+        var session = await db.ClanQuizSessions.FirstAsync(s => s.Id == prompt.SessionId);
+        session.ClosesAt = DateTime.UtcNow.AddMinutes(-5);
+        await db.SaveChangesAsync();
+
+        // Act - Kích hoạt kết thúc quiz hết hạn
+        var conclusion = await quizService.ConcludeExpiredQuizAsync(messageId);
+
+        // Assert:
+        conclusion.Should().NotBeNull();
+        conclusion!.Success.Should().BeTrue();
+        conclusion.SessionId.Should().Be(prompt.SessionId);
+        conclusion.MessageId.Should().Be(messageId);
+        conclusion.QuestionPrompt.Should().Be(prompt.QuestionPrompt);
+        conclusion.CorrectKey.Should().NotBeNullOrEmpty();
+
+        // DB session đã được cập nhật sang status 'expired'
+        var updatedSession = await db.ClanQuizSessions.FirstAsync(s => s.Id == prompt.SessionId);
+        updatedSession.Status.Should().Be("expired");
+        updatedSession.ClosedAt.Should().NotBeNull();
+    }
+
+    #endregion
 }
 

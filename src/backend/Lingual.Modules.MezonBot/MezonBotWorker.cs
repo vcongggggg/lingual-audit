@@ -53,6 +53,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     public static readonly ConcurrentDictionary<string, UserRoleplaySession> ActiveRoleplaySessions = new();
     public static readonly ConcurrentDictionary<Guid, CancellationTokenSource> ActiveQuizTimers = new();
     private static readonly ConcurrentDictionary<string, DateTime> ButtonClickCooldowns = new();
+    public static readonly ConcurrentDictionary<long, DateTime> ChannelQuizCooldowns = new();
     private static readonly ConcurrentDictionary<long, long> ChannelClanMap = new();
 
     public record QuizMessageMeta(
@@ -913,8 +914,51 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     {
         try
         {
+            var now = DateTime.UtcNow;
+
+            // 1. Kiểm tra Cooldown 60 giây theo kênh
+            if (ChannelQuizCooldowns.TryGetValue(channelId, out var lastQuizTime))
+            {
+                var elapsed = (now - lastQuizTime).TotalSeconds;
+                if (elapsed < 60)
+                {
+                    var remainingSec = (int)Math.Max(1, Math.Ceiling(60 - elapsed));
+                    var uid = long.TryParse(senderId, out var pUid) && pUid > 0 ? pUid : (replyTo?.SenderId ?? 0);
+                    var cooldownMsg = $"⏳ Lệnh /quiz đang trong thời gian chờ (cooldown). Vui lòng thử lại sau {remainingSec} giây!";
+                    if (uid > 0)
+                    {
+                        await SendEphemeralMessageAsync(channelId, uid, cooldownMsg);
+                    }
+                    else
+                    {
+                        await ReplyToChannelAsync(channelId, cooldownMsg, replyTo);
+                    }
+                    return;
+                }
+            }
+
             using var scope = _scopeFactory.CreateScope();
             var reactionQuizService = scope.ServiceProvider.GetRequiredService<IReactionQuizService>();
+
+            // 2. Kiểm tra kênh đã có câu hỏi Quiz nào đang mở (open) chưa
+            var activeSession = await reactionQuizService.GetActiveSessionAsync(channelId);
+            if (activeSession.HasActive)
+            {
+                var remainingMin = activeSession.ClosesAt.HasValue
+                    ? (int)Math.Max(1, Math.Ceiling((activeSession.ClosesAt.Value - now).TotalMinutes))
+                    : 10;
+                var uid = long.TryParse(senderId, out var pUid) && pUid > 0 ? pUid : (replyTo?.SenderId ?? 0);
+                var activeMsg = $"⚠️ Kênh này đang có một câu hỏi Quiz đang diễn ra (còn lại khoảng {remainingMin} phút)! Vui lòng hoàn thành câu hỏi hiện tại trước khi tạo mới.";
+                if (uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, activeMsg);
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, activeMsg, replyTo);
+                }
+                return;
+            }
 
             var quizDto = await reactionQuizService.CreateQuizAsync(channelId, replyTo?.ClanId ?? 0, senderId);
 
@@ -950,6 +994,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             var sentMessageId = await ReplyToChannelWithContentAsync(channelId, content, replyTo);
             if (sentMessageId > 0)
             {
+                ChannelQuizCooldowns[channelId] = DateTime.UtcNow;
                 await reactionQuizService.LinkMessageAsync(quizDto.SessionId, sentMessageId);
 
                 _ = Task.Run(async () =>
@@ -967,12 +1012,69 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                         _logger.LogWarning(ex, "⚠️ [MezonBot] Không thể thêm reaction mẫu vào Reaction Quiz {MessageId}", sentMessageId);
                     }
                 });
+
+                // Đăng ký tác vụ trễ 10 phút đánh dấu hết hạn phiên quiz
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMinutes(10));
+                        await ConcludeReactionQuizExpiredAsync(channelId, sentMessageId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi tác vụ trễ đóng Quiz {MessageId}", sentMessageId);
+                    }
+                });
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi tạo câu đố Reaction Quiz tại Channel {ChannelId}", channelId);
             await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi tạo câu đố. Vui lòng thử lại sau!", replyTo);
+        }
+    }
+
+    public virtual async Task ConcludeReactionQuizExpiredAsync(long channelId, long messageId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var reactionQuizService = scope.ServiceProvider.GetRequiredService<IReactionQuizService>();
+
+            var result = await reactionQuizService.ConcludeExpiredQuizAsync(messageId);
+            if (result == null) return;
+
+            var correctText = !string.IsNullOrEmpty(result.CorrectKey)
+                ? $"\n🎯 Đáp án chính xác: Phương án **{result.CorrectKey.ToUpperInvariant()}**"
+                : string.Empty;
+
+            var expiredEmbed = new MessageEmbedBuilder()
+                .SetColor("#6B7280") // Gray Muted
+                .SetTitle("🎯 ĐỐ VUI TIẾNG ANH (REACTION QUIZ) — [ĐÃ HẾT HẠN]")
+                .SetDescription($"⏰ Phiên đố vui này đã kết thúc nhận đáp án! (Thời gian tối đa 10 phút){correctText}")
+                .AddField("📝 Câu hỏi", result.QuestionPrompt, false)
+                .SetFooter("Phiên đã kết thúc • Gõ /quiz để mở câu đố mới sau cooldown • LINGUAL", "")
+                .Build();
+
+            var content = new MessageContentBuilder()
+                .SetText("⏰ Phiên Reaction Quiz này đã kết thúc nhận đáp án:")
+                .AddEmbed(expiredEmbed)
+                .Build();
+
+            if (_client != null)
+            {
+                var channel = await _client.GetChannelAsync(channelId);
+                if (channel != null)
+                {
+                    await channel.UpdateMessageAsync(messageId, content);
+                    _logger.LogInformation("🏷️ [MezonBot] Đã sửa embed thành 'Đã hết hạn' cho Quiz {MessageId}", messageId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Không thể sửa embed hết hạn cho Quiz {MessageId} (best effort)", messageId);
         }
     }
 
@@ -1502,8 +1604,19 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
         if (result.Status == ReactionQuizAnswerStatus.Expired)
         {
-            // Quiz hết hạn sau 10 phút: reaction muộn thì gửi ephemeral 'Quiz nay da het han'
+            // Quiz hết hạn sau 10 phút: reaction muộn thì gửi ephemeral 'Quiz nay da het han' và đánh dấu embed
             await SendEphemeralMessageAsync(channelId, senderId, result.Message);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ConcludeReactionQuizExpiredAsync(channelId, messageId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi cập nhật embed hết hạn sau reaction muộn {MessageId}", messageId);
+                }
+            });
             return result;
         }
 
