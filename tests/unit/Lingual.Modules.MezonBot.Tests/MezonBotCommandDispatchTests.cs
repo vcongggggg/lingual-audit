@@ -197,4 +197,106 @@ public class MezonBotCommandDispatchTests
         // Phải gọi ProcessDailyCheckinAsync để tiến hành điểm danh và nhận +20 XP
         userStreakServiceMock.Verify(s => s.ProcessDailyCheckinAsync(mezonUserId, displayName), Times.Once);
     }
+
+    [Fact]
+    public async Task HandleDailyCommandAsync_WithEphemeralUserId_SendsEphemeralCardToUser()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var userStreakServiceMock = new Mock<IUserStreakService>();
+
+        var mezonUserId = "210089123456";
+        var displayName = "Member_210089";
+        long ephemeralUserId = 210089123456;
+
+        userStreakServiceMock.Setup(s => s.ProcessDailyCheckinAsync(mezonUserId, displayName))
+            .ReturnsAsync(new DailyCheckinResultDto(
+                IsSuccess: true,
+                AlreadyCheckedInToday: false,
+                CurrentDays: 1,
+                BestDays: 1,
+                XpAwarded: 20,
+                FreezeBalance: 1,
+                FreezeUsed: false,
+                Message: "Điểm danh hàng ngày thành công!"));
+
+        services.AddSingleton(userStreakServiceMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "1234567890",
+            Token = "fake-token",
+            Enabled = false
+        });
+
+        var worker = new MezonBotWorker(NullLogger<MezonBotWorker>.Instance, options, scopeFactory);
+
+        // Act - Gọi HandleDailyCommandAsync với ephemeralUserId (như khi bấm nút btn_daily_checkin)
+        await worker.HandleDailyCommandAsync(1001, mezonUserId, displayName, ephemeralUserId: ephemeralUserId);
+
+        // Assert:
+        // 1. Phải gọi ProcessDailyCheckinAsync
+        userStreakServiceMock.Verify(s => s.ProcessDailyCheckinAsync(mezonUserId, displayName), Times.Once);
+
+        // 2. Phải ghi nhận nội dung gửi vào SentEphemeralContents cho đúng ephemeralUserId
+        worker.SentEphemeralContents.Should().ContainSingle(e =>
+            e.ChannelId == 1001 &&
+            e.UserId == ephemeralUserId);
+    }
+
+    [Fact]
+    public async Task HandleStreakCommandAsync_WithEphemeralUserId_SendsEphemeralCardToUser()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        var gamificationServiceMock = new Mock<IGamificationService>();
+
+        var mezonUserId = "210089123456";
+        var displayName = "Member_210089";
+        var testUserId = Guid.NewGuid();
+        long ephemeralUserId = 210089123456;
+
+        userResolverMock.Setup(u => u.ResolveUserIdAsync(mezonUserId, displayName, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(testUserId);
+
+        gamificationServiceMock.Setup(g => g.GetUserStreakAsync(testUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Lingual.Modules.Gamification.Contracts.DTOs.UserStreakDto(
+                testUserId,
+                5,
+                10,
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                2,
+                true,
+                20,
+                0,
+                DateTime.UtcNow));
+
+        services.AddSingleton(userResolverMock.Object);
+        services.AddSingleton(gamificationServiceMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "1234567890",
+            Token = "fake-token",
+            Enabled = false
+        });
+
+        var worker = new MezonBotWorker(NullLogger<MezonBotWorker>.Instance, options, scopeFactory);
+
+        // Act - Gọi HandleStreakCommandAsync với ephemeralUserId
+        await worker.HandleStreakCommandAsync(1001, mezonUserId, displayName, ephemeralUserId: ephemeralUserId);
+
+        // Assert:
+        // Phải ghi nhận nội dung gửi vào SentEphemeralContents cho đúng ephemeralUserId
+        worker.SentEphemeralContents.Should().ContainSingle(e =>
+            e.ChannelId == 1001 &&
+            e.UserId == ephemeralUserId);
+    }
 }
