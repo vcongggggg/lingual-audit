@@ -50,6 +50,105 @@ public class MezonBotWorker : BackgroundService
 
     public static string GetRoleplaySessionKey(long channelId, string senderId) => $"{channelId}_{senderId}";
 
+    public static readonly IReadOnlyList<MessageSelectOption> VocabDeckOptions = new List<MessageSelectOption>
+    {
+        new MessageSelectOption("📚 Oxford 3000 Core Words", "oxford_3000", "3000 từ vựng cốt lõi tiếng Anh thông dụng nhất"),
+        new MessageSelectOption("💼 Business English Essentials", "business_english", "Từ vựng đàm phán, email và thuyết trình kinh doanh"),
+        new MessageSelectOption("🎓 Academic Word List (AWL)", "academic_wordlist", "Từ vựng học thuật dành cho IELTS, TOEFL và nghiên cứu"),
+        new MessageSelectOption("🗣️ Daily Conversation 500", "daily_conversation", "500 từ vựng hội thoại đời sống giao tiếp hàng ngày")
+    };
+
+    public static readonly IReadOnlyList<MessageSelectOption> RoleplayScenarioOptions = new List<MessageSelectOption>
+    {
+        new MessageSelectOption("☕ Quán Cà phê (A1-A2)", "cafe_order", "Luyện gọi cà phê/trà, chọn size, loại sữa và thanh toán với Barista"),
+        new MessageSelectOption("✈️ Sân bay Quốc tế (A2-B1)", "airport_checkin", "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành"),
+        new MessageSelectOption("💼 Phỏng vấn xin việc (B1-B2)", "job_interview", "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh"),
+        new MessageSelectOption("🚀 Thuyết trình Dự án (C1)", "startup_pitch", "Luyện pitching ý tưởng khởi nghiệp trước hội đồng đầu tư")
+    };
+
+    public record ClanQuizPollData(string Question, List<string> Options, int CorrectIndex);
+
+    public static readonly Dictionary<string, ClanQuizPollData> RegisteredClanQuizPolls = new()
+    {
+        ["poll_vocab_meticulous"] = new ClanQuizPollData(
+            "📚 [ĐỐ VUI CLAN] Từ đồng nghĩa của 'Meticulous' là gì?",
+            new List<string>
+            {
+                "A. Careless & Inattentive",
+                "B. Thorough & Attentive to detail",
+                "C. Aggressive & Impatient",
+                "D. Fragile & Delicate"
+            },
+            1
+        ),
+        ["poll_vocab_resilient"] = new ClanQuizPollData(
+            "📚 [ĐỐ VUI CLAN] 'Resilient' có nghĩa là gì trong ngữ cảnh học tập?",
+            new List<string>
+            {
+                "A. Dễ bỏ cuộc khi gặp khó khăn",
+                "B. Kiên cường, phục hồi nhanh sau thất bại",
+                "C. Cứng nhắc, không chịu thay đổi",
+                "D. Nhút nhát khi giao tiếp"
+            },
+            1
+        )
+    };
+
+    public static MessageContent BuildPollQuizMessage(string pollKey = "poll_vocab_meticulous")
+    {
+        if (!RegisteredClanQuizPolls.TryGetValue(pollKey, out var quizData))
+        {
+            quizData = RegisteredClanQuizPolls["poll_vocab_meticulous"];
+        }
+
+        var pollBuilder = new MessagePollBuilder()
+            .SetQuestion(quizData.Question)
+            .SetAllowMultipleAnswers(false)
+            .SetExpireTime(DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds());
+
+        for (int i = 0; i < quizData.Options.Count; i++)
+        {
+            pollBuilder.AddAnswer(i, quizData.Options[i]);
+        }
+
+        return new MessageContentBuilder()
+            .SetText($"📊 Cuộc thi đố vui từ vựng Clan hàng ngày! Chọn đáp án đúng để nhận +10 XP (Id: {pollKey}):")
+            .SetPoll(pollBuilder)
+            .Build();
+    }
+
+    public static MessageContent BuildPollVoteMessage(string? customQuestion = null, List<string>? customOptions = null)
+    {
+        var question = string.IsNullOrWhiteSpace(customQuestion)
+            ? "🗳️ [BẦU CHỌN CLAN] Bạn muốn Clan mở chủ đề luyện nói nào tuần tới?"
+            : customQuestion;
+
+        var options = customOptions is { Count: >= 2 }
+            ? customOptions
+            : new List<string>
+            {
+                "A. Giao tiếp phỏng vấn tiếng Anh (Tech Interview)",
+                "B. Tiếng Anh đàm phán thương mại (Business Negotiation)",
+                "C. Thuyết trình dự án & Gọi vốn (Pitching)",
+                "D. Du lịch & Văn hóa quốc tế (Travel & Culture)"
+            };
+
+        var pollBuilder = new MessagePollBuilder()
+            .SetQuestion(question)
+            .SetAllowMultipleAnswers(true)
+            .SetExpireTime(DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds());
+
+        for (int i = 0; i < options.Count; i++)
+        {
+            pollBuilder.AddAnswer(i, options[i]);
+        }
+
+        return new MessageContentBuilder()
+            .SetText("🗳️ Cuộc bình chọn ý kiến thành viên Clan:")
+            .SetPoll(pollBuilder)
+            .Build();
+    }
+
     /// <summary>
     /// Phân giải định tuyến loại lệnh từ tin nhắn Mezon để kiểm soát dispatch chính xác và hỗ trợ unit test.
     /// </summary>
@@ -74,6 +173,11 @@ public class MezonBotWorker : BackgroundService
         if (trimmed.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
             trimmed.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
             return "roleplay";
+        if (trimmed.StartsWith("/vocab", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("/deck", StringComparison.OrdinalIgnoreCase))
+            return "vocab";
+        if (trimmed.StartsWith("/poll", StringComparison.OrdinalIgnoreCase))
+            return "poll";
         if (trimmed.Equals("/top", StringComparison.OrdinalIgnoreCase) ||
             trimmed.Equals("/leaderboard", StringComparison.OrdinalIgnoreCase) ||
             trimmed.Equals("/bxh", StringComparison.OrdinalIgnoreCase))
@@ -134,7 +238,7 @@ public class MezonBotWorker : BackgroundService
 
             try
             {
-                _logger.LogInformation("🚀 [MezonBot] Đang khởi tạo kết nối Mezon.Net.Sdk 1.7.0 cho BotId: {BotId}...", botId);
+                _logger.LogInformation("🚀 [MezonBot] Đang khởi tạo kết nối Mezon.Net.Sdk 1.11.0 cho BotId: {BotId}...", botId);
 
                 var clientOptions = new MezonClientOptions(botId, _options.Token)
                 {
@@ -147,6 +251,7 @@ public class MezonBotWorker : BackgroundService
                 _client.Reconnecting += OnReconnectingAsync;
                 _client.ChannelMessageReceived += OnChannelMessageReceivedAsync;
                 _client.MessageButtonClicked += OnMessageButtonClickedAsync;
+                _client.DropdownBoxSelected += OnDropdownBoxSelectedAsync;
                 _client.UserChannelAdded += OnUserChannelAddedAsync;
 
                 await _client.LoginAsync();
@@ -198,6 +303,7 @@ public class MezonBotWorker : BackgroundService
                         _client.Reconnecting -= OnReconnectingAsync;
                         _client.ChannelMessageReceived -= OnChannelMessageReceivedAsync;
                         _client.MessageButtonClicked -= OnMessageButtonClickedAsync;
+                        _client.DropdownBoxSelected -= OnDropdownBoxSelectedAsync;
                         _client.UserChannelAdded -= OnUserChannelAddedAsync;
                         await _client.DisposeAsync();
                     }
@@ -360,7 +466,7 @@ public class MezonBotWorker : BackgroundService
 
             if (text.Equals("/ping", StringComparison.OrdinalIgnoreCase))
             {
-                await ReplyToChannelAsync(data.ChannelId, "🏓 Pong! Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.7.0)", data);
+                await ReplyToChannelAsync(data.ChannelId, "🏓 Pong! Bot LINGUAL hoạt động bình thường trên nền tảng Mezon Campus Studio 2026. (SDK: Mezon.Net.Sdk 1.11.0)", data);
             }
             else if (text.Equals("/help", StringComparison.OrdinalIgnoreCase))
             {
@@ -391,6 +497,18 @@ public class MezonBotWorker : BackgroundService
                 var query = text[prefixLength..].Trim();
                 var senderId = data.SenderId.ToString();
                 await HandleRoleplayCommandAsync(data.ChannelId, senderId, query, data);
+            }
+            else if (text.StartsWith("/vocab", StringComparison.OrdinalIgnoreCase) ||
+                     text.StartsWith("/deck", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                await HandleVocabDeckCommandAsync(data.ChannelId, senderId, data);
+            }
+            else if (text.StartsWith("/poll", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                var subCommand = text.Length > 5 ? text[5..].Trim() : string.Empty;
+                await HandlePollCommandAsync(data.ChannelId, senderId, subCommand, data);
             }
             else if (text.Equals("/streak", StringComparison.OrdinalIgnoreCase))
             {
@@ -435,8 +553,8 @@ public class MezonBotWorker : BackgroundService
             .SetTitle("🤖 LINGUAL BOT — TRỢ LÝ HỌC TIẾNG ANH")
             .SetDescription("Chào mừng bạn đến với LINGUAL trên nền tảng Mezon Campus Studio 2026!")
             .AddField("🔥 Duy trì Streak & Thi đua", "• /daily: Điểm danh nhận +20 XP và duy trì ngọn lửa Streak mỗi ngày\n• /streak: Tra cứu chuỗi ngày học và kỷ lục của bạn\n• /top: Bảng xếp hạng tuần Top 10 cao thủ LINGUAL", false)
-            .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
-            .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
+            .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh qua Dropdown Select Menu\n• /vocab: Chọn bộ từ vựng luyện tập theo chủ đề qua Dropdown Select\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
+            .AddField("🏆 Đấu trường Clan & Khảo sát", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan\n• /poll: Tham gia cuộc thi đố vui nhận +10 XP (/poll quiz) hoặc bình chọn chủ đề (/poll vote)", false)
             .AddField("🌐 Webview Miniapp Học tập", $"• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
@@ -1016,6 +1134,156 @@ public class MezonBotWorker : BackgroundService
         }
     }
 
+    private async Task OnDropdownBoxSelectedAsync(DropdownBoxSelectedEventData eventData)
+    {
+        try
+        {
+            var response = (DropdownBoxSelectedResponse)eventData;
+            var channelId = response.ChannelId;
+            var mezonUserId = (response.UserId != 0 ? response.UserId : response.SenderId).ToString();
+            var selectboxId = response.SelectboxId ?? string.Empty;
+            var selectedValue = response.Values.Count > 0 ? response.Values[0] : string.Empty;
+
+            _logger.LogInformation("📥 [MezonBot] DropdownBoxSelected: SelectboxId={SelectboxId}, Value={Value}, User={User}",
+                selectboxId, selectedValue, mezonUserId);
+
+            if (string.IsNullOrWhiteSpace(selectedValue)) return;
+
+            if (selectboxId == "select_roleplay_scenario")
+            {
+                await HandleRoleplayScenarioSelectedAsync(channelId, mezonUserId, selectedValue);
+            }
+            else if (selectboxId == "select_vocab_deck")
+            {
+                await HandleVocabDeckSelectedAsync(channelId, mezonUserId, selectedValue);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý sự kiện DropdownBoxSelected");
+        }
+    }
+
+    public static MessageContent BuildRoleplayScenarioSelectContent()
+    {
+        var embed = new MessageEmbedBuilder()
+            .SetColor("#8B5CF6")
+            .SetTitle("🎭 LINGLING ROLEPLAY — ĐÓNG VAI GIAO TIẾP TÌNH HUỐNG")
+            .SetDescription("Chọn một tình huống thực tế từ menu thả xuống bên dưới để bắt đầu luyện giao tiếp tiếng Anh phản xạ cùng trợ lý LingLing:")
+            .AddField("☕ Quán Cà phê (A1-A2)", "Luyện gọi cà phê/trà, chọn size, loại sữa và thanh toán với Barista tại London.", false)
+            .AddField("✈️ Sân bay Quốc tế (A2-B1)", "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành tại Heathrow.", false)
+            .AddField("💼 Phỏng vấn xin việc (B1-B2)", "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh và định hướng.", false)
+            .AddField("🚀 Thuyết trình Dự án (C1)", "Luyện pitching ý tưởng khởi nghiệp và giải đáp câu hỏi của hội đồng đầu tư.", false)
+            .SetFooter("Chọn tình huống từ Dropdown Menu bên dưới • LINGUAL Roleplay", "")
+            .Build();
+
+        var selectComponents = new ButtonBuilder()
+            .AddSelect(
+                id: "select_roleplay_scenario",
+                options: RoleplayScenarioOptions,
+                selectType: MessageSelectType.Text,
+                placeholder: "Chọn tình huống giao tiếp...",
+                minOptions: 1,
+                maxOptions: 1
+            )
+            .BuildComponents();
+
+        return new MessageContentBuilder()
+            .SetText("🎭 Chọn tình huống đàm thoại thực tế từ menu bên dưới:")
+            .AddEmbed(embed)
+            .AddActionRow(selectComponents)
+            .Build();
+    }
+
+    public static MessageContent BuildVocabDeckSelectContent()
+    {
+        var embed = new MessageEmbedBuilder()
+            .SetColor("#10B981")
+            .SetTitle("📚 LINGUAL VOCABULARY — CHỌN BỘ TỪ VỰNG LUYỆN TẬP")
+            .SetDescription("Khám phá các bộ từ vựng tuyển chọn chuẩn quốc tế theo chủ đề và trình độ:")
+            .AddField("📚 Oxford 3000 Core Words (A1-B2)", "3000 từ vựng cốt lõi tiếng Anh thông dụng và quan trọng nhất.", false)
+            .AddField("💼 Business English (B2-C1)", "Từ vựng đàm phán thương mại, email chuyên nghiệp và pitching.", false)
+            .AddField("🎓 Academic Word List (B2-C2)", "Từ vựng học thuật chuyên sâu phục vụ thi IELTS, TOEFL và nghiên cứu.", false)
+            .AddField("🗣️ Daily Conversation 500 (A1-A2)", "500 từ vựng và mẫu câu hội thoại đời sống giao tiếp hàng ngày.", false)
+            .SetFooter("Chọn bộ từ từ Dropdown Menu bên dưới • LINGUAL Vocabulary", "")
+            .Build();
+
+        var selectComponents = new ButtonBuilder()
+            .AddSelect(
+                id: "select_vocab_deck",
+                options: VocabDeckOptions,
+                selectType: MessageSelectType.Text,
+                placeholder: "Chọn bộ từ vựng luyện tập...",
+                minOptions: 1,
+                maxOptions: 1
+            )
+            .BuildComponents();
+
+        return new MessageContentBuilder()
+            .SetText("📚 Chọn bộ từ vựng bạn muốn luyện tập hôm nay:")
+            .AddEmbed(embed)
+            .AddActionRow(selectComponents)
+            .Build();
+    }
+
+    private async Task HandleVocabDeckCommandAsync(long channelId, string senderId, ChannelMessageResponse? replyTo = null)
+    {
+        var content = BuildVocabDeckSelectContent();
+        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+    }
+
+    private async Task HandleVocabDeckSelectedAsync(long channelId, string senderId, string deckCode)
+    {
+        var matched = VocabDeckOptions.FirstOrDefault(d => d.Value.Equals(deckCode, StringComparison.OrdinalIgnoreCase));
+        var deckName = !string.IsNullOrEmpty(matched.Label) ? matched.Label : deckCode;
+        var deckDesc = !string.IsNullOrEmpty(matched.Description) ? matched.Description : "Bộ từ vựng tiếng Anh theo chủ đề";
+
+        var embed = new MessageEmbedBuilder()
+            .SetColor("#10B981")
+            .SetTitle($"📚 ĐÃ CHỌN BỘ TỪ: {deckName}")
+            .SetDescription($"Bạn đã chọn bộ từ vựng thành công! Hãy bắt đầu luyện tập ngay hôm nay:\n\n📖 **Mô tả:** {deckDesc}")
+            .AddField("🎯 Chế độ luyện tập", "• Gõ `/learn` để học thẻ ghi nhớ Flashcard 3D thông minh\n• Gõ `/quiz` để thử sức đố vui từ vựng nhanh 30 giây\n• Hoặc mở Webview Mini-App để xem toàn bộ danh sách từ", false)
+            .SetFooter("LINGUAL Vocabulary Deck • Mezon Campus Studio", "")
+            .Build();
+
+        var buttons = new ButtonBuilder()
+            .AddButton("btn_learn_now", "📖 Ôn từ vựng /learn", 1, false, "", "")
+            .AddButton("btn_quiz_now", "🏆 Làm Quiz /quiz", 2, false, "", "")
+            .BuildComponents();
+
+        var content = new MessageContentBuilder()
+            .SetText($"🎉 Chúc mừng bạn đã chọn bộ từ **{deckName}**!")
+            .AddEmbed(embed)
+            .AddActionRow(buttons)
+            .Build();
+
+        await ReplyToChannelWithContentAsync(channelId, content);
+    }
+
+    private async Task HandlePollCommandAsync(long channelId, string senderId, string subCommand, ChannelMessageResponse? replyTo = null)
+    {
+        if (subCommand.StartsWith("vote", StringComparison.OrdinalIgnoreCase))
+        {
+            await HandlePollVoteCommandAsync(channelId, senderId, subCommand, replyTo);
+        }
+        else
+        {
+            await HandlePollQuizCommandAsync(channelId, senderId, subCommand, replyTo);
+        }
+    }
+
+    private async Task HandlePollQuizCommandAsync(long channelId, string senderId, string query, ChannelMessageResponse? replyTo = null)
+    {
+        var content = BuildPollQuizMessage("poll_vocab_meticulous");
+        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+    }
+
+    private async Task HandlePollVoteCommandAsync(long channelId, string senderId, string query, ChannelMessageResponse? replyTo = null)
+    {
+        var content = BuildPollVoteMessage();
+        await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+    }
+
     private async Task HandleRoleplayCommandAsync(
         long channelId,
         string senderId,
@@ -1036,28 +1304,7 @@ public class MezonBotWorker : BackgroundService
 
             if (string.IsNullOrWhiteSpace(query))
             {
-                var embed = new MessageEmbedBuilder()
-                    .SetColor("#8B5CF6")
-                    .SetTitle("🎭 LINGLING ROLEPLAY — ĐÓNG VAI GIAO TIẾP TÌNH HUỐNG")
-                    .SetDescription("Chọn một tình huống thực tế bên dưới để bắt đầu luyện giao tiếp tiếng Anh phản xạ cùng trợ lý LingLing:")
-                    .AddField("☕ Quán Cà phê (A1-A2)", "Luyện gọi cà phê/trà, chọn size, loại sữa và thanh toán với Barista tại London.", false)
-                    .AddField("✈️ Sân bay Quốc tế (A2-B1)", "Luyện hội thoại làm thủ tục check-in, cân hành lý và hỏi cửa khởi hành tại Heathrow.", false)
-                    .AddField("💼 Phỏng vấn xin việc (B1-B2)", "Luyện trả lời câu hỏi phỏng vấn cơ bản về kinh nghiệm, điểm mạnh và định hướng.", false)
-                    .SetFooter("Bấm nút bên dưới để chọn tình huống • LINGUAL Roleplay", "")
-                    .Build();
-
-                var buttons = new ButtonBuilder()
-                    .AddButton("btn_roleplay_select_cafe_order", "☕ Quán Cà phê", 2, false, "", "")
-                    .AddButton("btn_roleplay_select_airport_checkin", "✈️ Sân bay", 2, false, "", "")
-                    .AddButton("btn_roleplay_select_job_interview", "💼 Phỏng vấn", 2, false, "", "")
-                    .BuildComponents();
-
-                var content = new MessageContentBuilder()
-                    .SetText("🎭 Chọn tình huống đàm thoại thực tế:")
-                    .AddEmbed(embed)
-                    .AddActionRow(buttons)
-                    .Build();
-
+                var content = BuildRoleplayScenarioSelectContent();
                 await ReplyToChannelWithContentAsync(channelId, content, replyTo);
                 return;
             }

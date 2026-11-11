@@ -13,6 +13,7 @@ using Lingual.Modules.Gamification.Domain;
 using Lingual.Modules.Gamification.Infrastructure.Data;
 using Lingual.Modules.Gamification.Services;
 using Lingual.Modules.Learning.Infrastructure.Data;
+using Lingual.Modules.MezonBot;
 using Lingual.Modules.MezonBot.Domain;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
 using Lingual.Modules.MezonBot.Services;
@@ -308,6 +309,98 @@ public class ContentController : ControllerBase
             message = serverCorrectCount > 0
                 ? $"Tuyệt vời! Bạn trả lời đúng {serverCorrectCount}/{totalCount} câu và nhận được +{xpAwarded} XP!"
                 : $"Bạn chưa trả lời đúng câu nào (0/{totalCount}). Hãy ôn tập thêm và thử lại nhé!"
+        });
+    }
+
+    /// <summary>
+    /// POST /api/v1/content/poll/submit
+    /// Nộp kết quả bình chọn/trả lời Poll có thưởng XP phía Server.
+    /// BẮT BUỘC: UserId lấy từ JWT Claims (không tin client gửi lên), chỉ đúng đáp án mới cộng 10 XP, idempotent.
+    /// </summary>
+    [Authorize]
+    [HttpPost("poll/submit")]
+    public async Task<IActionResult> SubmitPollAnswer(
+        [FromBody] PollAnswerSubmitRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.PollId))
+        {
+            return BadRequest(new { error = "Dữ liệu Poll không hợp lệ." });
+        }
+
+        // 1. Xác thực UserId từ JWT Claims (không tin bất kỳ userId nào từ client gửi lên)
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized(new { error = "Yêu cầu đăng nhập hợp lệ để nộp câu trả lời Poll và nhận thưởng XP." });
+        }
+
+        // 2. Kiểm tra đáp án chuẩn xác phía server
+        if (!MezonBotWorker.RegisteredClanQuizPolls.TryGetValue(request.PollId, out var pollData))
+        {
+            if (!MezonBotWorker.RegisteredClanQuizPolls.TryGetValue("poll_vocab_meticulous", out pollData))
+            {
+                return NotFound(new { error = "Không tìm thấy dữ liệu Quiz Poll tương ứng." });
+            }
+        }
+
+        bool isCorrect = request.SelectedAnswerIndex == pollData.CorrectIndex;
+
+        // 3. Nếu trả lời sai: không cộng XP
+        if (!isCorrect)
+        {
+            return Ok(new
+            {
+                success = true,
+                isCorrect = false,
+                xpAwarded = 0,
+                message = "Rất tiếc, câu trả lời của bạn chưa chính xác. Hãy thử lại ở câu hỏi tiếp theo nhé!"
+            });
+        }
+
+        // 4. Nếu trả lời đúng: Cộng đúng 10 XP, kiểm tra Idempotency chặt chẽ
+        // Khóa Idempotency gắn chặt: một user + một pollId chỉ được cộng đúng 1 lần
+        var baseKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? $"clan_poll_{request.PollId}_{userId}"
+            : $"clan_poll_{request.PollId}_{userId}_{request.IdempotencyKey}";
+
+        var awardResult = await _xpService.AwardXpAsync(new AwardXpRequest(
+            UserId: userId,
+            SourceType: "clan_poll_quiz",
+            XpDelta: 10,
+            SourceId: Guid.NewGuid(),
+            IdempotencyKey: baseKey,
+            Metadata: JsonSerializer.Serialize(new
+            {
+                pollId = request.PollId,
+                selectedAnswerIndex = request.SelectedAnswerIndex,
+                correctAnswerIndex = pollData.CorrectIndex,
+                awarded_at = DateTime.UtcNow.ToString("o")
+            })
+        ), cancellationToken);
+
+        if (awardResult.AlreadyAwarded)
+        {
+            return Ok(new
+            {
+                success = true,
+                isCorrect = true,
+                xpAwarded = 0,
+                alreadyAwarded = true,
+                message = "Bạn đã nhận thưởng 10 XP cho câu hỏi đố vui này trước đó rồi (Idempotent)."
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            isCorrect = true,
+            xpAwarded = 10,
+            totalXp = awardResult.TotalXp,
+            currentStreak = awardResult.CurrentStreak,
+            message = "Chúc mừng bạn đã chọn đúng đáp án và nhận được +10 XP!"
         });
     }
 
@@ -648,4 +741,10 @@ public record SrsReviewRequest(
     DateTime? NextDueAt,
     int TimeSpentMs,
     string? IdempotencyKey
+);
+
+public record PollAnswerSubmitRequest(
+    string PollId,
+    int SelectedAnswerIndex,
+    string? IdempotencyKey = null
 );
