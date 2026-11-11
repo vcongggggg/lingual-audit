@@ -17,7 +17,9 @@ using Lingual.Modules.Learning.Services;
 using Lingual.Modules.MezonBot.Services;
 using Mezon.Net.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -150,6 +152,185 @@ public class AdvancedFeaturesMilestone22Tests
         cardDto2.Should().NotBeNull();
         var cardCount = await db.SrsCards.CountAsync(c => c.UserId == userId);
         cardCount.Should().Be(1, "Không được tạo trùng lặp thẻ SRS cho cùng một từ vựng của user");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\r\n\t")]
+    public void VocabularyExtractor_ExtractTermAndMeaning_WhenInputNullOrWhitespace_ReturnsEmptyStrings(string? input)
+    {
+        var (term, meaning) = VocabularyExtractor.ExtractTermAndMeaning(input);
+        term.Should().BeEmpty();
+        meaning.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task HandleMessageReactionBookmarkAsync_WhenMessageNotInCache_DoesNotCreateCardInDb_AndSendsEphemeralWarning()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateLearningDbContext(dbName);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        var flashcardServiceMock = new Mock<IFlashcardService>();
+        services.AddSingleton(flashcardServiceMock.Object);
+
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        services.AddSingleton(userResolverMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123456",
+            Token = "test-token",
+            Enabled = false
+        });
+
+        var loggerMock = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(loggerMock.Object, options, scopeFactory);
+
+        long channelId = 555;
+        long messageIdNotInCache = 99999;
+        long senderId = 777;
+
+        // Act - Thả reaction vào tin nhắn không có trong cache
+        var result = await worker.HandleMessageReactionBookmarkAsync(
+            clanId: 10,
+            channelId: channelId,
+            messageId: messageIdNotInCache,
+            senderId: senderId,
+            senderName: "UserTest",
+            emoji: "🔖",
+            action: true);
+
+        // Assert
+        result.Should().BeFalse();
+
+        // 1. Tuyệt đối KHÔNG tạo thẻ trong DB
+        flashcardServiceMock.Verify(f => f.CreateOrBookmarkFlashcardAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        var cardCount = await db.SrsCards.CountAsync();
+        cardCount.Should().Be(0);
+
+        // 2. Phải gửi Ephemeral giải thích lý do không đọc được tin nhắn
+        worker.SentEphemeralMessages.Should().ContainSingle(m =>
+            m.ChannelId == channelId &&
+            m.UserId == senderId &&
+            m.Text.Contains("Không thể đọc nội dung tin nhắn này"));
+    }
+
+    [Fact]
+    public async Task HandleMessageReactionBookmarkAsync_WhenMessageInCache_CreatesSM2CardInDb_AndSendsSuccessEphemeral()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        await using var db = CreateLearningDbContext(dbName);
+        var flashLogger = new Mock<ILogger<FlashcardService>>();
+        var flashcardService = new FlashcardService(db, flashLogger.Object);
+
+        var userId = Guid.NewGuid();
+        var userResolverMock = new Mock<IMezonUserResolver>();
+        userResolverMock.Setup(u => u.ResolveUserIdAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(userId);
+
+        var services = new ServiceCollection();
+        services.AddSingleton(db);
+        services.AddSingleton<IFlashcardService>(flashcardService);
+        services.AddSingleton(userResolverMock.Object);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123456",
+            Token = "test-token",
+            Enabled = false
+        });
+
+        var loggerMock = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(loggerMock.Object, options, scopeFactory);
+
+        long channelId = 555;
+        long messageId = 12345;
+        long senderId = 777;
+
+        // Lưu tin nhắn vào cache
+        worker.RecentMessageContentCache[messageId] = "**Perseverance**: Tính kiên trì, bền bỉ";
+
+        // Act - Bookmark tin nhắn có trong cache
+        var result = await worker.HandleMessageReactionBookmarkAsync(
+            clanId: 10,
+            channelId: channelId,
+            messageId: messageId,
+            senderId: senderId,
+            senderName: "UserTest",
+            emoji: "⭐",
+            action: true);
+
+        // Assert
+        result.Should().BeTrue();
+
+        // 1. Thẻ được tạo thật trong DB với SM-2 chuẩn
+        var cardInDb = await db.SrsCards.FirstOrDefaultAsync(c => c.UserId == userId);
+        cardInDb.Should().NotBeNull();
+        cardInDb!.Repetitions.Should().Be(0);
+        cardInDb.IntervalDays.Should().Be(1.0m);
+        cardInDb.EaseFactor.Should().Be(2.50m);
+
+        // 2. Gửi Ephemeral xác nhận lưu thành công
+        worker.SentEphemeralMessages.Should().ContainSingle(m =>
+            m.ChannelId == channelId &&
+            m.UserId == senderId &&
+            m.Text.Contains("Đã lưu từ vựng") &&
+            m.Text.Contains("Perseverance"));
+    }
+
+    [Fact]
+    public async Task AddReactionToMessageAsync_WhenEngineOrMethodMissing_LogsWarning_AndDoesNotLogSuccess()
+    {
+        var services = new ServiceCollection();
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123456",
+            Token = "test-token",
+            Enabled = false
+        });
+
+        var loggerMock = new Mock<ILogger<MezonBotWorker>>();
+        var worker = new MezonBotWorker(loggerMock.Object, options, scopeFactory);
+
+        // Act - Client is null by default in unit test
+        var result = await worker.AddReactionToMessageAsync(clanId: 10, channelId: 100, messageId: 200, emoji: "✅");
+
+        // Assert
+        result.Should().BeFalse();
+
+        // 1. Không log Information 'Đã thêm reaction'
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Đã thêm reaction")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Never);
+
+        // 2. Phải log Warning
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Không thể thêm reaction")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
     }
 
     #endregion

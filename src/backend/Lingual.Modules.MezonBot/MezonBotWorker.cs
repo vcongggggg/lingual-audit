@@ -234,6 +234,9 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     public ReactionBookmarkRateLimiter ReactionRateLimiter => _reactionRateLimiter;
     public ConcurrentDictionary<long, string> RecentMessageContentCache => _recentMessageContentCache;
     public ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> UserChannelMap => _userChannelMap;
+    public readonly ConcurrentBag<(long ChannelId, long UserId, string Text)> SentEphemeralMessages = new();
+    public readonly ConcurrentBag<(long ChannelId, long UserId, MessageContent Content)> SentEphemeralContents = new();
+    public readonly ConcurrentBag<(long ClanId, long ChannelId, long MessageId, string Emoji, bool Success)> ReactionHistory = new();
 
     public MezonBotWorker(
         ILogger<MezonBotWorker> logger,
@@ -1340,69 +1343,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         try
         {
             MessageReactionResponse reaction = (MessageReactionResponse)eventData;
-            if (!reaction.Action)
-            {
-                return;
-            }
-
-            if (!IsBookmarkEmoji(reaction.Emoji))
-            {
-                return;
-            }
-
-            var senderId = reaction.SenderId;
-            var channelId = reaction.ChannelId;
-            var messageId = reaction.MessageId;
-            var clanId = reaction.ClanId;
-
-            if (senderId <= 0 || channelId <= 0 || messageId <= 0)
-            {
-                return;
-            }
-
-            // Rate limit: Tối đa 10 bookmark / phút / user
-            if (!_reactionRateLimiter.TryAcquire(senderId.ToString()))
-            {
-                _logger.LogWarning("⚠️ [MezonBot] User {SenderId} bị rate limit reaction bookmark (quá 10 lần/phút).", senderId);
-                await SendEphemeralMessageAsync(channelId, senderId, "⚠️ LingLing: Bạn đang thao tác bookmark quá nhanh (giới hạn tối đa 10 lần/phút). Vui lòng thử lại sau ít phút!");
-                return;
-            }
-
-            _recentMessageContentCache.TryGetValue(messageId, out var rawContent);
-            string messageText = string.Empty;
-            if (!string.IsNullOrWhiteSpace(rawContent))
-            {
-                try
-                {
-                    var parsed = MessageContent.Parse(rawContent);
-                    messageText = parsed.Text?.Trim() ?? rawContent.Trim();
-                }
-                catch
-                {
-                    messageText = rawContent.Trim();
-                }
-            }
-
-            var (term, meaning) = VocabularyExtractor.ExtractTermAndMeaning(messageText);
-
-            using var scope = _scopeFactory.CreateScope();
-            var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
-            var flashcardService = scope.ServiceProvider.GetRequiredService<IFlashcardService>();
-
-            var userId = await userResolver.ResolveUserIdAsync(senderId.ToString(), reaction.SenderName);
-            if (userId != Guid.Empty)
-            {
-                _userChannelMap[userId] = (channelId, senderId);
-            }
-
-            var card = await flashcardService.CreateOrBookmarkFlashcardAsync(userId, term, meaning);
-
-            // Gửi Ephemeral xác nhận tới người dùng
-            await SendEphemeralMessageAsync(channelId, senderId,
-                $"🔖 LingLing: Đã lưu từ vựng **{card.Term}** (*{card.Meaning}*) vào sổ tay Flashcard SRS của bạn!\n(Chu kỳ ôn tập ban đầu: {card.IntervalDays} ngày • Hệ số dễ: {card.EaseFactor})");
-
-            // Bot thêm reaction checkmark ✅ vào tin nhắn gốc
-            await AddReactionToMessageAsync(clanId, channelId, messageId, "✅");
+            await HandleMessageReactionBookmarkAsync(
+                reaction.ClanId,
+                reaction.ChannelId,
+                reaction.MessageId,
+                reaction.SenderId,
+                reaction.SenderName,
+                reaction.Emoji,
+                reaction.Action);
         }
         catch (Exception ex)
         {
@@ -1410,48 +1358,163 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         }
     }
 
-    public async Task AddReactionToMessageAsync(long clanId, long channelId, long messageId, string emoji)
+    public async Task<bool> HandleMessageReactionBookmarkAsync(
+        long clanId,
+        long channelId,
+        long messageId,
+        long senderId,
+        string senderName,
+        string emoji,
+        bool action)
     {
-        if (_client == null || channelId <= 0 || messageId <= 0) return;
+        if (!action)
+        {
+            return false;
+        }
+
+        if (!IsBookmarkEmoji(emoji))
+        {
+            return false;
+        }
+
+        if (senderId <= 0 || channelId <= 0 || messageId <= 0)
+        {
+            return false;
+        }
+
+        // Rate limit: Tối đa 10 bookmark / phút / user
+        if (!_reactionRateLimiter.TryAcquire(senderId.ToString()))
+        {
+            _logger.LogWarning("⚠️ [MezonBot] User {SenderId} bị rate limit reaction bookmark (quá 10 lần/phút).", senderId);
+            await SendEphemeralMessageAsync(channelId, senderId, "⚠️ LingLing: Bạn đang thao tác bookmark quá nhanh (giới hạn tối đa 10 lần/phút). Vui lòng thử lại sau ít phút!");
+            return false;
+        }
+
+        // F1 fix: Kiểm tra nội dung tin nhắn trong cache, tránh tạo thẻ rác khi cache miss
+        if (!_recentMessageContentCache.TryGetValue(messageId, out var rawContent) || string.IsNullOrWhiteSpace(rawContent))
+        {
+            _logger.LogWarning("⚠️ [MezonBot] Reaction bookmark tin ngoài cache (Message {MessageId}). Không tìm thấy nội dung để tạo thẻ.", messageId);
+            await SendEphemeralMessageAsync(channelId, senderId,
+                "⚠️ LingLing: Không thể đọc nội dung tin nhắn này để lưu thẻ từ vựng (tin nhắn có thể được gửi trước khi bot khởi động hoặc đã hết hạn trong bộ nhớ đệm). Vui lòng thử bookmark với tin nhắn mới hơn!");
+            return false;
+        }
+
+        string messageText = string.Empty;
+        try
+        {
+            var parsed = MessageContent.Parse(rawContent);
+            messageText = parsed.Text?.Trim() ?? rawContent.Trim();
+        }
+        catch
+        {
+            messageText = rawContent.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(messageText))
+        {
+            _logger.LogWarning("⚠️ [MezonBot] Tin nhắn {MessageId} trong cache có nội dung rỗng.", messageId);
+            await SendEphemeralMessageAsync(channelId, senderId,
+                "⚠️ LingLing: Tin nhắn này không chứa nội dung văn bản hợp lệ để tạo thẻ từ vựng. Vui lòng thử với tin nhắn khác!");
+            return false;
+        }
+
+        var (term, meaning) = VocabularyExtractor.ExtractTermAndMeaning(messageText);
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            _logger.LogWarning("⚠️ [MezonBot] Không thể trích xuất từ vựng từ tin nhắn {MessageId}.", messageId);
+            await SendEphemeralMessageAsync(channelId, senderId,
+                "⚠️ LingLing: Không thể trích xuất từ vựng từ tin nhắn này. Vui lòng thử lại với tin nhắn có định dạng rõ ràng hơn!");
+            return false;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+        var flashcardService = scope.ServiceProvider.GetRequiredService<IFlashcardService>();
+
+        var userId = await userResolver.ResolveUserIdAsync(senderId.ToString(), senderName);
+        if (userId != Guid.Empty)
+        {
+            _userChannelMap[userId] = (channelId, senderId);
+        }
+
+        var card = await flashcardService.CreateOrBookmarkFlashcardAsync(userId, term, meaning);
+
+        // Gửi Ephemeral xác nhận tới người dùng
+        await SendEphemeralMessageAsync(channelId, senderId,
+            $"🔖 LingLing: Đã lưu từ vựng **{card.Term}** (*{card.Meaning}*) vào sổ tay Flashcard SRS của bạn!\n(Chu kỳ ôn tập ban đầu: {card.IntervalDays} ngày • Hệ số dễ: {card.EaseFactor})");
+
+        // Bot thêm reaction checkmark ✅ vào tin nhắn gốc
+        await AddReactionToMessageAsync(clanId, channelId, messageId, "✅");
+        return true;
+    }
+
+    public virtual async Task<bool> AddReactionToMessageAsync(long clanId, long channelId, long messageId, string emoji)
+    {
+        if (_client == null || channelId <= 0 || messageId <= 0)
+        {
+            _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (client null hoặc id không hợp lệ)", emoji, messageId);
+            ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+            return false;
+        }
 
         try
         {
             var engineField = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
             var engine = engineField?.GetValue(_client) as Mezon.Net.Client.MezonClient;
-            if (engine != null)
+            if (engine == null)
             {
-                var method = engine.GetType().GetMethod("SendMessageReactionRtAsync");
-                if (method != null)
-                {
-                    var paramType = method.GetParameters()[0].ParameterType;
-                    var ctor = paramType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
-                    if (ctor != null)
-                    {
-                        var ctorParams = ctor.GetParameters();
-                        var args = new object?[ctorParams.Length];
-                        for (int i = 0; i < ctorParams.Length; i++)
-                        {
-                            var name = ctorParams[i].Name?.ToLowerInvariant();
-                            if (name == "clanid") args[i] = clanId;
-                            else if (name == "channelid") args[i] = channelId;
-                            else if (name == "messageid") args[i] = messageId;
-                            else if (name == "emoji") args[i] = emoji;
-                            else if (name == "action") args[i] = true;
-                            else if (ctorParams[i].ParameterType == typeof(bool)) args[i] = true;
-                            else if (ctorParams[i].HasDefaultValue) args[i] = ctorParams[i].DefaultValue;
-                            else args[i] = null;
-                        }
-                        var reactObj = ctor.Invoke(args);
-                        var task = method.Invoke(engine, new[] { reactObj, null }) as Task;
-                        if (task != null) await task;
-                    }
-                }
-                _logger.LogInformation("✅ [MezonBot] Đã thêm reaction {Emoji} vào Message {MessageId} tại Channel {ChannelId}", emoji, messageId, channelId);
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy field _engine)", emoji, messageId);
+                ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+                return false;
             }
+
+            var method = engine.GetType().GetMethod("SendMessageReactionRtAsync");
+            if (method == null)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy method SendMessageReactionRtAsync)", emoji, messageId);
+                ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+                return false;
+            }
+
+            var paramType = method.GetParameters()[0].ParameterType;
+            var ctor = paramType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+            if (ctor == null)
+            {
+                _logger.LogWarning("⚠️ [MezonBot] Không thể thêm reaction {Emoji} vào Message {MessageId} (không tìm thấy constructor cho {ParamType})", emoji, messageId, paramType.Name);
+                ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+                return false;
+            }
+
+            var ctorParams = ctor.GetParameters();
+            var args = new object?[ctorParams.Length];
+            for (int i = 0; i < ctorParams.Length; i++)
+            {
+                var name = ctorParams[i].Name?.ToLowerInvariant();
+                if (name == "clanid") args[i] = clanId;
+                else if (name == "channelid") args[i] = channelId;
+                else if (name == "messageid") args[i] = messageId;
+                else if (name == "emoji") args[i] = emoji;
+                else if (name == "action") args[i] = true;
+                else if (ctorParams[i].ParameterType == typeof(bool)) args[i] = true;
+                else if (ctorParams[i].HasDefaultValue) args[i] = ctorParams[i].DefaultValue;
+                else args[i] = null;
+            }
+            var reactObj = ctor.Invoke(args);
+            var task = method.Invoke(engine, new[] { reactObj, null }) as Task;
+            if (task != null)
+            {
+                await task;
+            }
+
+            _logger.LogInformation("✅ [MezonBot] Đã thêm reaction {Emoji} vào Message {MessageId} tại Channel {ChannelId}", emoji, messageId, channelId);
+            ReactionHistory.Add((clanId, channelId, messageId, emoji, true));
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ [MezonBot] Không thể thêm reaction vào Message {MessageId}", messageId);
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thêm reaction vào Message {MessageId}", messageId);
+            ReactionHistory.Add((clanId, channelId, messageId, emoji, false));
+            return false;
         }
     }
 
@@ -2282,8 +2345,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     /// <summary>
     /// Gửi tin nhắn Ephemeral (chỉ duy nhất người dùng nhận được chỉ định nhìn thấy).
     /// </summary>
-    public async Task SendEphemeralMessageAsync(long channelId, long userId, string text)
+    public virtual async Task SendEphemeralMessageAsync(long channelId, long userId, string text)
     {
+        SentEphemeralMessages.Add((channelId, userId, text));
+
         if (_client == null || channelId <= 0 || userId <= 0) return;
 
         try
@@ -2322,8 +2387,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     /// <summary>
     /// Gửi tin nhắn Ephemeral với nội dung đầy đủ (Embed + Buttons) tới người dùng chỉ định.
     /// </summary>
-    public async Task SendEphemeralMessageWithContentAsync(long channelId, long userId, MessageContent content)
+    public virtual async Task SendEphemeralMessageWithContentAsync(long channelId, long userId, MessageContent content)
     {
+        SentEphemeralContents.Add((channelId, userId, content));
+
         if (_client == null || channelId <= 0 || userId <= 0) return;
 
         try

@@ -12,7 +12,7 @@ public static class VocabularyExtractor
     {
         if (string.IsNullOrWhiteSpace(rawText))
         {
-            return ("Vocabulary", "Từ vựng học tập");
+            return (string.Empty, string.Empty);
         }
 
         var text = rawText.Trim();
@@ -50,8 +50,12 @@ public static class VocabularyExtractor
             return (firstLine, firstLine);
         }
 
-        // 4. Nếu là đoạn văn dài, lấy cụm từ khóa đầu tiên (tối đa 5 từ) làm Term
+        // 4. Nếu là đoạn văn dài, lấy cụm từ khóa đầu tiên (tối đa 4 từ) làm Term
         var words = firstLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+        {
+            return (string.Empty, string.Empty);
+        }
         var keyTerm = string.Join(" ", words.Take(Math.Min(4, words.Length)));
         return (keyTerm, firstLine);
     }
