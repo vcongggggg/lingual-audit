@@ -10,6 +10,8 @@ public interface IGamificationService
 
     Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    Task<StreakFreezeResultDto> UseStreakFreezeAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<LeaderboardResponseDto> GetLeaderboardAsync(
         int limit = 20,
         string type = "all-time",

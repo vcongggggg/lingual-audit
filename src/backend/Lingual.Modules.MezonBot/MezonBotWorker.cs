@@ -13,16 +13,21 @@ using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.AITutor.Contracts.DTOs;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
+using Lingual.Modules.Learning.Contracts;
+using Lingual.Modules.Learning.Contracts.DTOs;
 using Lingual.Modules.MezonBot.Services;
 using SdkClient = Mezon.Net.Sdk.MezonClient;
 
 namespace Lingual.Modules.MezonBot;
 
-public class MezonBotWorker : BackgroundService
+public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 {
     private readonly ILogger<MezonBotWorker> _logger;
     private readonly MezonBotOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ReactionBookmarkRateLimiter _reactionRateLimiter;
+    private readonly ConcurrentDictionary<long, string> _recentMessageContentCache = new();
+    private readonly ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> _userChannelMap = new();
     private SdkClient? _client;
 
     public class UserRoleplaySession
@@ -226,14 +231,20 @@ public class MezonBotWorker : BackgroundService
         return "unknown";
     }
 
+    public ReactionBookmarkRateLimiter ReactionRateLimiter => _reactionRateLimiter;
+    public ConcurrentDictionary<long, string> RecentMessageContentCache => _recentMessageContentCache;
+    public ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> UserChannelMap => _userChannelMap;
+
     public MezonBotWorker(
         ILogger<MezonBotWorker> logger,
         IOptions<MezonBotOptions> options,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ReactionBookmarkRateLimiter? reactionRateLimiter = null)
     {
         _logger = logger;
         _options = options.Value;
         _scopeFactory = scopeFactory;
+        _reactionRateLimiter = reactionRateLimiter ?? new ReactionBookmarkRateLimiter(10);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -290,6 +301,7 @@ public class MezonBotWorker : BackgroundService
                 _client.MessageButtonClicked += OnMessageButtonClickedAsync;
                 _client.DropdownBoxSelected += OnDropdownBoxSelectedAsync;
                 _client.UserChannelAdded += OnUserChannelAddedAsync;
+                _client.MessageReactionReceived += OnMessageReactionReceivedAsync;
 
                 await _client.LoginAsync();
                 _logger.LogInformation("✅ [MezonBot] Đã đăng nhập thành công vào Gateway Mezon!");
@@ -342,6 +354,7 @@ public class MezonBotWorker : BackgroundService
                         _client.MessageButtonClicked -= OnMessageButtonClickedAsync;
                         _client.DropdownBoxSelected -= OnDropdownBoxSelectedAsync;
                         _client.UserChannelAdded -= OnUserChannelAddedAsync;
+                        _client.MessageReactionReceived -= OnMessageReactionReceivedAsync;
                         await _client.DisposeAsync();
                     }
                     catch (Exception disposeEx)
@@ -483,6 +496,37 @@ public class MezonBotWorker : BackgroundService
             if (string.IsNullOrWhiteSpace(rawContent))
             {
                 return;
+            }
+
+            if (data.MessageId > 0)
+            {
+                _recentMessageContentCache[data.MessageId] = rawContent;
+                if (_recentMessageContentCache.Count > 2000)
+                {
+                    var oldest = _recentMessageContentCache.Keys.Take(500).ToList();
+                    foreach (var k in oldest) _recentMessageContentCache.TryRemove(k, out _);
+                }
+            }
+
+            if (data.SenderId > 0 && data.ChannelId > 0)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+                        var uid = await userResolver.ResolveUserIdAsync(data.SenderId.ToString(), data.Username);
+                        if (uid != Guid.Empty)
+                        {
+                            _userChannelMap[uid] = (data.ChannelId, data.SenderId);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore background user channel resolution failure
+                    }
+                });
             }
 
             var parsed = MessageContent.Parse(rawContent);
@@ -1173,6 +1217,79 @@ public class MezonBotWorker : BackgroundService
             {
                 await HandleLeaderboardCommandAsync(channelId, mezonUserId);
             }
+            else if (buttonId == "btn_srs_review_now")
+            {
+                if (long.TryParse(mezonUserId, out var uid))
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+                    var flashcardService = scope.ServiceProvider.GetRequiredService<IFlashcardService>();
+                    var userId = await userResolver.ResolveUserIdAsync(mezonUserId);
+                    var dueCards = await flashcardService.GetDueCardsAsync(userId, 5);
+
+                    if (dueCards.Count == 0)
+                    {
+                        await SendEphemeralMessageAsync(channelId, uid, "🎉 LingLing: Bạn đã ôn tập hết các từ vựng đến hạn hôm nay rồi! Thật xuất sắc, hãy tiếp tục duy trì phong độ!");
+                    }
+                    else
+                    {
+                        var embedBuilder = new MessageEmbedBuilder()
+                            .SetColor("#6366F1") // Indigo
+                            .SetTitle("📚 ÔN TẬP TỪ VỰNG SRS — LINGUAL")
+                            .SetDescription($"Chào bạn, đây là **{dueCards.Count} từ vựng** đến hạn cần ôn tập hôm nay để củng cố trí nhớ dài hạn (Spaced Repetition):");
+
+                        int idx = 1;
+                        foreach (var c in dueCards)
+                        {
+                            embedBuilder.AddField($"{idx++}. 🔹 {c.Term}", $"• Ý nghĩa: **{c.Meaning}**\n• Chu kỳ: {c.IntervalDays} ngày | Lần ôn: {c.Repetitions}", false);
+                        }
+
+                        embedBuilder.SetFooter("Hoàn thành ôn tập mỗi ngày để giữ vững Streak và củng cố trí nhớ! • LINGUAL", "");
+
+                        var actionButtons = new ButtonBuilder()
+                            .AddButton("btn_open_miniapp", "🚀 Mở Webview luyện Quiz", 1, false, "", "")
+                            .BuildComponents();
+
+                        var content = new MessageContentBuilder()
+                            .SetText("📖 Danh sách từ vựng SRS cần ôn tập:")
+                            .AddEmbed(embedBuilder.Build())
+                            .AddActionRow(actionButtons)
+                            .Build();
+
+                        await SendEphemeralMessageWithContentAsync(channelId, uid, content);
+                    }
+                }
+            }
+            else if (buttonId == "btn_use_freeze")
+            {
+                if (long.TryParse(mezonUserId, out var uid))
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var streakService = scope.ServiceProvider.GetRequiredService<IUserStreakService>();
+                    var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
+                    var result = await streakService.UseStreakFreezeAsync(mezonUserId, username);
+
+                    if (result.IsSuccess)
+                    {
+                        var embedBuilder = new MessageEmbedBuilder()
+                            .SetColor("#10B981") // Emerald Green
+                            .SetTitle("🛡️ KÍCH HOẠT KHIÊN ĐÓNG BĂNG THÀNH CÔNG!")
+                            .SetDescription($"Chúc mừng **{username}**! Chuỗi học tập **{result.CurrentDays} ngày** của bạn đã được đóng băng bảo vệ an toàn cho ngày hôm nay.\n\n🛡️ **Số khiên Streak Freeze còn lại:** {result.RemainingFreezes} khiên.")
+                            .SetFooter("LINGUAL Streak Protection System • Mezon Campus Studio 2026", "");
+
+                        var content = new MessageContentBuilder()
+                            .SetText("✨ Trạng thái bảo vệ Streak của bạn:")
+                            .AddEmbed(embedBuilder.Build())
+                            .Build();
+
+                        await SendEphemeralMessageWithContentAsync(channelId, uid, content);
+                    }
+                    else
+                    {
+                        await SendEphemeralMessageAsync(channelId, uid, $"⚠️ LingLing: {result.Message}");
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1207,6 +1324,188 @@ public class MezonBotWorker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý sự kiện DropdownBoxSelected");
+        }
+    }
+
+    public static bool IsBookmarkEmoji(string? emoji)
+    {
+        if (string.IsNullOrWhiteSpace(emoji)) return false;
+        var e = emoji.Trim().ToLowerInvariant();
+        return e == "🔖" || e == "⭐" || e == "📌" || e == "🏷️"
+            || e.Contains("bookmark") || e.Contains("star") || e.Contains("pin");
+    }
+
+    public async Task OnMessageReactionReceivedAsync(MessageReactionEventData eventData)
+    {
+        try
+        {
+            MessageReactionResponse reaction = (MessageReactionResponse)eventData;
+            if (!reaction.Action)
+            {
+                return;
+            }
+
+            if (!IsBookmarkEmoji(reaction.Emoji))
+            {
+                return;
+            }
+
+            var senderId = reaction.SenderId;
+            var channelId = reaction.ChannelId;
+            var messageId = reaction.MessageId;
+            var clanId = reaction.ClanId;
+
+            if (senderId <= 0 || channelId <= 0 || messageId <= 0)
+            {
+                return;
+            }
+
+            // Rate limit: Tối đa 10 bookmark / phút / user
+            if (!_reactionRateLimiter.TryAcquire(senderId.ToString()))
+            {
+                _logger.LogWarning("⚠️ [MezonBot] User {SenderId} bị rate limit reaction bookmark (quá 10 lần/phút).", senderId);
+                await SendEphemeralMessageAsync(channelId, senderId, "⚠️ LingLing: Bạn đang thao tác bookmark quá nhanh (giới hạn tối đa 10 lần/phút). Vui lòng thử lại sau ít phút!");
+                return;
+            }
+
+            _recentMessageContentCache.TryGetValue(messageId, out var rawContent);
+            string messageText = string.Empty;
+            if (!string.IsNullOrWhiteSpace(rawContent))
+            {
+                try
+                {
+                    var parsed = MessageContent.Parse(rawContent);
+                    messageText = parsed.Text?.Trim() ?? rawContent.Trim();
+                }
+                catch
+                {
+                    messageText = rawContent.Trim();
+                }
+            }
+
+            var (term, meaning) = VocabularyExtractor.ExtractTermAndMeaning(messageText);
+
+            using var scope = _scopeFactory.CreateScope();
+            var userResolver = scope.ServiceProvider.GetRequiredService<IMezonUserResolver>();
+            var flashcardService = scope.ServiceProvider.GetRequiredService<IFlashcardService>();
+
+            var userId = await userResolver.ResolveUserIdAsync(senderId.ToString(), reaction.SenderName);
+            if (userId != Guid.Empty)
+            {
+                _userChannelMap[userId] = (channelId, senderId);
+            }
+
+            var card = await flashcardService.CreateOrBookmarkFlashcardAsync(userId, term, meaning);
+
+            // Gửi Ephemeral xác nhận tới người dùng
+            await SendEphemeralMessageAsync(channelId, senderId,
+                $"🔖 LingLing: Đã lưu từ vựng **{card.Term}** (*{card.Meaning}*) vào sổ tay Flashcard SRS của bạn!\n(Chu kỳ ôn tập ban đầu: {card.IntervalDays} ngày • Hệ số dễ: {card.EaseFactor})");
+
+            // Bot thêm reaction checkmark ✅ vào tin nhắn gốc
+            await AddReactionToMessageAsync(clanId, channelId, messageId, "✅");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý MessageReactionReceived.");
+        }
+    }
+
+    public async Task AddReactionToMessageAsync(long clanId, long channelId, long messageId, string emoji)
+    {
+        if (_client == null || channelId <= 0 || messageId <= 0) return;
+
+        try
+        {
+            var engineField = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
+            var engine = engineField?.GetValue(_client) as Mezon.Net.Client.MezonClient;
+            if (engine != null)
+            {
+                var method = engine.GetType().GetMethod("SendMessageReactionRtAsync");
+                if (method != null)
+                {
+                    var paramType = method.GetParameters()[0].ParameterType;
+                    var ctor = paramType.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+                    if (ctor != null)
+                    {
+                        var ctorParams = ctor.GetParameters();
+                        var args = new object?[ctorParams.Length];
+                        for (int i = 0; i < ctorParams.Length; i++)
+                        {
+                            var name = ctorParams[i].Name?.ToLowerInvariant();
+                            if (name == "clanid") args[i] = clanId;
+                            else if (name == "channelid") args[i] = channelId;
+                            else if (name == "messageid") args[i] = messageId;
+                            else if (name == "emoji") args[i] = emoji;
+                            else if (name == "action") args[i] = true;
+                            else if (ctorParams[i].ParameterType == typeof(bool)) args[i] = true;
+                            else if (ctorParams[i].HasDefaultValue) args[i] = ctorParams[i].DefaultValue;
+                            else args[i] = null;
+                        }
+                        var reactObj = ctor.Invoke(args);
+                        var task = method.Invoke(engine, new[] { reactObj, null }) as Task;
+                        if (task != null) await task;
+                    }
+                }
+                _logger.LogInformation("✅ [MezonBot] Đã thêm reaction {Emoji} vào Message {MessageId} tại Channel {ChannelId}", emoji, messageId, channelId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Không thể thêm reaction vào Message {MessageId}", messageId);
+        }
+    }
+
+    public (long channelId, long mezonUserId)? GetUserChannelMapping(Guid userId)
+    {
+        if (_userChannelMap.TryGetValue(userId, out var mapping))
+        {
+            return mapping;
+        }
+        return null;
+    }
+
+    public async Task<bool> SendSrsReminderAsync(
+        Guid userId,
+        long channelId,
+        long mezonUserId,
+        int dueCardsCount,
+        int currentStreakDays,
+        int freezeBalance,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client == null || channelId <= 0 || mezonUserId <= 0) return false;
+
+        try
+        {
+            var embedBuilder = new MessageEmbedBuilder()
+                .SetColor("#F59E0B")
+                .SetTitle("⏰ NHẮC NHỞ ÔN TẬP SRS & NGUY CƠ ĐỨT CHUỖI STREAK!")
+                .SetDescription("Chào bạn, bạn có từ vựng đến hạn cần ôn tập hôm nay theo phương pháp Spaced Repetition và mục tiêu Streak hôm nay chưa hoàn thành!")
+                .AddField("📚 Thẻ cần ôn hôm nay", $"**{dueCardsCount}** từ vựng", true)
+                .AddField("🔥 Chuỗi hiện tại", $"**{currentStreakDays}** ngày liên tục", true)
+                .AddField("🛡️ Khiên đóng băng", $"**{freezeBalance}** khiên khả dụng", true)
+                .AddField("⚡ Hành động nhanh", "Nhấn **[Ôn 5 từ ngay]** để hoàn thành bài ôn tập 2 phút hoặc dùng **[Dùng khiên đóng băng]** để giữ streak hôm nay!", false)
+                .SetFooter("Đừng để ngọn lửa học tập bị dập tắt! • LINGUAL Spaced Repetition", "");
+
+            var buttons = new ButtonBuilder()
+                .AddButton("btn_srs_review_now", "📖 Ôn 5 từ ngay", 1, false, "", "")
+                .AddButton("btn_use_freeze", "🛡️ Dùng khiên đóng băng", 2, false, "", "")
+                .BuildComponents();
+
+            var content = new MessageContentBuilder()
+                .SetText("🔔 Thông báo nhắc nhở học tập cá nhân:")
+                .AddEmbed(embedBuilder.Build())
+                .AddActionRow(buttons)
+                .Build();
+
+            await SendEphemeralMessageWithContentAsync(channelId, mezonUserId, content);
+            _logger.LogInformation("🔔 [MezonBot] Đã gửi thông báo nhắc SRS tới User {UserId} (Mezon {MezonUserId})", userId, mezonUserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi thông báo nhắc SRS tới User {UserId}", userId);
+            return false;
         }
     }
 

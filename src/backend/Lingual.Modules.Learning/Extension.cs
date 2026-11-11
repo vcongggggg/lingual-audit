@@ -1,5 +1,7 @@
 using System.Reflection;
+using Lingual.Modules.Learning.Contracts;
 using Lingual.Modules.Learning.Infrastructure.Data;
+using Lingual.Modules.Learning.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +16,9 @@ public static class Extension
 
         // Learning DbContext & Persistence
         services.AddLearningDbContext(configuration);
+
+        // Learning Services
+        services.AddScoped<IFlashcardService, FlashcardService>();
 
         return builder;
     }

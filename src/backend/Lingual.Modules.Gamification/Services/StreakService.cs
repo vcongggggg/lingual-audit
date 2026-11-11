@@ -228,6 +228,85 @@ public class StreakService(
         );
     }
 
+    public async Task<StreakFreezeResultDto> UseStreakFreezeAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var today = TimeZoneHelper.GetCurrentVietnamDate();
+        var todayKey = today.ToString("yyyy-MM-dd");
+
+        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        if (streak == null)
+        {
+            streak = new UserStreak
+            {
+                UserId = userId,
+                CurrentDays = 0,
+                BestDays = 0,
+                FreezeBalance = 1,
+                LastActiveDate = null,
+                DailyActivity = "{}",
+                FreezeHistory = "[]",
+                UpdatedAt = DateTime.UtcNow
+            };
+            dbContext.UserStreaks.Add(streak);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            EvaluateStreakIntegrity(streak, today);
+        }
+
+        if (streak.FreezeBalance <= 0)
+        {
+            return new StreakFreezeResultDto(
+                IsSuccess: false,
+                RemainingFreezes: 0,
+                CurrentDays: streak.CurrentDays,
+                Message: "Bạn không còn Khiên đóng băng (Streak Freeze) nào để sử dụng!"
+            );
+        }
+
+        var freezeHistory = DeserializeFreezeHistory(streak.FreezeHistory);
+
+        // Kiểm tra nếu hôm nay đã kích hoạt khiên đóng băng rồi
+        if (freezeHistory.Any(f => f.Date == todayKey && (f.Action == "manual_freeze_activated" || f.Action == "streak_freeze_protection")))
+        {
+            return new StreakFreezeResultDto(
+                IsSuccess: false,
+                RemainingFreezes: streak.FreezeBalance,
+                CurrentDays: streak.CurrentDays,
+                Message: "Bạn đã kích hoạt Khiên đóng băng cho ngày hôm nay rồi!"
+            );
+        }
+
+        // Tiêu thụ thật 1 khiên đóng băng trong CSDL
+        streak.FreezeBalance -= 1;
+        freezeHistory.Add(new FreezeHistoryEntry
+        {
+            Date = todayKey,
+            Action = "manual_freeze_activated",
+            Reason = "streak_freeze_protection",
+            Quantity = 1,
+            Timestamp = DateTime.UtcNow
+        });
+
+        // Bảo toàn chuỗi cho ngày hôm nay bằng cách cập nhật LastActiveDate để ngày mai không bị đứt chuỗi
+        streak.LastActiveDate = today;
+        streak.FreezeHistory = JsonSerializer.Serialize(freezeHistory);
+        streak.UpdatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("🛡️ [StreakService] User {UserId} đã kích hoạt Khiên đóng băng thành công cho ngày {Date}! Còn lại {Remaining} khiên.",
+            userId, todayKey, streak.FreezeBalance);
+
+        return new StreakFreezeResultDto(
+            IsSuccess: true,
+            RemainingFreezes: streak.FreezeBalance,
+            CurrentDays: streak.CurrentDays,
+            Message: $"Kích hoạt Khiên đóng băng thành công! Chuỗi {streak.CurrentDays} ngày của bạn đã được bảo vệ an toàn cho ngày hôm nay."
+        );
+    }
+
     private static void ApplyActiveDayStreak(UserStreak streak, DateOnly today, List<FreezeHistoryEntry> freezeHistory, ILogger logger)
     {
         if (streak.LastActiveDate == null)

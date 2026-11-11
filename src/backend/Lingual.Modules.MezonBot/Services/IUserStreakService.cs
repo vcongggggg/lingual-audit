@@ -16,4 +16,5 @@ public interface IUserStreakService
 {
     Task<DailyCheckinResultDto> ProcessDailyCheckinAsync(string mezonUserId, string displayName);
     Task<UserStreakDto?> GetStreakAsync(string mezonUserId);
+    Task<StreakFreezeResultDto> UseStreakFreezeAsync(string mezonUserId, string displayName);
 }

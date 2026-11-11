@@ -67,4 +67,23 @@ public class UserStreakService : IUserStreakService
             return null;
         }
     }
+
+    public async Task<StreakFreezeResultDto> UseStreakFreezeAsync(string mezonUserId, string displayName)
+    {
+        try
+        {
+            var userId = await _userResolver.ResolveUserIdAsync(mezonUserId, displayName);
+            return await _gamificationService.UseStreakFreezeAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [UserStreakService] Lỗi khi sử dụng Streak Freeze cho Mezon User {MezonUserId}", mezonUserId);
+            return new StreakFreezeResultDto(
+                IsSuccess: false,
+                RemainingFreezes: 0,
+                CurrentDays: 0,
+                Message: "Đã xảy ra lỗi khi kết nối hệ thống khiên đóng băng. Vui lòng thử lại sau!"
+            );
+        }
+    }
 }

@@ -9,10 +9,17 @@ public static class MezonBotModuleExtensions
     public static IServiceCollection AddMezonBotModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<MezonBotOptions>(configuration.GetSection(MezonBotOptions.SectionName));
+        services.AddSingleton<ReactionBookmarkRateLimiter>();
         services.AddScoped<IClanQuizService, ClanQuizService>();
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
-        services.AddHostedService<MezonBotWorker>();
+        services.AddScoped<ISrsReminderService, SrsReminderService>();
+
+        services.AddSingleton<MezonBotWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<MezonBotWorker>());
+        services.AddSingleton<IMezonBotNotifier>(sp => sp.GetRequiredService<MezonBotWorker>());
+
+        services.AddHostedService<SrsReminderBackgroundService>();
         return services;
     }
 }
