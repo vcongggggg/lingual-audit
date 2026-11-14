@@ -1,2 +1,3 @@
 @echo off
-powershell -ExecutionPolicy Bypass -File "%~dp0scripts\trigger-quiz.ps1" %*
+chcp 65001 >nul
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\trigger-quiz.ps1" %*
