@@ -253,13 +253,13 @@ public class ClanQuizService : IClanQuizService
         {
             // === RULE LIÊN CLAN SCHEDULED QUIZ ===
             // 1 user CHỈ được nhận XP quiz theo lịch TỐI ĐA 1 LẦN cho mỗi (ngày + khung giờ) TRÊN TOÀN BỘ CÁC CLAN.
+            // Nếu trả lời sai ở Clan A (0 XP), học viên vẫn có cơ hội nhận XP khi trả lời đúng ở Clan B.
             var existingParticipation = await _dbContext.ScheduledQuizParticipations
-                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.SlotKey == session.SlotKey && (p.UserId == resolvedUserId || p.MezonUserId == mezonUserId));
 
-            if (existingParticipation != null)
+            if (existingParticipation != null && existingParticipation.XpAwarded > 0)
             {
-                // Người dùng đã tham gia ở Clan khác trong khung giờ này
+                // Người dùng ĐÃ NHẬN XP ở Clan khác trong khung giờ này
                 xpAwarded = 0;
                 message = "Bạn đã nhận XP khung giờ này ở clan khác, câu này chỉ luyện tập - 0 XP";
             }
@@ -290,23 +290,35 @@ public class ClanQuizService : IClanQuizService
                     message = "❌ Tiếc quá, câu trả lời chưa chính xác!";
                 }
 
-                // Ghi nhận lượt tham gia vào scheduled_quiz_participations
+                // Ghi nhận / cập nhật lượt tham gia vào scheduled_quiz_participations
                 try
                 {
-                    var participation = new ScheduledQuizParticipation
+                    if (existingParticipation != null)
                     {
-                        Id = Guid.NewGuid(),
-                        SlotKey = session.SlotKey!,
-                        UserId = resolvedUserId,
-                        MezonUserId = mezonUserId,
-                        ClanId = channelId,
-                        ChannelId = channelId,
-                        SessionId = sessionId,
-                        IsCorrect = isCorrect,
-                        XpAwarded = xpAwarded,
-                        CreatedAt = now
-                    };
-                    _dbContext.ScheduledQuizParticipations.Add(participation);
+                        existingParticipation.SessionId = sessionId;
+                        existingParticipation.ChannelId = channelId;
+                        existingParticipation.ClanId = channelId;
+                        existingParticipation.IsCorrect = isCorrect;
+                        existingParticipation.XpAwarded = xpAwarded;
+                        existingParticipation.CreatedAt = now;
+                    }
+                    else
+                    {
+                        var participation = new ScheduledQuizParticipation
+                        {
+                            Id = Guid.NewGuid(),
+                            SlotKey = session.SlotKey!,
+                            UserId = resolvedUserId,
+                            MezonUserId = mezonUserId,
+                            ClanId = channelId,
+                            ChannelId = channelId,
+                            SessionId = sessionId,
+                            IsCorrect = isCorrect,
+                            XpAwarded = xpAwarded,
+                            CreatedAt = now
+                        };
+                        _dbContext.ScheduledQuizParticipations.Add(participation);
+                    }
                     await _dbContext.SaveChangesAsync();
                 }
                 catch (Exception ex)
@@ -581,7 +593,7 @@ public class ClanQuizService : IClanQuizService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể upsert user cho mezonUserId {MezonUserId}. Sử dụng Guid ngẫu nhiên.", mezonUserId);
+                _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể upsert user cho mezonUserId {MezonUserId}. Sử dụng Guid xác định từ MD5 của mezonUserId.", mezonUserId);
             }
         }
 

@@ -690,9 +690,10 @@ public class AdvancedFeaturesMilestone23Tests
         // Act
         await worker.OnMessageButtonClickedAsync(btnEvent);
 
-        // Assert - Phai gui embed phong voice cap nhat vao channel
-        worker.SentChannelContents.Should().Contain(m =>
+        // Assert - Phai gui embed phong voice cap nhat vao ephemeral
+        worker.SentEphemeralContents.Should().Contain(m =>
             m.ChannelId == channelId &&
+            m.UserId == userId &&
             m.Content.ToJson().Contains("VOICE STUDY ROOM") &&
             m.Content.ToJson().Contains("btn_voice_refresh"));
     }

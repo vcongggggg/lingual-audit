@@ -286,6 +286,18 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         (msg, emojiId, emoji, botId) => msg.AddReactionAsync(emojiId, emoji, botId);
 
     /// <summary>
+    /// Cho phép unit test / test double thay thế phương thức gọi SDK CreatePinMessageAsync.
+    /// Mặc định: null (gọi trực tiếp _client.CreatePinMessageAsync).
+    /// </summary>
+    public Func<PinMessageParams, Task>? PinMessageExecutor { get; set; }
+
+    /// <summary>
+    /// Cho phép unit test / test double thay thế phương thức gọi SDK DeletePinMessageAsync.
+    /// Mặc định: null (gọi trực tiếp _client.DeletePinMessageAsync).
+    /// </summary>
+    public Func<long, long, long, Task>? UnpinMessageExecutor { get; set; }
+
+    /// <summary>
     /// Cho phép unit test thiết lập SdkClient giả lập để kiểm thử logic xử lý nội bộ.
     /// </summary>
     public void SetClientForTesting(SdkClient client)
@@ -1835,7 +1847,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             {
                 var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
                 ChannelClanMap.TryGetValue(channelId, out var clanId);
-                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null);
+                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId == "btn_srs_review_now")
             {
@@ -2372,18 +2384,90 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         return true;
     }
 
-    public virtual Task<bool> CreatePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
+    public virtual async Task<bool> CreatePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
     {
         PinnedMessages.Add((channelId, messageId));
         _logger.LogInformation("📌 [MezonBot] Yêu cầu ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
-        return Task.FromResult(true);
+
+        ChannelClanMap.TryGetValue(channelId, out var clanId);
+        if (clanId <= 0) clanId = _options.GetEffectiveClanId();
+
+        var pinParams = new PinMessageParams((long)messageId, channelId, clanId);
+
+        if (PinMessageExecutor != null)
+        {
+            try
+            {
+                await PinMessageExecutor(pinParams);
+                _logger.LogInformation("📌 [MezonBot] Đã ghim thành công tin nhắn {MessageId} tại Channel {ChannelId} (Clan {ClanId}) qua PinMessageExecutor", messageId, channelId, clanId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thực thi PinMessageExecutor cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
+                return false;
+            }
+        }
+
+        if (_client == null)
+        {
+            _logger.LogWarning("⚠️ [MezonBot] MezonClient chưa khởi tạo, không thể ghim tin nhắn {MessageId}", messageId);
+            return false;
+        }
+
+        try
+        {
+            await _client.CreatePinMessageAsync(pinParams);
+            _logger.LogInformation("📌 [MezonBot] Đã ghim thành công tin nhắn {MessageId} tại Channel {ChannelId} (Clan {ClanId}) qua SDK", messageId, channelId, clanId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gọi SDK CreatePinMessageAsync cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
+            return false;
+        }
     }
 
-    public virtual Task<bool> DeletePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
+    public virtual async Task<bool> DeletePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
     {
         UnpinnedMessages.Add((channelId, messageId));
         _logger.LogInformation("📌 [MezonBot] Yêu cầu gỡ ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
-        return Task.FromResult(true);
+
+        ChannelClanMap.TryGetValue(channelId, out var clanId);
+        if (clanId <= 0) clanId = _options.GetEffectiveClanId();
+
+        if (UnpinMessageExecutor != null)
+        {
+            try
+            {
+                await UnpinMessageExecutor((long)messageId, channelId, clanId);
+                _logger.LogInformation("📌 [MezonBot] Đã gỡ ghim thành công tin nhắn {MessageId} tại Channel {ChannelId} (Clan {ClanId}) qua UnpinMessageExecutor", messageId, channelId, clanId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thực thi UnpinMessageExecutor cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
+                return false;
+            }
+        }
+
+        if (_client == null)
+        {
+            _logger.LogWarning("⚠️ [MezonBot] MezonClient chưa khởi tạo, không thể gỡ ghim tin nhắn {MessageId}", messageId);
+            return false;
+        }
+
+        try
+        {
+            await _client.DeletePinMessageAsync((long)messageId, channelId, clanId);
+            _logger.LogInformation("📌 [MezonBot] Đã gỡ ghim thành công tin nhắn {MessageId} tại Channel {ChannelId} (Clan {ClanId}) qua SDK", messageId, channelId, clanId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gọi SDK DeletePinMessageAsync cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
+            return false;
+        }
     }
 
     public async Task<bool> SendSrsReminderAsync(
@@ -3394,5 +3478,24 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi Ephemeral Content tới User {UserId}", userId);
         }
+    }
+}
+
+public static class MezonClientPinExtensions
+{
+    public static Task CreatePinMessageAsync(this SdkClient client, PinMessageParams body)
+    {
+        var field = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
+        var engine = field?.GetValue(client) as Mezon.Net.Client.MezonClient
+            ?? throw new InvalidOperationException("Không thể truy cập engine từ MezonClient");
+        return engine.CreatePinMessageAsync(body);
+    }
+
+    public static Task DeletePinMessageAsync(this SdkClient client, long messageId, long channelId, long clanId)
+    {
+        var field = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
+        var engine = field?.GetValue(client) as Mezon.Net.Client.MezonClient
+            ?? throw new InvalidOperationException("Không thể truy cập engine từ MezonClient");
+        return engine.DeletePinMessageAsync(messageId, channelId, clanId);
     }
 }

@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Mezon.Net.Sdk;
@@ -47,6 +49,78 @@ public class ScheduledClanQuizTests
         var session = await dbContext.ClanQuizSessions.Include(s => s.Question).FirstAsync(s => s.Id == sessionId);
         var options = JsonSerializer.Deserialize<List<OptionItem>>(session.Question!.Options, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         return options!.First(o => o.IsCorrect).Key;
+    }
+
+    private async Task<string> GetWrongKeyAsync(MezonBotDbContext dbContext, Guid sessionId)
+    {
+        var session = await dbContext.ClanQuizSessions.Include(s => s.Question).FirstAsync(s => s.Id == sessionId);
+        var options = JsonSerializer.Deserialize<List<OptionItem>>(session.Question!.Options, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        return options!.First(o => !o.IsCorrect).Key;
+    }
+
+    [Fact]
+    public async Task MezonBotWorker_CreatePinMessageAsync_And_DeletePinMessageAsync_InvokesRealSdkOrExecutor()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        var serviceProvider = services.BuildServiceProvider();
+        var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var options = Options.Create(new MezonBotOptions
+        {
+            BotId = "123",
+            Token = "fake",
+            Enabled = false,
+            ClanId = "1819651515982843904"
+        });
+
+        var worker = new MezonBotWorker(
+            new NullLogger<MezonBotWorker>(),
+            options,
+            scopeFactory);
+
+        long channelId = 1819651515982843904L;
+        ulong messageId = 987654321UL;
+        long clanId = 1819651515982843904L;
+
+        PinMessageParams? capturedPinParams = null;
+        worker.PinMessageExecutor = (p) =>
+        {
+            capturedPinParams = p;
+            return Task.CompletedTask;
+        };
+
+        long? capturedUnpinMessageId = null;
+        long? capturedUnpinChannelId = null;
+        long? capturedUnpinClanId = null;
+        worker.UnpinMessageExecutor = (mId, chId, clId) =>
+        {
+            capturedUnpinMessageId = mId;
+            capturedUnpinChannelId = chId;
+            capturedUnpinClanId = clId;
+            return Task.CompletedTask;
+        };
+
+        // Act 1: Ghim tin nhắn
+        var pinSuccess = await worker.CreatePinMessageAsync(channelId, messageId);
+
+        // Assert 1: Đã gọi qua PinMessageExecutor với đúng ChannelId, MessageId, ClanId và ghi nhận PinnedMessages
+        pinSuccess.Should().BeTrue();
+        capturedPinParams.Should().NotBeNull();
+        capturedPinParams!.Value.ChannelId.Should().Be(channelId);
+        capturedPinParams.Value.MessageId.Should().Be((long)messageId);
+        capturedPinParams.Value.ClanId.Should().Be(clanId);
+        worker.PinnedMessages.Should().Contain((channelId, messageId));
+
+        // Act 2: Gỡ ghim tin nhắn
+        var unpinSuccess = await worker.DeletePinMessageAsync(channelId, messageId);
+
+        // Assert 2: Đã gọi qua UnpinMessageExecutor với đúng MessageId, ChannelId, ClanId và ghi nhận UnpinnedMessages
+        unpinSuccess.Should().BeTrue();
+        capturedUnpinMessageId.Should().Be((long)messageId);
+        capturedUnpinChannelId.Should().Be(channelId);
+        capturedUnpinClanId.Should().Be(clanId);
+        worker.UnpinnedMessages.Should().Contain((channelId, messageId));
     }
 
     [Fact]
@@ -360,6 +434,68 @@ public class ScheduledClanQuizTests
         resultClanA.IsCorrect.Should().BeTrue();
         resultClanA.XpAwarded.Should().Be(0);
         resultClanA.Message.Should().Contain("Bạn đã nhận XP khung giờ này ở clan khác, câu này chỉ luyện tập - 0 XP");
+    }
+
+    [Fact]
+    public async Task CrossClanXpRule_WrongAnswerInClanA_StillAwardsXpForCorrectAnswerInClanB()
+    {
+        // Arrange: 2 Clan A và B chung slotKey scheduled quiz
+        using var dbContext = CreateInMemoryDbContext();
+        var clanQuizServiceLoggerMock = new Mock<ILogger<ClanQuizService>>();
+        var clanQuizService = new ClanQuizService(dbContext, clanQuizServiceLoggerMock.Object);
+
+        var slotKey = "2026-11-14_09:00";
+        var channelClanA = 3001L;
+        var channelClanB = 4002L;
+
+        var sessionA = await clanQuizService.StartSessionAsync(channelClanA, startedByMezonUserId: null, durationSeconds: 60, isPractice: false, slotKey: slotKey);
+        var sessionB = await clanQuizService.StartSessionAsync(channelClanB, startedByMezonUserId: null, durationSeconds: 60, isPractice: false, slotKey: slotKey);
+
+        sessionA.Should().NotBeNull();
+        sessionB.Should().NotBeNull();
+
+        var learnerMezonId = "learner_bob_99999";
+        var learnerName = "Bob Study Hard";
+
+        var wrongKeyA = await GetWrongKeyAsync(dbContext, sessionA!.SessionId);
+        var correctKeyB = await GetCorrectKeyAsync(dbContext, sessionB!.SessionId);
+
+        // Act 1: Học viên trả lời SAI tại Clan A trước (nhận 0 XP, không bị tiêu cơ hội nhận XP)
+        var resultClanA = await clanQuizService.SubmitAnswerAsync(
+            sessionA.SessionId,
+            channelClanA,
+            learnerMezonId,
+            learnerName,
+            wrongKeyA);
+
+        // Assert 1: Clan A ghi nhận sai, 0 XP, thông báo tiếc quá (chưa nhận XP)
+        resultClanA.Status.Should().Be(QuizSubmissionStatus.Success);
+        resultClanA.IsCorrect.Should().BeFalse();
+        resultClanA.XpAwarded.Should().Be(0);
+        resultClanA.Message.Should().Contain("Tiếc quá, câu trả lời chưa chính xác");
+
+        // Act 2: Học viên chuyển sang Clan B trả lời ĐÚNG trong cùng khung giờ slotKey
+        var resultClanB = await clanQuizService.SubmitAnswerAsync(
+            sessionB.SessionId,
+            channelClanB,
+            learnerMezonId,
+            learnerName,
+            correctKeyB);
+
+        // Assert 2: F2 - Học viên trả lời ĐÚNG và nhanh nhất tại Clan B VẪN ĐƯỢC NHẬN ĐỦ XP (+15 XP Winner)
+        resultClanB.Status.Should().Be(QuizSubmissionStatus.Success);
+        resultClanB.IsCorrect.Should().BeTrue();
+        resultClanB.XpAwarded.Should().Be(15);
+        resultClanB.Message.Should().Contain("Bạn là người trả lời ĐÚNG và NHANH NHẤT (+15 XP)");
+
+        // Assert 3: Kiểm tra database participation đã cập nhật bản ghi thành đúng và XpAwarded = 15
+        var participations = await dbContext.ScheduledQuizParticipations
+            .Where(p => p.SlotKey == slotKey && p.MezonUserId == learnerMezonId)
+            .ToListAsync();
+        participations.Should().HaveCount(1);
+        participations[0].IsCorrect.Should().BeTrue();
+        participations[0].XpAwarded.Should().Be(15);
+        participations[0].ChannelId.Should().Be(channelClanB);
     }
 
     [Fact]
