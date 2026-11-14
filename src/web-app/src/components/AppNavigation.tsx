@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Swords } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Tổng quan", icon: House },
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
   { href: "/tutor", label: "LingLing AI", icon: Bot },
   { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
+  { href: "/arena", label: "Arena 1vs1", icon: Swords },
 ];
 
 export default function AppNavigation() {
