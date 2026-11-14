@@ -1450,7 +1450,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         long channelId,
         long clanId,
         long senderId,
-        ChannelMessageResponse? data = null)
+        ChannelMessageResponse? data = null,
+        long? ephemeralUserId = null)
     {
         try
         {
@@ -1478,7 +1479,15 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 .AddEmbed(embedBuilder.Build())
                 .AddActionRow(buttonBuilder.BuildComponents());
 
-            await ReplyToChannelWithContentAsync(channelId, contentBuilder.Build(), data);
+            var builtContent = contentBuilder.Build();
+            if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
+            {
+                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, builtContent, data);
+            }
+            else
+            {
+                await ReplyToChannelWithContentAsync(channelId, builtContent, data);
+            }
         }
         catch (Exception ex)
         {
@@ -1607,21 +1616,59 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             }
             else if (buttonId == "btn_save_flashcard")
             {
-                await ReplyToChannelAsync(channelId, "💾 LingLing: Đã lưu mẫu câu và giải thích ngữ pháp này vào sổ tay học tập của bạn!");
+                if (long.TryParse(mezonUserId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, "💾 LingLing: Đã lưu mẫu câu và giải thích ngữ pháp này vào sổ tay học tập của bạn!");
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, "💾 LingLing: Đã lưu mẫu câu và giải thích ngữ pháp này vào sổ tay học tập của bạn!");
+                }
             }
             else if (buttonId == "btn_open_miniapp")
             {
-                await ReplyToChannelAsync(channelId, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
+                if (long.TryParse(mezonUserId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
+                }
             }
             else if (buttonId == "btn_guide_ask")
             {
-                await ReplyToChannelAsync(channelId, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
+                if (long.TryParse(mezonUserId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
+                }
+            }
+            else if (buttonId == "btn_learn_now")
+            {
+                if (long.TryParse(mezonUserId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, $"📖 LingLing: Bạn hãy gõ `/learn` để ôn thẻ Flashcard 3D thông minh, hoặc mở Mini-App tại: {_options.WebAppUrl}/learn");
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, $"📖 LingLing: Bạn hãy gõ `/learn` để ôn thẻ Flashcard 3D thông minh, hoặc mở Mini-App tại: {_options.WebAppUrl}/learn");
+                }
+            }
+            else if (buttonId == "btn_quiz_now")
+            {
+                var isDm = ChannelClanMap.TryGetValue(channelId, out var cid) ? (cid <= 0) : false;
+                await HandleQuizCommandAsync(channelId, mezonUserId, isDm);
             }
             else if (buttonId == "btn_roleplay_menu")
             {
                 var sessionKey = GetRoleplaySessionKey(channelId, mezonUserId);
                 ActiveRoleplaySessions.TryRemove(sessionKey, out _);
-                await HandleRoleplayCommandAsync(channelId, mezonUserId, string.Empty);
+                long.TryParse(mezonUserId, out var uid);
+                await HandleRoleplayCommandAsync(channelId, mezonUserId, string.Empty, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId.StartsWith("btn_roleplay_select_"))
             {
@@ -1689,7 +1736,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             {
                 var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
                 ChannelClanMap.TryGetValue(channelId, out var clanId);
-                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null);
+                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId == "btn_srs_review_now")
             {
@@ -2371,7 +2418,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             .AddActionRow(buttons)
             .Build();
 
-        await ReplyToChannelWithContentAsync(channelId, content);
+        if (long.TryParse(senderId, out var uid) && uid > 0)
+        {
+            await SendEphemeralMessageWithContentAsync(channelId, uid, content);
+        }
+        else
+        {
+            await ReplyToChannelWithContentAsync(channelId, content);
+        }
     }
 
     private async Task HandlePollCommandAsync(long channelId, string senderId, string subCommand, ChannelMessageResponse? replyTo = null)
@@ -2589,7 +2643,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         long channelId,
         string senderId,
         string query,
-        ChannelMessageResponse? replyTo = null)
+        ChannelMessageResponse? replyTo = null,
+        long? ephemeralUserId = null)
     {
         try
         {
@@ -2606,7 +2661,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             if (string.IsNullOrWhiteSpace(query))
             {
                 var content = BuildRoleplayScenarioSelectContent();
-                await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+                if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
+                {
+                    await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content, replyTo);
+                }
+                else
+                {
+                    await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+                }
                 return;
             }
 
@@ -2739,7 +2801,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 .AddEmbed(embed)
                 .Build();
 
-            await ReplyToChannelWithContentAsync(channelId, content);
+            if (long.TryParse(senderId, out var uid) && uid > 0)
+            {
+                await SendEphemeralMessageWithContentAsync(channelId, uid, content);
+            }
+            else
+            {
+                await ReplyToChannelWithContentAsync(channelId, content);
+            }
         }
         catch (Exception ex)
         {
@@ -2844,7 +2913,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                         .AddActionRow(buttons)
                         .Build();
 
-                    await ReplyToChannelWithContentAsync(channelId, content);
+                    if (long.TryParse(mezonUserId, out var uid) && uid > 0)
+                    {
+                        await SendEphemeralMessageWithContentAsync(channelId, uid, content);
+                    }
+                    else
+                    {
+                        await ReplyToChannelWithContentAsync(channelId, content);
+                    }
 
                     // 3. Vô hiệu hóa toàn bộ nút chọn đáp án trên tin nhắn câu hỏi gốc để tránh spam
                     if (ActiveQuizMessages.TryRemove(sessionId, out var quizMeta))
