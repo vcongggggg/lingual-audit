@@ -59,6 +59,7 @@ public class QuizQuestionConfiguration : BaseConfiguration<QuizQuestion>
             .IsRequired();
 
         builder.Property(qq => qq.CreatedBy);
+        builder.Property(qq => qq.LastAskedAt);
 
         builder.HasIndex(qq => new { qq.QuizId, qq.SortOrder });
         builder.HasIndex(qq => new { qq.Status, qq.Level, qq.QuestionType });

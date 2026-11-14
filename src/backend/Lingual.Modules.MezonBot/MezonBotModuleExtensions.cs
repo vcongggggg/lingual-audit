@@ -13,9 +13,11 @@ public static class MezonBotModuleExtensions
     public static IServiceCollection AddMezonBotModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<MezonBotOptions>(configuration.GetSection(MezonBotOptions.SectionName));
+        services.Configure<ScheduledQuizOptions>(configuration.GetSection(ScheduledQuizOptions.SectionName));
         services.AddSingleton<ReactionBookmarkRateLimiter>();
         services.AddSingleton<DmConversationRateLimiter>();
         services.AddScoped<IClanQuizService, ClanQuizService>();
+        services.AddScoped<IScheduledQuizService, ScheduledQuizService>();
         services.AddScoped<IReactionQuizService, ReactionQuizService>();
         services.AddScoped<IUserStreakService, UserStreakService>();
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
@@ -40,6 +42,7 @@ public static class MezonBotModuleExtensions
         services.AddSingleton<IMezonBotNotifier>(sp => sp.GetRequiredService<MezonBotWorker>());
 
         services.AddHostedService<SrsReminderBackgroundService>();
+        services.AddHostedService<ScheduledQuizBackgroundService>();
         return services;
     }
 }

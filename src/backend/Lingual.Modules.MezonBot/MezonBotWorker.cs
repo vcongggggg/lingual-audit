@@ -226,7 +226,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             return "daily";
         if (trimmed.Equals("/streak", StringComparison.OrdinalIgnoreCase))
             return "streak";
-        if (trimmed.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
+        if (trimmed.Equals("/quiz", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Equals("/quiz trigger", StringComparison.OrdinalIgnoreCase))
             return "quiz";
         if (trimmed.StartsWith("/roleplay", StringComparison.OrdinalIgnoreCase) ||
             trimmed.StartsWith("/scenario", StringComparison.OrdinalIgnoreCase))
@@ -268,6 +269,9 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     public readonly ConcurrentBag<(long ChannelId, long UserId, string Text)> SentEphemeralMessages = new();
     public readonly ConcurrentBag<(long ChannelId, long UserId, MessageContent Content)> SentEphemeralContents = new();
     public readonly ConcurrentBag<(long ChannelId, MessageContent Content)> SentChannelContents = new();
+    public readonly ConcurrentBag<(long ChannelId, string Text)> SentChannelTexts = new();
+    public readonly ConcurrentBag<(long ChannelId, ulong MessageId)> PinnedMessages = new();
+    public readonly ConcurrentBag<(long ChannelId, ulong MessageId)> UnpinnedMessages = new();
     public readonly ConcurrentBag<(long ClanId, long ChannelId, long MessageId, string Emoji, bool Success)> ReactionHistory = new();
 
     /// <summary>
@@ -604,6 +608,11 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                     : data.Username;
                 long.TryParse(senderId, out var uid);
                 await HandleDailyCommandAsync(data.ChannelId, senderId, displayName, data, ephemeralUserId: uid > 0 ? uid : null);
+            }
+            else if (text.Equals("/quiz trigger", StringComparison.OrdinalIgnoreCase))
+            {
+                var senderId = data.SenderId.ToString();
+                await HandleQuizTriggerCommandAsync(data.ChannelId, senderId, data);
             }
             else if (text.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
             {
@@ -1071,6 +1080,96 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz cho channel {ChannelId}", channelId);
             await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi tạo câu đố. Vui lòng thử lại sau!", replyTo);
+        }
+    }
+
+    /// <summary>
+    /// Xử lý lệnh /quiz trigger (kích hoạt tức thời Scheduled Clan Quiz).
+    /// Chỉ Admin/Owner trong cấu hình mới có quyền chạy.
+    /// Tôn trọng cooldown 60s/kênh và tối đa 1 phiên active/kênh.
+    /// </summary>
+    public virtual async Task HandleQuizTriggerCommandAsync(
+        long channelId,
+        string? senderId,
+        ChannelMessageResponse? replyTo = null)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var scheduledOptions = scope.ServiceProvider.GetService<IOptions<ScheduledQuizOptions>>()?.Value ?? new ScheduledQuizOptions();
+
+            // 1. Phân quyền: Chỉ admin trong AdminUserIds hoặc BotId mới được thực thi
+            var isAdmin = !string.IsNullOrWhiteSpace(senderId) &&
+                (scheduledOptions.AdminUserIds.Contains(senderId) ||
+                 (long.TryParse(_options.BotId, out var botUid) && botUid.ToString() == senderId));
+
+            if (!isAdmin)
+            {
+                var unauthorizedMsg = "⚠️ Lệnh `/quiz trigger` chỉ dành riêng cho Quản trị viên hệ thống!";
+                if (long.TryParse(senderId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, unauthorizedMsg, replyTo);
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, unauthorizedMsg, replyTo);
+                }
+                return;
+            }
+
+            // 2. Cooldown 60s/kênh
+            var now = DateTime.UtcNow;
+            if (ChannelQuizCooldowns.TryGetValue(channelId, out var lastQuizTime))
+            {
+                var elapsed = (now - lastQuizTime).TotalSeconds;
+                if (elapsed < 60)
+                {
+                    var remainingSec = (int)Math.Max(1, Math.Ceiling(60 - elapsed));
+                    var cooldownMsg = $"⏳ Lệnh `/quiz trigger` đang trong thời gian chờ (cooldown). Vui lòng thử lại sau {remainingSec} giây!";
+                    if (long.TryParse(senderId, out var uid) && uid > 0)
+                    {
+                        await SendEphemeralMessageAsync(channelId, uid, cooldownMsg, replyTo);
+                    }
+                    else
+                    {
+                        await ReplyToChannelAsync(channelId, cooldownMsg, replyTo);
+                    }
+                    return;
+                }
+            }
+
+            // 3. Tối đa 1 phiên active/kênh
+            var clanQuizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
+            if (await clanQuizService.HasActiveSessionAsync(channelId))
+            {
+                var activeMsg = "🔒 Kênh này đang có một phiên đố vui đang mở. Vui lòng đợi kết thúc trước khi kích hoạt phiên mới!";
+                if (long.TryParse(senderId, out var uid) && uid > 0)
+                {
+                    await SendEphemeralMessageAsync(channelId, uid, activeMsg, replyTo);
+                }
+                else
+                {
+                    await ReplyToChannelAsync(channelId, activeMsg, replyTo);
+                }
+                return;
+            }
+
+            // Cập nhật Cooldown
+            ChannelQuizCooldowns[channelId] = now;
+
+            // Kích hoạt Scheduled Quiz tức thời
+            var scheduledService = scope.ServiceProvider.GetRequiredService<IScheduledQuizService>();
+            var tz = scheduledOptions.GetTimeZone();
+            var nowVn = TimeZoneInfo.ConvertTimeFromUtc(now, tz);
+            var slotStr = $"{nowVn:HH:mm}";
+            var triggerSlotKey = $"trigger_{nowVn:yyyy-MM-dd_HH:mm}";
+
+            await scheduledService.PostScheduledQuizAsync(triggerSlotKey, channelId, slotStr);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz trigger cho channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi kích hoạt đố vui khung giờ vàng. Vui lòng thử lại sau!", replyTo);
         }
     }
 
@@ -1736,7 +1835,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             {
                 var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
                 ChannelClanMap.TryGetValue(channelId, out var clanId);
-                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleVoiceRoomCommandAsync(channelId, clanId, uid, null);
             }
             else if (buttonId == "btn_srs_review_now")
             {
@@ -2258,6 +2357,33 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             return mapping;
         }
         return null;
+    }
+
+    public virtual async Task<ulong?> SendPublicChannelContentAsync(long channelId, MessageContent content, CancellationToken cancellationToken = default)
+    {
+        var msgId = await ReplyToChannelWithContentAsync(channelId, content);
+        return msgId > 0 ? (ulong)msgId : null;
+    }
+
+    public virtual async Task<bool> SendPublicChannelTextAsync(long channelId, string text, CancellationToken cancellationToken = default)
+    {
+        SentChannelTexts.Add((channelId, text));
+        await ReplyToChannelAsync(channelId, text);
+        return true;
+    }
+
+    public virtual Task<bool> CreatePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
+    {
+        PinnedMessages.Add((channelId, messageId));
+        _logger.LogInformation("📌 [MezonBot] Yêu cầu ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
+        return Task.FromResult(true);
+    }
+
+    public virtual Task<bool> DeletePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
+    {
+        UnpinnedMessages.Add((channelId, messageId));
+        _logger.LogInformation("📌 [MezonBot] Yêu cầu gỡ ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
+        return Task.FromResult(true);
     }
 
     public async Task<bool> SendSrsReminderAsync(

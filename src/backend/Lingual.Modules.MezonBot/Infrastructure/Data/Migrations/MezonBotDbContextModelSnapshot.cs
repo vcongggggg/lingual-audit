@@ -207,6 +207,11 @@ namespace Lingual.Modules.MezonBot.Infrastructure.Data.Migrations
                         .HasDefaultValue("[]")
                         .HasColumnName("responses");
 
+                    b.Property<string>("SlotKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("slot_key");
+
                     b.Property<Guid?>("StartedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("started_by");
@@ -420,6 +425,10 @@ namespace Lingual.Modules.MezonBot.Infrastructure.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("explanation");
 
+                    b.Property<DateTime?>("LastAskedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_asked_at");
+
                     b.Property<string>("Level")
                         .HasMaxLength(2)
                         .HasColumnType("character varying(2)")
@@ -494,6 +503,111 @@ namespace Lingual.Modules.MezonBot.Infrastructure.Data.Migrations
                         .HasDatabaseName("ix_quiz_questions_status_level_question_type");
 
                     b.ToTable("quiz_questions", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.MezonBot.Domain.ScheduledQuizParticipation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<long>("ChannelId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("channel_id");
+
+                    b.Property<long>("ClanId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("clan_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_correct");
+
+                    b.Property<string>("MezonUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("mezon_user_id");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("SlotKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("slot_key");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("XpAwarded")
+                        .HasColumnType("integer")
+                        .HasColumnName("xp_awarded");
+
+                    b.HasKey("Id")
+                        .HasName("pk_scheduled_quiz_participations");
+
+                    b.HasIndex("SessionId", "UserId")
+                        .HasDatabaseName("ix_scheduled_quiz_participations_session_id_user_id");
+
+                    b.HasIndex("SlotKey", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_scheduled_quiz_participations_slot_key_user_id");
+
+                    b.ToTable("scheduled_quiz_participations", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.MezonBot.Domain.ScheduledQuizRun", b =>
+                {
+                    b.Property<string>("SlotKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("slot_key");
+
+                    b.Property<long>("ChannelId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("channel_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<decimal?>("PinnedMessageId")
+                        .HasColumnType("numeric(20,0)")
+                        .HasColumnName("pinned_message_id");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("posted_at");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<DateTime?>("WarnedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("warned_at");
+
+                    b.HasKey("SlotKey")
+                        .HasName("pk_scheduled_quiz_runs");
+
+                    b.HasIndex("ChannelId")
+                        .HasDatabaseName("ix_scheduled_quiz_runs_channel_id");
+
+                    b.ToTable("scheduled_quiz_runs", (string)null);
                 });
 
             modelBuilder.Entity("Lingual.Modules.MezonBot.Domain.ClanQuizSession", b =>
