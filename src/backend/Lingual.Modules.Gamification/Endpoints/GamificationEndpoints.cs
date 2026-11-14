@@ -19,47 +19,7 @@ public class GamificationEndpoints : IEndpointBase
         var group = app.MapGroup("/api/v1/gamification")
             .WithTags("Gamification");
 
-        // 1. Leaderboard API
-        group.MapGet("/leaderboard", async (
-            [FromQuery] int limit = 20,
-            [FromQuery] string type = "all-time",
-            HttpContext httpContext = null!,
-            [FromServices] IGamificationService gamificationService = null!,
-            CancellationToken ct = default) =>
-        {
-            var userId = GetCurrentUserId(httpContext);
-            var result = await gamificationService.GetLeaderboardAsync(limit, type, userId, ct);
-            return Results.Ok(result);
-        })
-        .WithName("GetGamificationLeaderboard")
-        .WithSummary("Lấy bảng xếp hạng điểm XP (Redis)")
-        .WithDescription("Truy vấn Top học viên theo tuần hoặc mọi thời đại từ Redis Sorted Sets.")
-        .Produces<LeaderboardResponseDto>(StatusCodes.Status200OK)
-        .AllowAnonymous();
-
-        // 2. Streak Info API
-        group.MapGet("/streak/me", async (
-            [FromQuery] Guid? userId,
-            HttpContext httpContext,
-            [FromServices] IGamificationService gamificationService,
-            CancellationToken ct) =>
-        {
-            var currentUserId = userId ?? GetCurrentUserId(httpContext);
-            if (!currentUserId.HasValue)
-            {
-                return Results.BadRequest(new { Message = "Không tìm thấy thông tin người dùng." });
-            }
-
-            var streak = await gamificationService.GetUserStreakAsync(currentUserId.Value, ct);
-            return Results.Ok(streak);
-        })
-        .WithName("GetMyStreak")
-        .WithSummary("Lấy thông tin chuỗi ngày học Streak")
-        .WithDescription("Trả về số ngày Streak hiện tại, kỷ lục, trạng thái Active hôm nay và số khiên Streak Freeze.")
-        .Produces<UserStreakDto>(StatusCodes.Status200OK)
-        .AllowAnonymous();
-
-        // 3. Award XP API (Nội bộ / Admin / Learning integration)
+        // 1. Award XP API (Nội bộ / Admin / Learning integration)
         group.MapPost("/xp/award", async (
             [FromBody] AwardXpRequest request,
             [FromServices] IGamificationService gamificationService,
@@ -75,15 +35,41 @@ public class GamificationEndpoints : IEndpointBase
         .Produces<AwardXpResult>(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
 
-        // 4. Content Leaderboard Alias (Tương thích 100% Postman Sprint 1 & Web App)
+        // 2. Content Leaderboard Alias (Tương thích 100% Postman Sprint 1 & Web App)
         app.MapGet("/api/v1/content/leaderboard", async (
             [FromQuery] int limit = 20,
+            [FromQuery] string type = "all-time",
+            [FromQuery] string scope = "personal",
             HttpContext httpContext = null!,
             [FromServices] IGamificationService gamificationService = null!,
             CancellationToken ct = default) =>
         {
             var userId = GetCurrentUserId(httpContext);
-            var result = await gamificationService.GetLeaderboardAsync(limit, "all-time", userId, ct);
+
+            if (scope.Equals("clan", StringComparison.OrdinalIgnoreCase))
+            {
+                var clanResult = await gamificationService.GetClanLeaderboardAsync(limit, type, userId, ct);
+                return Results.Ok(new
+                {
+                    updated_at = clanResult.UpdatedAt,
+                    entries = clanResult.Entries.Select(e => new
+                    {
+                        rank = e.Rank,
+                        id = e.Id,
+                        user_id = e.Id,
+                        name = e.Name,
+                        xp = e.Xp,
+                        tag = e.Tag,
+                        avatar = e.Avatar,
+                        level = e.Level,
+                        words_learned = e.WordsLearned,
+                        member_count = e.MemberCount,
+                        is_current_user = e.IsCurrentUser
+                    })
+                });
+            }
+
+            var result = await gamificationService.GetLeaderboardAsync(limit, type, userId, ct);
             return Results.Ok(new
             {
                 updated_at = result.UpdatedAt,
@@ -92,7 +78,12 @@ public class GamificationEndpoints : IEndpointBase
                     rank = e.Rank,
                     user_id = e.UserId,
                     name = e.Name,
-                    xp = e.Xp
+                    xp = e.Xp,
+                    avatar = e.AvatarUrl ?? "",
+                    level = e.Level,
+                    words_learned = e.WordsLearned,
+                    streak_days = e.StreakDays,
+                    is_current_user = e.UserId == DemoUserKey || (userId.HasValue && e.UserId == userId.Value.ToString())
                 })
             });
         })

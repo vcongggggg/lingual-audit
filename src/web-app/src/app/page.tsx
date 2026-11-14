@@ -78,191 +78,8 @@ export interface BadgeItem {
 // 2. MOCK DATA
 // ==========================================
 
-const PERSONAL_RANKINGS: LeaderboardEntry[] = [
-  {
-    id: "user-1",
-    rank: 1,
-    previousRank: 1,
-    name: "Alex Đặng",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    level: 28,
-    wordsLearned: 385,
-    xp: 4920,
-    streakDays: 45,
-    clanName: "BK Lexicon",
-  },
-  {
-    id: "user-2",
-    rank: 2,
-    previousRank: 3,
-    name: "Minh Anh Lê",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
-    level: 24,
-    wordsLearned: 342,
-    xp: 4350,
-    streakDays: 32,
-    clanName: "IELTS 8.0 Club",
-  },
-  {
-    id: "user-3",
-    rank: 3,
-    previousRank: 2,
-    name: "Quang Vũ",
-    avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
-    level: 21,
-    wordsLearned: 310,
-    xp: 3980,
-    streakDays: 28,
-    clanName: "BK Lexicon",
-  },
-  {
-    id: "user-4",
-    rank: 4,
-    previousRank: 6,
-    name: "Thu Thảo",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-    level: 19,
-    wordsLearned: 280,
-    xp: 3510,
-    streakDays: 19,
-    clanName: "NCC Master",
-  },
-  {
-    id: "user-5",
-    rank: 5,
-    previousRank: 4,
-    name: "Hữu Trí",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    level: 18,
-    wordsLearned: 255,
-    xp: 3240,
-    streakDays: 14,
-    clanName: "LinguaMezon",
-  },
-  {
-    id: "user-6",
-    rank: 6,
-    previousRank: 5,
-    name: "Bảo Ngọc",
-    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80",
-    level: 17,
-    wordsLearned: 240,
-    xp: 3080,
-    streakDays: 12,
-  },
-  {
-    id: "user-7",
-    rank: 7,
-    previousRank: 8,
-    name: "Hoàng Nam",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-    level: 16,
-    wordsLearned: 218,
-    xp: 2850,
-    streakDays: 11,
-    clanName: "BK Lexicon",
-  },
-  {
-    id: "user-current",
-    rank: 8,
-    previousRank: 10,
-    name: "Bạn (Công Ngô)",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-    level: 15,
-    wordsLearned: 205,
-    xp: 2680,
-    streakDays: 14,
-    clanName: "LinguaMezon",
-    isCurrentUser: true,
-  },
-  {
-    id: "user-9",
-    rank: 9,
-    previousRank: 7,
-    name: "Phương Linh",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80",
-    level: 14,
-    wordsLearned: 192,
-    xp: 2490,
-    streakDays: 9,
-  },
-  {
-    id: "user-10",
-    rank: 10,
-    previousRank: 11,
-    name: "Tuấn Kiệt",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
-    level: 13,
-    wordsLearned: 180,
-    xp: 2310,
-    streakDays: 8,
-    clanName: "IELTS 8.0 Club",
-  },
-];
-
-const CLAN_RANKINGS: LeaderboardEntry[] = [
-  {
-    id: "clan-1",
-    rank: 1,
-    previousRank: 1,
-    name: "BK Lexicon Legion",
-    avatar: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=150&auto=format&fit=crop&q=80",
-    level: 35,
-    tag: "BKLX",
-    wordsLearned: 4820,
-    xp: 62400,
-    memberCount: 30,
-  },
-  {
-    id: "clan-2",
-    rank: 2,
-    previousRank: 2,
-    name: "LinguaMezon Squad",
-    avatar: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80",
-    level: 31,
-    tag: "MEZON",
-    wordsLearned: 4210,
-    xp: 54900,
-    memberCount: 28,
-    isCurrentUser: true,
-  },
-  {
-    id: "clan-3",
-    rank: 3,
-    previousRank: 4,
-    name: "IELTS 8.0 Conquerors",
-    avatar: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=150&auto=format&fit=crop&q=80",
-    level: 29,
-    tag: "IELTS",
-    wordsLearned: 3890,
-    xp: 50100,
-    memberCount: 25,
-  },
-  {
-    id: "clan-4",
-    rank: 4,
-    previousRank: 3,
-    name: "NCC Polyglots",
-    avatar: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=150&auto=format&fit=crop&q=80",
-    level: 27,
-    tag: "NCC",
-    wordsLearned: 3410,
-    xp: 44200,
-    memberCount: 22,
-  },
-  {
-    id: "clan-5",
-    rank: 5,
-    previousRank: 5,
-    name: "Flashcard Warriors",
-    avatar: "https://images.unsplash.com/photo-1563089145-599997674d42?w=150&auto=format&fit=crop&q=80",
-    level: 24,
-    tag: "WAR",
-    wordsLearned: 2980,
-    xp: 38600,
-    memberCount: 20,
-  },
-];
+// Dữ liệu bảng xếp hạng được nạp động 100% từ Redis Sorted Sets & PostgreSQL via /api/leaderboard
+const INITIAL_RANKINGS: LeaderboardEntry[] = [];
 
 const WEEKLY_PROGRESS_DATA: DailyProgress[] = [
   { day: "T2", fullDay: "Thứ Hai", date: "09/10", words: 28, target: 25, xpEarned: 360, accuracy: 92 },
@@ -380,22 +197,99 @@ export default function LeaderboardPage() {
   const [badgeFilter, setBadgeFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(false);
   const [quizXp, setQuizXp] = useState(0);
-  const [redisRankings, setRedisRankings] = useState<{ rank: number; user_id: string; name: string; xp: number }[]>([]);
+  const [liveRankings, setLiveRankings] = useState<LeaderboardEntry[]>(INITIAL_RANKINGS);
+  const [userStreakInfo, setUserStreakInfo] = useState<{ currentDays: number; bestDays: number; isActiveToday: boolean }>({
+    currentDays: 14,
+    bestDays: 14,
+    isActiveToday: true,
+  });
+  const [leaderboardUpdatedAt, setLeaderboardUpdatedAt] = useState<string>("vừa xong");
+
+  useEffect(() => {
+    let active = true;
+    const fetchStreak = async () => {
+      try {
+        const res = await fetch("/api/streak", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as { currentDays?: number; bestDays?: number; isActiveToday?: boolean };
+          if (active && data.currentDays !== undefined) {
+            setUserStreakInfo({
+              currentDays: data.currentDays,
+              bestDays: data.bestDays ?? data.currentDays,
+              isActiveToday: data.isActiveToday ?? true,
+            });
+          }
+        }
+      } catch {
+        /* retain current streak info while offline */
+      }
+    };
+    void fetchStreak();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
     const refresh = async () => {
       try {
-        const response = await fetch("/api/leaderboard", { cache: "no-store" });
+        const response = await fetch(`/api/leaderboard?scope=${activeTab}&type=${timeRange}`, { cache: "no-store" });
         if (!response.ok) return;
-        const data = await response.json() as { entries?: typeof redisRankings };
-        if (active && Array.isArray(data.entries)) setRedisRankings(data.entries);
-      } catch { /* retain the last leaderboard snapshot while offline */ }
+        const data = (await response.json()) as {
+          updated_at?: string;
+          entries?: Array<{
+            id?: string;
+            user_id?: string;
+            rank: number;
+            previous_rank?: number;
+            name: string;
+            avatar?: string;
+            avatar_url?: string;
+            level?: number;
+            tag?: string;
+            words_learned?: number;
+            xp: number;
+            is_current_user?: boolean;
+            streak_days?: number;
+            clan_name?: string;
+            member_count?: number;
+          }>;
+        };
+        if (active && Array.isArray(data.entries)) {
+          const mapped: LeaderboardEntry[] = data.entries.map((entry) => ({
+            id: String(entry.id ?? entry.user_id),
+            rank: Number(entry.rank),
+            previousRank: Number(entry.previous_rank ?? entry.rank),
+            name: String(entry.name),
+            avatar: String(entry.avatar ?? entry.avatar_url ?? ""),
+            level: Number(entry.level ?? 1),
+            tag: entry.tag ? String(entry.tag) : undefined,
+            wordsLearned: Number(entry.words_learned ?? 0),
+            xp: Number(entry.xp),
+            isCurrentUser: Boolean(entry.is_current_user || entry.user_id === "lingual-local-demo-user"),
+            streakDays: entry.streak_days !== undefined ? Number(entry.streak_days) : undefined,
+            clanName: entry.clan_name ? String(entry.clan_name) : undefined,
+            memberCount: entry.member_count !== undefined ? Number(entry.member_count) : undefined,
+          }));
+          setLiveRankings(mapped);
+          if (data.updated_at) {
+            const dt = new Date(data.updated_at);
+            const timeStr = dt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+            setLeaderboardUpdatedAt(`${timeStr} hôm nay`);
+          }
+        }
+      } catch {
+        /* retain the last leaderboard snapshot while offline */
+      }
     };
     void refresh();
     const timer = window.setInterval(refresh, 3000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, []);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [activeTab, timeRange]);
 
   useEffect(() => {
     let active = true;
@@ -468,17 +362,13 @@ export default function LeaderboardPage() {
   }, [selectedBadge]);
 
   // Active ranking data
-  const livePersonalRankings: LeaderboardEntry[] = redisRankings.map((entry) => ({
-    id: entry.user_id, rank: entry.rank, previousRank: entry.rank, name: entry.name,
-    avatar: "", level: 1, wordsLearned: 0, xp: entry.xp, isCurrentUser: entry.user_id === "lingual-local-demo-user",
-  }));
-  const currentList = activeTab === "personal"
-    ? (timeRange === "alltime" && livePersonalRankings.length ? livePersonalRankings : PERSONAL_RANKINGS.map((entry) => entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry))
-    : CLAN_RANKINGS;
+  const currentList = liveRankings.map((entry) =>
+    entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry
+  );
   const topThree = currentList.slice(0, 3);
   const restList = currentList.slice(3);
   const currentUser = currentList.find((item) => item.isCurrentUser);
-  const personalUserXp = (PERSONAL_RANKINGS.find((item) => item.isCurrentUser)?.xp ?? 0) + quizXp;
+  const personalUserXp = (currentUser?.xp ?? 2680) + (currentUser ? 0 : quizXp);
 
   // Statistics calculation
   const totalWeeklyWords = weeklyProgress.reduce((acc, curr) => acc + curr.words, 0);
@@ -561,7 +451,7 @@ export default function LeaderboardPage() {
               <div className="flex items-center gap-2 bg-gradient-to-r from-slate-900/90 to-indigo-950/60 border border-indigo-500/20 px-3 py-1.5 rounded-2xl shadow-inner">
                 <div className="flex items-center gap-1 text-amber-400 font-black text-xs md:text-sm">
                   <Flame className="w-4 h-4 fill-amber-400" />
-                  <span>14d</span>
+                  <span>{userStreakInfo.currentDays}d</span>
                 </div>
                 <div className="h-3 w-[1px] bg-slate-700" />
                 <div className="flex items-center gap-1 text-cyan-400 font-bold text-xs md:text-sm">
@@ -576,7 +466,7 @@ export default function LeaderboardPage() {
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
             <div className="text-xs text-slate-400 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>Cập nhật lúc 03:00 hôm nay</span>
+              <span>Cập nhật lúc {leaderboardUpdatedAt}</span>
             </div>
 
             <div className="flex p-0.5 bg-slate-900/90 rounded-xl border border-white/10 text-xs font-semibold">

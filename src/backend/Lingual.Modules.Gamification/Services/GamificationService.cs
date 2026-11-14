@@ -26,5 +26,14 @@ public class GamificationService(
     {
         return leaderboardService.GetLeaderboardAsync(limit, type, currentUserId, cancellationToken);
     }
+
+    public Task<ClanLeaderboardResponseDto> GetClanLeaderboardAsync(
+        int limit = 20,
+        string type = "all-time",
+        Guid? currentUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return leaderboardService.GetClanLeaderboardAsync(limit, type, currentUserId, cancellationToken);
+    }
 }
 

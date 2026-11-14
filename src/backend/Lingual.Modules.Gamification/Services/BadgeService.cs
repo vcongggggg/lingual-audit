@@ -19,9 +19,10 @@ public class BadgeService(
             .ToListAsync(cancellationToken);
 
         // 2. Truy vấn lịch sử mở khóa và tiến độ cá nhân từ bảng CSDL `user_badges`
-        var userBadges = await dbContext.UserBadges.AsNoTracking()
+        var userBadges = await dbContext.UserBadges
             .Where(ub => ub.UserId == userId)
-            .ToDictionaryAsync(ub => ub.BadgeId, cancellationToken);
+            .ToListAsync(cancellationToken);
+        var userBadgeMap = userBadges.ToDictionary(ub => ub.BadgeId);
 
         // 3. Đọc dữ liệu chuỗi Streak và tổng XP từ CSDL để tính toán đồng bộ
         var streak = await dbContext.UserStreaks.AsNoTracking()
@@ -34,10 +35,11 @@ public class BadgeService(
         int bestStreak = Math.Max(currentStreak, streak?.BestDays ?? 0);
 
         var resultList = new List<BadgeDto>();
+        bool hasChanges = false;
 
         foreach (var badge in badges)
         {
-            userBadges.TryGetValue(badge.Id, out var ub);
+            userBadgeMap.TryGetValue(badge.Id, out var ub);
 
             bool isUnlocked = ub?.IsUnlocked ?? false;
             int progress = ub?.CurrentProgress ?? 0;
@@ -92,6 +94,33 @@ public class BadgeService(
                     break;
             }
 
+            // Đồng bộ trạng thái vào DB nếu có cập nhật mới
+            if (ub == null)
+            {
+                var newUb = new Domain.UserBadge
+                {
+                    UserId = userId,
+                    BadgeId = badge.Id,
+                    IsUnlocked = isUnlocked,
+                    CurrentProgress = progress,
+                    UnlockedAt = isUnlocked ? DateTime.UtcNow : null,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                dbContext.UserBadges.Add(newUb);
+                hasChanges = true;
+            }
+            else if (progress > ub.CurrentProgress || (!ub.IsUnlocked && isUnlocked))
+            {
+                ub.CurrentProgress = progress;
+                if (!ub.IsUnlocked && isUnlocked)
+                {
+                    ub.IsUnlocked = true;
+                    ub.UnlockedAt = DateTime.UtcNow;
+                }
+                ub.UpdatedAt = DateTime.UtcNow;
+                hasChanges = true;
+            }
+
             resultList.Add(new BadgeDto(
                 Id: badge.Id,
                 Name: badge.Name,
@@ -106,6 +135,19 @@ public class BadgeService(
                 XpReward: badge.XpReward,
                 Lore: badge.Lore
             ));
+        }
+
+        if (hasChanges)
+        {
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Đã lưu tiến độ huy hiệu vào user_badges cho user {UserId}", userId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Lỗi khi lưu bảng user_badges cho user {UserId}", userId);
+            }
         }
 
         return new BadgesResponseDto(resultList);
