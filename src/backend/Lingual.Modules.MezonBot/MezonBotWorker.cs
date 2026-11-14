@@ -602,7 +602,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 var displayName = string.IsNullOrWhiteSpace(data.Username)
                     ? $"Member_{senderId[..Math.Min(6, senderId.Length)]}"
                     : data.Username;
-                await HandleDailyCommandAsync(data.ChannelId, senderId, displayName, data);
+                long.TryParse(senderId, out var uid);
+                await HandleDailyCommandAsync(data.ChannelId, senderId, displayName, data, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (text.Equals("/quiz", StringComparison.OrdinalIgnoreCase))
             {
@@ -804,7 +805,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
             if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
             {
-                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content);
+                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content, replyTo);
             }
             else
             {
@@ -874,7 +875,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
             if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
             {
-                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content);
+                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content, replyTo);
             }
             else
             {
@@ -958,7 +959,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
             if (ephemeralUserId.HasValue && ephemeralUserId.Value > 0)
             {
-                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content);
+                await SendEphemeralMessageWithContentAsync(channelId, ephemeralUserId.Value, content, replyTo);
             }
             else
             {
@@ -1596,7 +1597,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             else if (buttonId == "btn_daily_checkin")
             {
                 var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
-                await HandleDailyCommandAsync(channelId, mezonUserId, username);
+                long.TryParse(mezonUserId, out var uid);
+                await HandleDailyCommandAsync(channelId, mezonUserId, username, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId == "btn_quiz_start_prompt")
             {
@@ -1634,7 +1636,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             }
             else if (buttonId == "btn_view_leaderboard" || buttonId == "btn_leaderboard")
             {
-                await HandleLeaderboardCommandAsync(channelId, mezonUserId);
+                long.TryParse(mezonUserId, out var uid);
+                await HandleLeaderboardCommandAsync(channelId, mezonUserId, ephemeralUserId: uid > 0 ? uid : null);
             }
             else if (buttonId == "btn_submit_essay")
             {
@@ -3050,7 +3053,11 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     /// <summary>
     /// Gửi tin nhắn Ephemeral (chỉ duy nhất người dùng nhận được chỉ định nhìn thấy).
     /// </summary>
-    public virtual async Task SendEphemeralMessageAsync(long channelId, long userId, string text)
+    public virtual async Task SendEphemeralMessageAsync(
+        long channelId,
+        long userId,
+        string text,
+        ChannelMessageResponse? replyTo = null)
     {
         SentEphemeralMessages.Add((channelId, userId, text));
 
@@ -3065,6 +3072,26 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 if (channelObj != null) clanId = channelObj.ClanId;
             }
 
+            IEnumerable<MessageRefParams>? refs = null;
+            if (replyTo.HasValue)
+            {
+                refs = new[]
+                {
+                    new MessageRefParams(
+                        messageId: replyTo.Value.MessageId,
+                        messageRefId: replyTo.Value.MessageId,
+                        content: replyTo.Value.Content,
+                        hasAttachment: false,
+                        refType: 0,
+                        messageSenderId: replyTo.Value.SenderId,
+                        messageSenderUsername: replyTo.Value.Username,
+                        messageSenderAvatar: replyTo.Value.Avatar,
+                        messageSenderClanNick: string.Empty,
+                        messageSenderDisplayName: replyTo.Value.Username
+                    )
+                };
+            }
+
             var messageContent = new MessageContentBuilder().SetText(text).Build();
             var innerMessage = new SendChannelMessageParams(
                 clanId: clanId,
@@ -3073,7 +3100,12 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 topicId: null,
                 isPublic: false,
                 mode: 2,
-                code: 12
+                code: 12,
+                mentionEveryone: false,
+                anonymousMessage: false,
+                mentions: null,
+                attachments: null,
+                references: refs
             );
 
             var ephParams = new SendEphemeralMessageParams(
@@ -3082,7 +3114,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             );
 
             await _client.SendEphemeralMessageToBotAsync(ephParams);
-            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral message (code: 12, isPublic: false) tới User {UserId} tại Channel {ChannelId}", userId, channelId);
+            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral message (code: 12, isPublic: false, refs: {HasRefs}) tới User {UserId} tại Channel {ChannelId}", refs != null, userId, channelId);
         }
         catch (Exception ex)
         {
@@ -3094,7 +3126,11 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     /// Gửi tin nhắn Ephemeral với nội dung đầy đủ (Embed + Buttons) tới người dùng chỉ định.
     /// Sử dụng API chính thức channel.SendEphemeralAsync(content, userId) của Mezon.Net.Sdk.
     /// </summary>
-    public virtual async Task SendEphemeralMessageWithContentAsync(long channelId, long userId, MessageContent content)
+    public virtual async Task SendEphemeralMessageWithContentAsync(
+        long channelId,
+        long userId,
+        MessageContent content,
+        ChannelMessageResponse? replyTo = null)
     {
         SentEphemeralContents.Add((channelId, userId, content));
 
@@ -3109,6 +3145,26 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 if (channelObj != null) clanId = channelObj.ClanId;
             }
 
+            IEnumerable<MessageRefParams>? refs = null;
+            if (replyTo.HasValue)
+            {
+                refs = new[]
+                {
+                    new MessageRefParams(
+                        messageId: replyTo.Value.MessageId,
+                        messageRefId: replyTo.Value.MessageId,
+                        content: replyTo.Value.Content,
+                        hasAttachment: false,
+                        refType: 0,
+                        messageSenderId: replyTo.Value.SenderId,
+                        messageSenderUsername: replyTo.Value.Username,
+                        messageSenderAvatar: replyTo.Value.Avatar,
+                        messageSenderClanNick: string.Empty,
+                        messageSenderDisplayName: replyTo.Value.Username
+                    )
+                };
+            }
+
             var innerMessage = new SendChannelMessageParams(
                 clanId: clanId,
                 channelId: channelId,
@@ -3116,7 +3172,12 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 topicId: null,
                 isPublic: false,
                 mode: 2,
-                code: 12
+                code: 12,
+                mentionEveryone: false,
+                anonymousMessage: false,
+                mentions: null,
+                attachments: null,
+                references: refs
             );
 
             var ephParams = new SendEphemeralMessageParams(
@@ -3125,7 +3186,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             );
 
             await _client.SendEphemeralMessageToBotAsync(ephParams);
-            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral Content chuẩn (isPublic: false, code: 12) tới User {UserId} tại Channel {ChannelId}", userId, channelId);
+            _logger.LogInformation("🤫 [MezonBot] Đã gửi Ephemeral Content chuẩn (isPublic: false, code: 12, refs: {HasRefs}) tới User {UserId} tại Channel {ChannelId}", refs != null, userId, channelId);
         }
         catch (Exception ex)
         {
