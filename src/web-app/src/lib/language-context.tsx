@@ -35,6 +35,7 @@ type LanguageContextValue = {
   language: Language;
   setLanguage: (language: Language) => void;
   toggleLanguage: () => void;
+  translate: (vietnamese: string, english: string) => string;
   dictionary: LanguageDictionary;
 };
 
@@ -59,6 +60,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     language,
     setLanguage: setLanguageState,
     toggleLanguage: () => setLanguageState((current) => current === "vi" ? "en" : "vi"),
+    translate: (vietnamese, english) => language === "vi" ? vietnamese : english,
     dictionary: DICTIONARY[language],
   }), [language]);
 

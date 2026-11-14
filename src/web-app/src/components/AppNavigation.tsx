@@ -21,7 +21,7 @@ export default function AppNavigation() {
 
   return (
     <nav className="app-nav" aria-label={dictionary.navigationLabel}>
-      <Link className="app-brand" href="/" aria-label="LinguaMezon, trang tổng quan">
+      <Link className="app-brand" href="/" aria-label={language === "vi" ? "LinguaMezon, trang tổng quan" : "LinguaMezon, overview page"}>
         <span className="app-brand-mark" aria-hidden="true"><BookOpen /></span>
         <span>Lingua<span className="app-brand-accent">Mezon</span></span>
       </Link>
