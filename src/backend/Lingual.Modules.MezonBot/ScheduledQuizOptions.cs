@@ -15,17 +15,22 @@ public class ScheduledQuizOptions
     /// </summary>
     public bool Enabled { get; set; } = true;
 
+    private List<string> _timeSlots = new();
     /// <summary>
     /// Danh sách các khung giờ cố định trong ngày theo giờ Việt Nam (format HH:mm).
     /// Mặc định: 09:00 (Sáng khởi động), 12:00 (Trưa giải lao), 20:30 (Tối ôn tập).
     /// </summary>
-    public List<string> TimeSlots { get; set; } = new() { "09:00", "12:00", "20:30" };
+    public List<string> TimeSlots
+    {
+        get => _timeSlots.Count > 0 ? _timeSlots : new List<string> { "09:00", "12:00", "20:30" };
+        set => _timeSlots = value;
+    }
 
     /// <summary>
     /// ID kênh Mezon mục tiêu để phát động Quiz. BẮT BUỘC phải lớn hơn 0 nếu Enabled = true.
     /// Fail-fast ngay khi khởi động nếu TargetChannelId <= 0.
     /// </summary>
-    public long TargetChannelId { get; set; }
+    public long TargetChannelId { get; set; } = 2116390031126958080L;
 
     /// <summary>
     /// Thời lượng mở phiên Quiz (giây). Mặc định: 60 giây.
@@ -52,15 +57,20 @@ public class ScheduledQuizOptions
     /// </summary>
     public string TimeZoneId { get; set; } = "Asia/Ho_Chi_Minh";
 
+    private List<string> _adminUserIds = new();
     /// <summary>
     /// Danh sách User ID quản trị viên được phép thực thi lệnh `/quiz trigger`.
     /// </summary>
-    public List<string> AdminUserIds { get; set; } = new()
+    public List<string> AdminUserIds
     {
-        "2100896006294999040", // vancong030809 (Admin / Owner)
-        "1794149317681",
-        "1793710923342"
-    };
+        get => _adminUserIds.Count > 0 ? _adminUserIds : new List<string>
+        {
+            "2100896006294999040", // vancong030809 (Admin / Owner)
+            "1794149317681",
+            "1793710923342"
+        };
+        set => _adminUserIds = value;
+    }
 
     /// <summary>
     /// Kiểm tra tính hợp lệ của cấu hình theo nguyên tắc Fail-Fast.

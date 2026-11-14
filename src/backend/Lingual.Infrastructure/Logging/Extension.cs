@@ -24,8 +24,15 @@ public static class Extension
                 .Enrich.WithExceptionDetails();
 
             config.WriteTo.Async(writeTo =>
+            {
                 writeTo.Console(
-                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level} - {Message:lj}{NewLine}{Exception}"));
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level} - {Message:lj}{NewLine}{Exception}");
+                writeTo.File(
+                    path: "logs/lingual-api-.log",
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 7,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level} - {Message:lj}{NewLine}{Exception}");
+            });
         });
     }
 }

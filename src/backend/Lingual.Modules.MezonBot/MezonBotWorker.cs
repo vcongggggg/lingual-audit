@@ -338,6 +338,11 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         const int baseDelaySeconds = 5;
         const int maxDelaySeconds = 60;
 
+        if (_options.GetEffectiveChannelId() > 0 && _options.GetEffectiveClanId() > 0)
+        {
+            ChannelClanMap[_options.GetEffectiveChannelId()] = _options.GetEffectiveClanId();
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var sessionClosedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

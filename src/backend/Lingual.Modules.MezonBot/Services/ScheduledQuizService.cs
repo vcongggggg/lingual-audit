@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using Mezon.Net.Sdk;
 using Mezon.Net.Models;
 using Mezon.Net.Sdk.Builders;
@@ -24,19 +25,22 @@ public class ScheduledQuizService : IScheduledQuizService
     private readonly IMezonBotNotifier _notifier;
     private readonly ScheduledQuizOptions _options;
     private readonly ILogger<ScheduledQuizService> _logger;
+    private readonly IServiceScopeFactory? _scopeFactory;
 
     public ScheduledQuizService(
         MezonBotDbContext dbContext,
         IClanQuizService clanQuizService,
         IMezonBotNotifier notifier,
         IOptions<ScheduledQuizOptions> options,
-        ILogger<ScheduledQuizService> logger)
+        ILogger<ScheduledQuizService> logger,
+        IServiceScopeFactory? scopeFactory = null)
     {
         _dbContext = dbContext;
         _clanQuizService = clanQuizService;
         _notifier = notifier;
         _options = options.Value;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<bool> PostWarningAsync(string slotKey, long channelId, string timeSlot, CancellationToken cancellationToken = default)
@@ -208,7 +212,16 @@ public class ScheduledQuizService : IScheduledQuizService
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(_options.DurationSeconds));
-                await ConcludeScheduledQuizAsync(session.SessionId, channelId);
+                if (_scopeFactory != null)
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var scheduledService = scope.ServiceProvider.GetRequiredService<IScheduledQuizService>();
+                    await scheduledService.ConcludeScheduledQuizAsync(session.SessionId, channelId);
+                }
+                else
+                {
+                    await ConcludeScheduledQuizAsync(session.SessionId, channelId);
+                }
             }
             catch (Exception ex)
             {
