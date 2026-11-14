@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
+using Lingual.Modules.Gamification.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -83,84 +84,22 @@ public class GamificationEndpoints : IEndpointBase
         {
             var userId = GetCurrentUserId(httpContext);
             var result = await gamificationService.GetLeaderboardAsync(limit, "all-time", userId, ct);
-            return Results.Ok(result);
+            return Results.Ok(new
+            {
+                updated_at = result.UpdatedAt,
+                entries = result.Entries.Select(e => new
+                {
+                    rank = e.Rank,
+                    user_id = e.UserId,
+                    name = e.Name,
+                    xp = e.Xp
+                })
+            });
         })
         .WithName("GetContentLeaderboardAlias")
         .WithTags("Gamification")
         .WithSummary("Bảng xếp hạng (Alias tương thích Postman & WebApp)")
-        .Produces<LeaderboardResponseDto>(StatusCodes.Status200OK)
-        .AllowAnonymous();
-
-        // 5. Content Reviews (Idempotent XP awarding tương thích Postman Sprint 1)
-        app.MapPost("/api/v1/content/reviews", async (
-            [FromBody] ReviewSubmissionDto request,
-            [FromServices] IGamificationService gamificationService,
-            CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.VocabularyId) ||
-                !Guid.TryParse(request.VocabularyId, out var vocabGuid) ||
-                request.Quality < 0 || request.Quality > 5 ||
-                request.Repetitions < 0 || request.IntervalDays < 0 || request.EaseFactor < 1.3m)
-            {
-                return Results.BadRequest(new { error = "Invalid review payload" });
-            }
-
-            // Demo user ID giả lập khi gọi không có token
-            var demoUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            const int reviewXp = 20;
-
-            var awardResult = await gamificationService.AwardXpAsync(new AwardXpRequest(
-                UserId: demoUserId,
-                SourceType: "srs_review",
-                XpDelta: reviewXp,
-                SourceId: vocabGuid,
-                IdempotencyKey: request.IdempotencyKey,
-                Metadata: null), ct);
-
-            return Results.Ok(new
-            {
-                saved = true,
-                xp = awardResult.AlreadyAwarded ? 0 : reviewXp
-            });
-        })
-        .WithName("SubmitContentReview")
-        .WithTags("Gamification")
-        .WithSummary("Ghi nhận review từ vựng và cộng XP (Postman Sprint 1)")
-        .AllowAnonymous();
-
-        // 6. Content Quiz Attempts (Idempotent XP awarding tương thích Postman Sprint 1)
-        app.MapPost("/api/v1/content/quiz-attempts", async (
-            [FromBody] QuizAttemptSubmissionDto request,
-            [FromServices] IGamificationService gamificationService,
-            CancellationToken ct) =>
-        {
-            if (request.Answers == null || request.Answers.Count == 0)
-            {
-                return Results.BadRequest(new { error = "Invalid quiz attempt" });
-            }
-
-            var demoUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            int correctCount = request.Answers.Count(a => a.IsCorrect);
-            int xpToAward = request.Xp > 0 ? request.Xp : 20;
-
-            var awardResult = await gamificationService.AwardXpAsync(new AwardXpRequest(
-                UserId: demoUserId,
-                SourceType: "clan_quiz",
-                XpDelta: xpToAward,
-                SourceId: null,
-                IdempotencyKey: request.IdempotencyKey,
-                Metadata: null), ct);
-
-            return Results.Ok(new
-            {
-                saved = true,
-                correct_answers = correctCount,
-                xp = awardResult.AlreadyAwarded ? 0 : xpToAward
-            });
-        })
-        .WithName("SubmitContentQuizAttempt")
-        .WithTags("Gamification")
-        .WithSummary("Ghi nhận quiz attempt và cộng XP (Postman Sprint 1)")
+        .Produces(StatusCodes.Status200OK)
         .AllowAnonymous();
     }
 
@@ -171,25 +110,4 @@ public class GamificationEndpoints : IEndpointBase
         return Guid.TryParse(sub, out var guid) ? guid : null;
     }
 }
-
-public sealed record ReviewSubmissionDto(
-    string? VocabularyId,
-    string? Rating,
-    int Quality,
-    int Repetitions,
-    decimal IntervalDays,
-    decimal EaseFactor,
-    DateTimeOffset NextDueAt,
-    int TimeSpentMs,
-    string? IdempotencyKey);
-
-public sealed record QuizAnswerItem(
-    string? QuestionId,
-    string? SelectedKey,
-    bool IsCorrect);
-
-public sealed record QuizAttemptSubmissionDto(
-    List<QuizAnswerItem>? Answers,
-    int Xp,
-    string? IdempotencyKey);
 

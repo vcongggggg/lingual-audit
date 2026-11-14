@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
     <ProjectReference Include="..\Lingual.Persistence\Lingual.Persistence.csproj" />
+    <ProjectReference Include="..\Lingual.Infrastructure\Lingual.Infrastructure.csproj" />
     <ProjectReference Include="..\Lingual.Modules.MezonBot.Contracts\Lingual.Modules.MezonBot.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Gamification.Contracts\Lingual.Modules.Gamification.Contracts.csproj" />

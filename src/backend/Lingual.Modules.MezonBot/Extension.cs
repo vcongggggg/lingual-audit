@@ -1,5 +1,7 @@
 using System.Reflection;
+using Lingual.Modules.MezonBot.Contracts;
 using Lingual.Modules.MezonBot.Infrastructure.Data;
+using Lingual.Modules.MezonBot.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +16,9 @@ public static class Extension
 
         // MezonBot DbContext & Persistence
         services.AddMezonBotDbContext(configuration);
+
+        // Core Quiz Services
+        services.AddScoped<IQuizService, QuizService>();
 
         return builder;
     }
