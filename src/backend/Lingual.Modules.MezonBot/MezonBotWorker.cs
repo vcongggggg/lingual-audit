@@ -50,10 +50,6 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
     public static readonly ConcurrentDictionary<Guid, QuizMessageMeta> ActiveQuizMessages = new();
 
-    public Func<PinMessageParams, Task>? PinMessageExecutor { get; set; }
-    public Func<long, long, long, Task>? UnpinMessageExecutor { get; set; }
-    public List<(long ChannelId, ulong MessageId)> PinnedMessages { get; } = new();
-    public List<(long ChannelId, ulong MessageId)> UnpinnedMessages { get; } = new();
     public List<(long ChannelId, string Text)> SentChannelTexts { get; } = new();
 
     public void SetClientForTesting(SdkClient client)
@@ -1868,88 +1864,6 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         return true;
     }
 
-    public virtual async Task<bool> CreatePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
-    {
-        PinnedMessages.Add((channelId, messageId));
-        _logger.LogInformation("📌 [MezonBot] Yêu cầu ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
-
-        ChannelClanMap.TryGetValue(channelId, out var clanId);
-        if (clanId <= 0) clanId = _options.GetEffectiveClanId();
-
-        var pinParams = new PinMessageParams((long)messageId, channelId, clanId);
-
-        if (PinMessageExecutor != null)
-        {
-            try
-            {
-                await PinMessageExecutor(pinParams);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thực thi PinMessageExecutor cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
-                return false;
-            }
-        }
-
-        if (_client == null)
-        {
-            _logger.LogWarning("⚠️ [MezonBot] MezonClient chưa khởi tạo, không thể ghim tin nhắn {MessageId}", messageId);
-            return false;
-        }
-
-        try
-        {
-            await _client.CreatePinMessageAsync(pinParams);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gọi SDK CreatePinMessageAsync cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
-            return false;
-        }
-    }
-
-    public virtual async Task<bool> DeletePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default)
-    {
-        UnpinnedMessages.Add((channelId, messageId));
-        _logger.LogInformation("📌 [MezonBot] Yêu cầu gỡ ghim tin nhắn {MessageId} tại Channel {ChannelId}", messageId, channelId);
-
-        ChannelClanMap.TryGetValue(channelId, out var clanId);
-        if (clanId <= 0) clanId = _options.GetEffectiveClanId();
-
-        if (UnpinMessageExecutor != null)
-        {
-            try
-            {
-                await UnpinMessageExecutor((long)messageId, channelId, clanId);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi thực thi UnpinMessageExecutor cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
-                return false;
-            }
-        }
-
-        if (_client == null)
-        {
-            _logger.LogWarning("⚠️ [MezonBot] MezonClient chưa khởi tạo, không thể gỡ ghim tin nhắn {MessageId}", messageId);
-            return false;
-        }
-
-        try
-        {
-            await _client.DeletePinMessageAsync((long)messageId, channelId, clanId);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "⚠️ [MezonBot] Lỗi khi gọi SDK DeletePinMessageAsync cho tin {MessageId} tại Channel {ChannelId}", messageId, channelId);
-            return false;
-        }
-    }
-
     public Task<bool> SendSrsReminderAsync(
         Guid userId,
         long channelId,
@@ -1963,31 +1877,4 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     }
 
     public (long channelId, long mezonUserId)? GetUserChannelMapping(Guid userId) => null;
-}
-
-/// <summary>
-/// Tiện ích mở rộng hỗ trợ gọi API Ghim / Gỡ ghim tin nhắn (CreatePinMessageAsync, DeletePinMessageAsync).
-/// QUY TẮC NGOẠI LỆ REFLECTION:
-/// (a) Đây là ngoại lệ reflection duy nhất được chấp nhận vì SDK 1.11.0 không mở API pin công khai (Engine là internal);
-/// (b) Khi lỗi thì trả false + log, quiz vẫn chạy nếu ghim thất bại;
-/// (c) Nếu SDK đời sau mở API pin công khai thì phải đổi sang API đó ngay và xóa class này;
-/// (d) Cấm mở rộng reflection cho API khác.
-/// </summary>
-public static class MezonClientPinExtensions
-{
-    public static Task CreatePinMessageAsync(this SdkClient client, PinMessageParams body)
-    {
-        var field = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
-        var engine = field?.GetValue(client) as Mezon.Net.Client.MezonClient
-            ?? throw new InvalidOperationException("Không thể truy cập engine từ MezonClient");
-        return engine.CreatePinMessageAsync(body);
-    }
-
-    public static Task DeletePinMessageAsync(this SdkClient client, long messageId, long channelId, long clanId)
-    {
-        var field = typeof(SdkClient).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
-        var engine = field?.GetValue(client) as Mezon.Net.Client.MezonClient
-            ?? throw new InvalidOperationException("Không thể truy cập engine từ MezonClient");
-        return engine.DeletePinMessageAsync(messageId, channelId, clanId);
-    }
 }

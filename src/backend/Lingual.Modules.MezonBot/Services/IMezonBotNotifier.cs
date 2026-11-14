@@ -24,7 +24,5 @@ public interface IMezonBotNotifier
 
     Task<ulong?> SendPublicChannelContentAsync(long channelId, MessageContent content, CancellationToken cancellationToken = default);
     Task<bool> SendPublicChannelTextAsync(long channelId, string text, CancellationToken cancellationToken = default);
-    Task<bool> CreatePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default);
-    Task<bool> DeletePinMessageAsync(long channelId, ulong messageId, CancellationToken cancellationToken = default);
 }
 

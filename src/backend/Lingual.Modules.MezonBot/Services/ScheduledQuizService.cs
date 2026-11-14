@@ -113,26 +113,7 @@ public class ScheduledQuizService : IScheduledQuizService
             return null;
         }
 
-        // 1. Gỡ ghim quiz cũ trên kênh này (nếu có)
-        var lastPinnedRun = await _dbContext.ScheduledQuizRuns
-            .Where(r => r.ChannelId == channelId && r.PinnedMessageId != null && r.SlotKey != slotKey)
-            .OrderByDescending(r => r.PostedAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (lastPinnedRun != null && lastPinnedRun.PinnedMessageId.HasValue)
-        {
-            try
-            {
-                await _notifier.DeletePinMessageAsync(channelId, lastPinnedRun.PinnedMessageId.Value, cancellationToken);
-                _logger.LogInformation("📌 [ScheduledQuiz] Đã gỡ ghim tin nhắn quiz cũ {MessageId} tại Kênh {ChannelId}", lastPinnedRun.PinnedMessageId.Value, channelId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ [ScheduledQuiz] Lỗi khi gỡ ghim quiz cũ {MessageId}. Bỏ qua.", lastPinnedRun.PinnedMessageId.Value);
-            }
-        }
-
-        // 2. Tạo Embed và Nút bấm công khai
+        // 1. Tạo Embed và Nút bấm công khai
         var embedBuilder = new MessageEmbedBuilder()
             .SetColor("#F59E0B")
             .SetTitle($"⏰ THỬ THÁCH KHUNG GIỜ VÀNG ({timeSlot}) — ĐỐ VUI TỪ VỰNG CLAN")
@@ -162,26 +143,7 @@ public class ScheduledQuizService : IScheduledQuizService
 
         var sentMessageId = await _notifier.SendPublicChannelContentAsync(channelId, content, cancellationToken);
 
-        // 3. Ghim tin nhắn mới vừa đăng
-        ulong? pinnedId = null;
-        if (sentMessageId.HasValue && sentMessageId.Value > 0)
-        {
-            try
-            {
-                var pinned = await _notifier.CreatePinMessageAsync(channelId, sentMessageId.Value, cancellationToken);
-                if (pinned)
-                {
-                    pinnedId = sentMessageId.Value;
-                    _logger.LogInformation("📌 [ScheduledQuiz] Đã ghim tin nhắn quiz mới {MessageId} tại Kênh {ChannelId}", sentMessageId.Value, channelId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ [ScheduledQuiz] Không thể ghim tin nhắn {MessageId}. Phiên quiz vẫn tiếp tục bình thường.", sentMessageId.Value);
-            }
-        }
-
-        // 4. Lưu trạng thái vào Database (Chống trùng lặp bằng DB)
+        // 2. Lưu trạng thái vào Database (Chống trùng lặp bằng DB)
         var now = DateTime.UtcNow;
         if (existingRun == null)
         {
@@ -190,7 +152,7 @@ public class ScheduledQuizService : IScheduledQuizService
                 SlotKey = slotKey,
                 ChannelId = channelId,
                 SessionId = session.SessionId,
-                PinnedMessageId = pinnedId,
+                PinnedMessageId = null,
                 PostedAt = now,
                 CreatedAt = now
             };
@@ -199,7 +161,7 @@ public class ScheduledQuizService : IScheduledQuizService
         else
         {
             existingRun.SessionId = session.SessionId;
-            existingRun.PinnedMessageId = pinnedId;
+            existingRun.PinnedMessageId = null;
             existingRun.PostedAt = now;
         }
 
