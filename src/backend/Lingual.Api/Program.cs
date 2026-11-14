@@ -17,7 +17,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Load local overrides if present (gitignored, individual developer settings)
 builder.Configuration
-    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+    .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
 
 // Register domain modules
 builder.AddIdentityModule();

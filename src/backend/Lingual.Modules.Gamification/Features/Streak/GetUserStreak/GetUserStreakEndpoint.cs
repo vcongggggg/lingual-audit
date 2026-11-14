@@ -11,7 +11,7 @@ namespace Lingual.Modules.Gamification.Features.Streak.GetUserStreak;
 
 public class GetUserStreakEndpoint : IEndpointBase
 {
-    private static readonly Guid DefaultDemoUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid DefaultDemoUserId = Guid.Parse("4943737a-792a-4fca-8315-df58d25c2156");
 
     public void MapEndpoint(IEndpointRouteBuilder app)
     {

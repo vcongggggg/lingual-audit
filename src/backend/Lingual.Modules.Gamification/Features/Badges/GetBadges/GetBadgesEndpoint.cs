@@ -11,15 +11,18 @@ namespace Lingual.Modules.Gamification.Features.Badges.GetBadges;
 
 public class GetBadgesEndpoint : IEndpointBase
 {
+    private static readonly Guid DefaultDemoUserId = Guid.Parse("4943737a-792a-4fca-8315-df58d25c2156");
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         app.MapGet("/api/v1/gamification/badges", async (
+            [FromQuery] Guid? userId,
             HttpContext httpContext,
             [FromServices] ISender sender,
             CancellationToken ct) =>
         {
-            var userId = GetCurrentUserId(httpContext) ?? Guid.Empty;
-            var result = await sender.Send(new GetBadgesQuery(userId), ct);
+            var targetUserId = userId ?? GetCurrentUserId(httpContext) ?? DefaultDemoUserId;
+            var result = await sender.Send(new GetBadgesQuery(targetUserId), ct);
             return Results.Ok(result);
         })
         .WithName("GetBadges")
