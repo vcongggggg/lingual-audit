@@ -635,16 +635,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 var displayName = string.IsNullOrWhiteSpace(data.Username)
                     ? $"Member_{senderId[..Math.Min(6, senderId.Length)]}"
                     : data.Username;
-                long.TryParse(senderId, out var uid);
-                await HandleStreakCommandAsync(data.ChannelId, senderId, displayName, data, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleStreakCommandAsync(data.ChannelId, senderId, displayName, data);
             }
             else if (text.Equals("/top", StringComparison.OrdinalIgnoreCase) ||
                      text.Equals("/leaderboard", StringComparison.OrdinalIgnoreCase) ||
                      text.Equals("/bxh", StringComparison.OrdinalIgnoreCase))
             {
                 var senderId = data.SenderId.ToString();
-                long.TryParse(senderId, out var uid);
-                await HandleLeaderboardCommandAsync(data.ChannelId, senderId, data, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleLeaderboardCommandAsync(data.ChannelId, senderId, data);
             }
             else if (text.StartsWith("/ask", StringComparison.OrdinalIgnoreCase) ||
                      text.StartsWith("/check", StringComparison.OrdinalIgnoreCase))
@@ -1493,8 +1491,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             else if (buttonId == "btn_daily_checkin")
             {
                 var username = $"Member_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
-                var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
-                await HandleDailyCommandAsync(channelId, mezonUserId, username, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleDailyCommandAsync(channelId, mezonUserId, username);
             }
             else if (buttonId == "btn_quiz_start_prompt")
             {
@@ -1503,24 +1500,15 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             }
             else if (buttonId == "btn_save_flashcard")
             {
-                if (long.TryParse(mezonUserId, out var uid))
-                {
-                    await SendEphemeralMessageAsync(channelId, uid, "💾 LingLing: Đã lưu mẫu câu và giải thích ngữ pháp này vào sổ tay học tập của bạn!");
-                }
+                await ReplyToChannelAsync(channelId, "💾 LingLing: Đã lưu mẫu câu và giải thích ngữ pháp này vào sổ tay học tập của bạn!");
             }
             else if (buttonId == "btn_open_miniapp")
             {
-                if (long.TryParse(mezonUserId, out var uid))
-                {
-                    await SendEphemeralMessageAsync(channelId, uid, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
-                }
+                await ReplyToChannelAsync(channelId, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
             }
             else if (buttonId == "btn_guide_ask")
             {
-                if (long.TryParse(mezonUserId, out var uid))
-                {
-                    await SendEphemeralMessageAsync(channelId, uid, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
-                }
+                await ReplyToChannelAsync(channelId, "🦉 LingLing: Bạn chỉ cần gõ /ask <câu tiếng Anh> (Ví dụ: /ask She don't like coffee) là mình sẽ sửa lỗi ngay!");
             }
             else if (buttonId == "btn_roleplay_menu")
             {
@@ -1536,13 +1524,11 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             else if (buttonId == "btn_view_streak")
             {
                 var displayName = $"Learner_{mezonUserId[..Math.Min(6, mezonUserId.Length)]}";
-                var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
-                await HandleStreakCommandAsync(channelId, mezonUserId, displayName, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleStreakCommandAsync(channelId, mezonUserId, displayName);
             }
             else if (buttonId == "btn_view_leaderboard" || buttonId == "btn_leaderboard")
             {
-                var uid = effectiveUserId > 0 ? effectiveUserId : (long.TryParse(mezonUserId, out var pUid) ? pUid : 0);
-                await HandleLeaderboardCommandAsync(channelId, mezonUserId, ephemeralUserId: uid > 0 ? uid : null);
+                await HandleLeaderboardCommandAsync(channelId, mezonUserId);
             }
             else if (buttonId == "btn_submit_essay")
             {
