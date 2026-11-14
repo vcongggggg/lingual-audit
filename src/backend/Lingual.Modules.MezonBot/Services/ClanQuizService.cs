@@ -44,7 +44,8 @@ public class ClanQuizService : IClanQuizService
         long channelId,
         string? startedByMezonUserId = null,
         int durationSeconds = 30,
-        bool isPractice = false)
+        bool isPractice = false,
+        string? slotKey = null)
     {
         if (await HasActiveSessionAsync(channelId, isPractice))
         {
@@ -76,14 +77,15 @@ public class ClanQuizService : IClanQuizService
             Status = "open",
             OpenedAt = now,
             ClosesAt = now.AddSeconds(durationSeconds),
-            Responses = "[]"
+            Responses = "[]",
+            SlotKey = slotKey
         };
 
         _dbContext.ClanQuizSessions.Add(session);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("🚀 [ClanQuiz] Đã tạo phiên Quiz {SessionId} (Practice: {IsPractice}) cho Kênh {ChannelId}. Hạn chót: {ClosesAt}",
-            session.Id, isPractice, channelId, session.ClosesAt);
+        _logger.LogInformation("🚀 [ClanQuiz] Đã tạo phiên Quiz {SessionId} (Slot: {SlotKey}, Practice: {IsPractice}) cho Kênh {ChannelId}. Hạn chót: {ClosesAt}",
+            session.Id, slotKey, isPractice, channelId, session.ClosesAt);
 
         var parsedOptions = ParseOptions(question.Options);
 
@@ -243,25 +245,120 @@ public class ClanQuizService : IClanQuizService
         var isPractice = session.ChannelMezonId.StartsWith("dm_");
         var isWinner = !isPractice && isCorrect && updatedSession?.WinningUserId == resolvedUserId && updatedSession?.WinningResponseMs == responseMs;
         var xpAwarded = 0;
-
-        if (isCorrect && !isPractice)
-        {
-            xpAwarded = isWinner ? 15 : 5;
-            await AwardXpAsync(resolvedUserId, sessionId, xpAwarded, isWinner, cleanKey, responseMs);
-        }
-
         string message;
-        if (isPractice)
+
+        var isScheduled = !string.IsNullOrWhiteSpace(session.SlotKey);
+
+        if (isScheduled)
         {
-            message = isCorrect
-                ? $"✅ Chính xác! Bạn đã chọn đúng đáp án {cleanKey}. (Chế độ tự luyện tập DM: Không cộng điểm XP)"
-                : $"❌ Tiếc quá, đáp án {cleanKey} chưa chính xác!";
+            // === RULE LIÊN CLAN SCHEDULED QUIZ ===
+            // 1 user CHỈ được nhận XP quiz theo lịch TỐI ĐA 1 LẦN cho mỗi (ngày + khung giờ) TRÊN TOÀN BỘ CÁC CLAN.
+            // Nếu trả lời sai ở Clan A (0 XP), học viên vẫn có cơ hội nhận XP khi trả lời đúng ở Clan B.
+            var existingParticipation = await _dbContext.ScheduledQuizParticipations
+                .FirstOrDefaultAsync(p => p.SlotKey == session.SlotKey && (p.UserId == resolvedUserId || p.MezonUserId == mezonUserId));
+
+            if (existingParticipation != null && existingParticipation.XpAwarded > 0)
+            {
+                // Người dùng ĐÃ NHẬN XP ở Clan khác trong khung giờ này
+                xpAwarded = 0;
+                message = "Bạn đã nhận XP khung giờ này ở clan khác, câu này chỉ luyện tập - 0 XP";
+            }
+            else
+            {
+                var candidateXp = isCorrect ? (isWinner ? 15 : 5) : 0;
+                var globalIdempotencyKey = $"scheduled_quiz_{session.SlotKey}_{resolvedUserId}";
+
+                if (candidateXp > 0)
+                {
+                    var awarded = await AwardScheduledXpAsync(resolvedUserId, sessionId, candidateXp, globalIdempotencyKey, cleanKey, responseMs);
+                    if (awarded)
+                    {
+                        xpAwarded = candidateXp;
+                        message = isWinner
+                            ? $"🎉 Xuất sắc! Bạn là người trả lời ĐÚNG và NHANH NHẤT (+{xpAwarded} XP)!"
+                            : $"✅ Chính xác! Bạn nhận được +{xpAwarded} XP.";
+                    }
+                    else
+                    {
+                        xpAwarded = 0;
+                        message = "Bạn đã nhận XP khung giờ này ở clan khác, câu này chỉ luyện tập - 0 XP";
+                    }
+                }
+                else
+                {
+                    xpAwarded = 0;
+                    message = "❌ Tiếc quá, câu trả lời chưa chính xác!";
+                }
+
+                // Ghi nhận / cập nhật lượt tham gia vào scheduled_quiz_participations
+                try
+                {
+                    if (existingParticipation != null)
+                    {
+                        existingParticipation.SessionId = sessionId;
+                        existingParticipation.ChannelId = channelId;
+                        existingParticipation.ClanId = channelId;
+                        existingParticipation.IsCorrect = isCorrect;
+                        existingParticipation.XpAwarded = xpAwarded;
+                        existingParticipation.CreatedAt = now;
+                    }
+                    else
+                    {
+                        var participation = new ScheduledQuizParticipation
+                        {
+                            Id = Guid.NewGuid(),
+                            SlotKey = session.SlotKey!,
+                            UserId = resolvedUserId,
+                            MezonUserId = mezonUserId,
+                            ClanId = channelId,
+                            ChannelId = channelId,
+                            SessionId = sessionId,
+                            IsCorrect = isCorrect,
+                            XpAwarded = xpAwarded,
+                            CreatedAt = now
+                        };
+                        _dbContext.ScheduledQuizParticipations.Add(participation);
+                    }
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể ghi nhận participation cho User {UserId}", resolvedUserId);
+                }
+            }
         }
         else
         {
-            message = isCorrect
-                ? (isWinner ? "🎉 Xuất sắc! Bạn là người trả lời ĐÚNG và NHANH NHẤT (+15 XP)!" : "✅ Chính xác! Bạn nhận được +5 XP.")
-                : "❌ Tiếc quá, câu trả lời chưa chính xác!";
+            if (isCorrect && !isPractice)
+            {
+                xpAwarded = isWinner ? 15 : 5;
+                await AwardXpAsync(resolvedUserId, sessionId, xpAwarded, isWinner, cleanKey, responseMs);
+            }
+
+            if (isPractice)
+            {
+                message = isCorrect
+                    ? $"✅ Chính xác! Bạn đã chọn đúng đáp án {cleanKey}. (Chế độ tự luyện tập DM: Không cộng điểm XP)"
+                    : $"❌ Tiếc quá, đáp án {cleanKey} chưa chính xác!";
+            }
+            else
+            {
+                message = isCorrect
+                    ? (isWinner ? "🎉 Xuất sắc! Bạn là người trả lời ĐÚNG và NHANH NHẤT (+15 XP)!" : "✅ Chính xác! Bạn nhận được +5 XP.")
+                    : "❌ Tiếc quá, câu trả lời chưa chính xác!";
+            }
+        }
+
+        if (!_dbContext.Database.IsRelational())
+        {
+            var inMemList = ParseResponses(session.Responses);
+            var item = inMemList.FirstOrDefault(r => r.MezonUserId == mezonUserId);
+            if (item != null)
+            {
+                item.XpAwarded = xpAwarded;
+                session.Responses = JsonSerializer.Serialize(inMemList, JsonOptions);
+                await _dbContext.SaveChangesAsync();
+            }
         }
 
         return new QuizSubmissionResultDto
@@ -327,21 +424,55 @@ public class ClanQuizService : IClanQuizService
         var winnerUsername = fastestCorrect?.Username;
         var winningMs = fastestCorrect?.ResponseMs;
 
-        var participants = responses
-            .OrderBy(r => r.IsCorrect ? 0 : 1)
-            .ThenBy(r => r.ResponseMs)
-            .Select(r => new QuizParticipantSummaryDto
-            {
-                MezonUserId = r.MezonUserId,
-                Username = r.Username,
-                SelectedKey = r.SelectedKey,
-                IsCorrect = r.IsCorrect,
-                ResponseMs = r.ResponseMs
-            })
-            .ToList();
+        List<ScheduledQuizParticipation> scheduledParticipations = new();
+        if (!string.IsNullOrWhiteSpace(session.SlotKey))
+        {
+            scheduledParticipations = await _dbContext.ScheduledQuizParticipations
+                .AsNoTracking()
+                .Where(p => p.SlotKey == session.SlotKey)
+                .ToListAsync();
+        }
 
         var isPractice = session.ChannelMezonId.StartsWith("dm_");
         var rawChannelId = session.ChannelMezonId.Replace("dm_", "");
+
+        var participants = responses
+            .OrderBy(r => r.IsCorrect ? 0 : 1)
+            .ThenBy(r => r.ResponseMs)
+            .Select(r =>
+            {
+                var pRec = scheduledParticipations.FirstOrDefault(p => p.MezonUserId == r.MezonUserId);
+                int xp;
+                if (!string.IsNullOrWhiteSpace(session.SlotKey))
+                {
+                    if (pRec != null)
+                    {
+                        xp = pRec.SessionId == sessionId ? pRec.XpAwarded : 0;
+                    }
+                    else
+                    {
+                        xp = r.XpAwarded;
+                    }
+                }
+                else
+                {
+                    xp = r.XpAwarded > 0 ? r.XpAwarded : (!isPractice && r.IsCorrect ? (r.MezonUserId == winnerMezonId ? 15 : 5) : 0);
+                }
+
+                return new QuizParticipantSummaryDto
+                {
+                    MezonUserId = r.MezonUserId,
+                    Username = r.Username,
+                    SelectedKey = r.SelectedKey,
+                    IsCorrect = r.IsCorrect,
+                    ResponseMs = r.ResponseMs,
+                    XpAwarded = xp
+                };
+            })
+            .ToList();
+
+        var winnerParticipant = participants.FirstOrDefault(p => p.MezonUserId == winnerMezonId);
+        var winnerXp = winnerParticipant?.XpAwarded ?? 0;
 
         return new ClanQuizConcludeDto
         {
@@ -354,34 +485,75 @@ public class ClanQuizService : IClanQuizService
             WinnerMezonUserId = winnerMezonId,
             WinnerUsername = winnerUsername,
             WinningResponseMs = winningMs,
+            WinnerXpAwarded = winnerXp,
             TotalResponses = totalResponses,
             CorrectResponses = correctResponses,
             Participants = participants,
-            IsPractice = isPractice
+            IsPractice = isPractice,
+            SlotKey = session.SlotKey
         };
     }
 
     private async Task<QuizQuestion?> GetRandomQuestionAsync()
     {
         QuizQuestion? question = null;
+        var now = DateTime.UtcNow;
+        var sevenDaysAgo = now.AddDays(-7);
+
+        // Lấy danh sách questionId đang được sử dụng ở các phiên mở để tránh trùng lặp giữa các Clan cùng slot
+        var activeQuestionIds = await _dbContext.ClanQuizSessions
+            .Where(s => s.Status == "open" && s.ClosesAt > now)
+            .Select(s => s.QuestionId)
+            .ToListAsync();
 
         if (_dbContext.Database.IsRelational())
         {
-            // Ưu tiên lấy ngẫu nhiên từ bảng quiz_questions trong DB
+            // 1. Ưu tiên câu hỏi chưa hỏi trong 7 ngày gần nhất và không trùng với phiên đang mở
             question = await _dbContext.QuizQuestions
-                .Where(q => q.Status == "published")
+                .Where(q => q.Status == "published"
+                    && !activeQuestionIds.Contains(q.Id)
+                    && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
                 .OrderBy(r => EF.Functions.Random())
                 .FirstOrDefaultAsync();
+
+            if (question == null)
+            {
+                question = await _dbContext.QuizQuestions
+                    .Where(q => q.Status == "published" && !activeQuestionIds.Contains(q.Id))
+                    .OrderBy(q => q.LastAskedAt)
+                    .FirstOrDefaultAsync();
+            }
         }
         else
         {
             question = await _dbContext.QuizQuestions
-                .Where(q => q.Status == "published")
+                .Where(q => q.Status == "published"
+                    && !activeQuestionIds.Contains(q.Id)
+                    && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
                 .FirstOrDefaultAsync();
+
+            if (question == null)
+            {
+                question = await _dbContext.QuizQuestions
+                    .Where(q => q.Status == "published" && !activeQuestionIds.Contains(q.Id))
+                    .OrderBy(q => q.LastAskedAt)
+                    .FirstOrDefaultAsync();
+            }
         }
 
         if (question != null)
         {
+            question.LastAskedAt = now;
+            if (_dbContext.Database.IsRelational())
+            {
+                await _dbContext.QuizQuestions
+                    .Where(q => q.Id == question.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastAskedAt, now));
+            }
+            else
+            {
+                await _dbContext.SaveChangesAsync();
+            }
             return question;
         }
 
@@ -402,7 +574,8 @@ public class ClanQuizService : IClanQuizService
             ]",
             Explanation = "Đáp án đúng là C (agree - đồng ý). Dịch câu: 'Tôi hoàn toàn đồng ý với ý kiến của bạn.'.",
             Points = 10,
-            Status = "published"
+            Status = "published",
+            LastAskedAt = now
         };
 
         _dbContext.QuizQuestions.Add(fallbackQuestion);
@@ -452,11 +625,18 @@ public class ClanQuizService : IClanQuizService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể upsert user cho mezonUserId {MezonUserId}. Sử dụng Guid ngẫu nhiên.", mezonUserId);
+                _logger.LogWarning(ex, "⚠️ [ClanQuizService] Không thể upsert user cho mezonUserId {MezonUserId}. Sử dụng Guid xác định từ MD5 của mezonUserId.", mezonUserId);
             }
         }
 
-        return Guid.NewGuid();
+        if (string.IsNullOrWhiteSpace(mezonUserId))
+        {
+            return Guid.NewGuid();
+        }
+
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        var hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(mezonUserId));
+        return new Guid(hash);
     }
 
     private async Task AwardXpAsync(
@@ -501,6 +681,58 @@ public class ClanQuizService : IClanQuizService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ [ClanQuiz] Lỗi khi ghi nhận điểm XP vào xp_ledger");
+        }
+    }
+
+    private async Task<bool> AwardScheduledXpAsync(
+        Guid userId,
+        Guid sessionId,
+        int xpDelta,
+        string globalIdempotencyKey,
+        string selectedKey,
+        int responseMs)
+    {
+        if (!_dbContext.Database.IsRelational())
+        {
+            return true;
+        }
+
+        try
+        {
+            var metadata = JsonSerializer.Serialize(new
+            {
+                sessionId,
+                isWinner = (xpDelta == 15),
+                selectedKey,
+                responseMs
+            }, JsonOptions);
+
+            const string awardXpSql = @"
+                INSERT INTO xp_ledger (id, user_id, source_type, source_id, xp_delta, awarded_at, idempotency_key, metadata)
+                VALUES (gen_random_uuid(), {0}, 'clan_quiz', {1}, {2}, now(), {3}, {4}::jsonb)
+                ON CONFLICT (idempotency_key) DO NOTHING;";
+
+            var rowsAffected = await _dbContext.Database.ExecuteSqlRawAsync(
+                awardXpSql,
+                userId,
+                sessionId,
+                xpDelta,
+                globalIdempotencyKey,
+                metadata);
+
+            if (rowsAffected > 0)
+            {
+                _logger.LogInformation("🎖️ [ScheduledQuiz] Đã cộng {Xp} XP cho User {UserId} (Session: {SessionId}, Key: {Key})", xpDelta, userId, sessionId, globalIdempotencyKey);
+                return true;
+            }
+
+            _logger.LogWarning("⚠️ [ScheduledQuiz] User {UserId} đã nhận XP cho slot này (Key: {Key}). Không cộng thêm XP.", userId, globalIdempotencyKey);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [ScheduledQuiz] Lỗi khi cộng XP cho User {UserId}", userId);
+            return false;
         }
     }
 
@@ -572,5 +804,8 @@ public class ClanQuizService : IClanQuizService
 
         [JsonPropertyName("responded_at")]
         public string RespondedAt { get; set; } = string.Empty;
+
+        [JsonPropertyName("xp_awarded")]
+        public int XpAwarded { get; set; }
     }
 }

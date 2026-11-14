@@ -13,6 +13,8 @@ public class MezonBotDbContext(DbContextOptions<MezonBotDbContext> options)
     public DbSet<BotConfiguration> BotConfigurations => Set<BotConfiguration>();
     public DbSet<ClanQuizSession> ClanQuizSessions => Set<ClanQuizSession>();
     public DbSet<ClanModeratorGrant> ClanModeratorGrants => Set<ClanModeratorGrant>();
+    public DbSet<ScheduledQuizRun> ScheduledQuizRuns => Set<ScheduledQuizRun>();
+    public DbSet<ScheduledQuizParticipation> ScheduledQuizParticipations => Set<ScheduledQuizParticipation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
