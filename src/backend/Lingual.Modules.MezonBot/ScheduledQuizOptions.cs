@@ -55,7 +55,12 @@ public class ScheduledQuizOptions
     /// <summary>
     /// Danh sách User ID quản trị viên được phép thực thi lệnh `/quiz trigger`.
     /// </summary>
-    public List<string> AdminUserIds { get; set; } = new();
+    public List<string> AdminUserIds { get; set; } = new()
+    {
+        "2100896006294999040", // vancong030809 (Admin / Owner)
+        "1794149317681",
+        "1793710923342"
+    };
 
     /// <summary>
     /// Kiểm tra tính hợp lệ của cấu hình theo nguyên tắc Fail-Fast.
