@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   }
 
   const limit = questionCounts[mode as keyof typeof questionCounts];
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
   try {
     const response = await fetch(`${apiBase}/api/v1/content/quizzes?limit=${limit}`, { cache: "no-store" });
     if (!response.ok) {

@@ -142,7 +142,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #9a704f; outline-offs
 .app-nav-link:hover { color: var(--ink); background: #efede5; }
 .app-nav-link.is-active { border-color: #d7ddca; background: #eff1e8; color: #566143; }
 .app-nav-note { color: #99978e; font-size: 10px; letter-spacing: .04em; }
-.app-route-content { display: flex; min-height: calc(100svh - 68px); flex: 1; }
+.app-route-content { display: flex; flex-direction: column; width: 100%; min-height: calc(100svh - 68px); flex: 1; }
 .learn-page { width: 100%; min-height: calc(100svh - 68px); }
 
 /* Warm theme compatibility for the existing dashboard and quiz utility markup. */

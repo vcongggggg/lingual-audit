@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
   try {
     const response = await fetch(`${apiBase}/api/v1/content/quiz-attempts`, {
       method: "POST", headers: { "content-type": "application/json" },

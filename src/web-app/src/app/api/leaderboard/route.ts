@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get("scope") || "personal";
   const type = searchParams.get("type") || "all-time";

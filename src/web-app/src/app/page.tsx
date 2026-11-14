@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { readQuizProgress } from "@/lib/quiz-progress";
+import { useAuth } from "@/lib/auth-context";
 import {
   Trophy,
   Flame,
@@ -75,8 +76,42 @@ export interface BadgeItem {
 }
 
 // ==========================================
-// 2. MOCK DATA
+// 2. HELPER FUNCTIONS & MOCK DATA
 // ==========================================
+
+export function formatDisplayName(rawName: string): string {
+  if (!rawName || rawName === "undefined" || rawName === "null") return "Học viên";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawName)) {
+    return `Học viên #${rawName.slice(0, 6)}`;
+  }
+  return rawName;
+}
+
+export function getInitials(name: string): string {
+  if (!name) return "U";
+  const clean = name.replace(/^Học viên #?/, "").trim();
+  return clean.charAt(0).toUpperCase() || "U";
+}
+
+export function getFallbackAvatar(name: string, seed: string = name): string {
+  const initial = getInitials(name);
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const colors = [
+    ["#4f46e5", "#818cf8"],
+    ["#0891b2", "#22d3ee"],
+    ["#059669", "#34d399"],
+    ["#d97706", "#fbbf24"],
+    ["#e11d48", "#fb7185"],
+    ["#7c3aed", "#a78bfa"],
+  ];
+  const [bg1, bg2] = colors[Math.abs(hash) % colors.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g_${Math.abs(hash)}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient></defs><rect width="100" height="100" rx="20" fill="url(#g_${Math.abs(hash)})"/><text x="50" y="58" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 // Dữ liệu bảng xếp hạng được nạp động 100% từ Redis Sorted Sets & PostgreSQL via /api/leaderboard
 const INITIAL_RANKINGS: LeaderboardEntry[] = [];
@@ -186,6 +221,7 @@ function BadgeCategoryIcon({ category, className = "" }: { category: BadgeItem["
 // ==========================================
 
 export default function LeaderboardPage() {
+  const { user: authUser, isAuthenticated } = useAuth();
   // Navigation / Filter States
   const [activeTab, setActiveTab] = useState<"personal" | "clan">("personal");
   const [timeRange, setTimeRange] = useState<"weekly" | "monthly" | "alltime">("weekly");
@@ -209,7 +245,8 @@ export default function LeaderboardPage() {
     let active = true;
     const fetchStreak = async () => {
       try {
-        const res = await fetch("/api/streak", { cache: "no-store" });
+        const streakUrl = authUser?.id ? `/api/streak?userId=${encodeURIComponent(authUser.id)}` : "/api/streak";
+        const res = await fetch(streakUrl, { cache: "no-store" });
         if (res.ok) {
           const data = (await res.json()) as { currentDays?: number; bestDays?: number; isActiveToday?: boolean };
           if (active && data.currentDays !== undefined) {
@@ -228,7 +265,7 @@ export default function LeaderboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [authUser?.id]);
 
   useEffect(() => {
     let active = true;
@@ -257,21 +294,36 @@ export default function LeaderboardPage() {
           }>;
         };
         if (active && Array.isArray(data.entries)) {
-          const mapped: LeaderboardEntry[] = data.entries.map((entry) => ({
-            id: String(entry.id ?? entry.user_id),
-            rank: Number(entry.rank),
-            previousRank: Number(entry.previous_rank ?? entry.rank),
-            name: String(entry.name),
-            avatar: String(entry.avatar ?? entry.avatar_url ?? ""),
-            level: Number(entry.level ?? 1),
-            tag: entry.tag ? String(entry.tag) : undefined,
-            wordsLearned: Number(entry.words_learned ?? 0),
-            xp: Number(entry.xp),
-            isCurrentUser: Boolean(entry.is_current_user || entry.user_id === "lingual-local-demo-user"),
-            streakDays: entry.streak_days !== undefined ? Number(entry.streak_days) : undefined,
-            clanName: entry.clan_name ? String(entry.clan_name) : undefined,
-            memberCount: entry.member_count !== undefined ? Number(entry.member_count) : undefined,
-          }));
+          const mapped: LeaderboardEntry[] = data.entries.map((entry) => {
+            const entryId = String(entry.id ?? entry.user_id);
+            const isSelf = Boolean(
+              entry.is_current_user ||
+              (authUser?.id && (entry.user_id === authUser.id || entry.id === authUser.id)) ||
+              (authUser?.mezonUserId && entry.user_id === authUser.mezonUserId) ||
+              (!isAuthenticated && entry.user_id === "lingual-local-demo-user")
+            );
+
+            const rawName = isSelf && authUser?.displayName ? authUser.displayName : String(entry.name);
+            const formattedName = formatDisplayName(rawName);
+            const rawAvatar = isSelf && authUser?.avatarUrl ? authUser.avatarUrl : String(entry.avatar ?? entry.avatar_url ?? "");
+            const validAvatar = rawAvatar.trim() ? rawAvatar.trim() : getFallbackAvatar(formattedName, entryId);
+
+            return {
+              id: entryId,
+              rank: Number(entry.rank),
+              previousRank: Number(entry.previous_rank ?? entry.rank),
+              name: formattedName,
+              avatar: validAvatar,
+              level: Number(entry.level ?? 1),
+              tag: entry.tag ? String(entry.tag) : undefined,
+              wordsLearned: Number(entry.words_learned ?? 0),
+              xp: Number(entry.xp),
+              isCurrentUser: isSelf,
+              streakDays: entry.streak_days !== undefined ? Number(entry.streak_days) : undefined,
+              clanName: entry.clan_name ? String(entry.clan_name) : undefined,
+              memberCount: entry.member_count !== undefined ? Number(entry.member_count) : undefined,
+            };
+          });
           setLiveRankings(mapped);
           if (data.updated_at) {
             const dt = new Date(data.updated_at);
@@ -289,7 +341,7 @@ export default function LeaderboardPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [activeTab, timeRange]);
+  }, [activeTab, timeRange, authUser, isAuthenticated]);
 
   useEffect(() => {
     let active = true;
@@ -569,11 +621,17 @@ export default function LeaderboardPage() {
                     <div className="relative mb-2">
                       <div className="w-14 h-14 md:w-20 md:h-20 rounded-2xl p-[2px] bg-gradient-to-b from-slate-200 via-slate-400 to-slate-600 shadow-lg shadow-slate-400/20 group-hover:scale-105 transition-transform duration-300">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={topThree[1].avatar}
-                          alt={topThree[1].name}
-                          className="w-full h-full object-cover rounded-[14px]"
-                        />
+                        {topThree[1].avatar && topThree[1].avatar.trim() !== "" ? (
+                          <img
+                            src={topThree[1].avatar}
+                            alt={topThree[1].name}
+                            className="w-full h-full object-cover rounded-[14px]"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center font-black text-slate-100 text-lg">
+                            {getInitials(topThree[1].name)}
+                          </div>
+                        )}
                       </div>
                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-gradient-to-br from-slate-200 to-slate-500 border-2 border-[#090d1a] flex items-center justify-center font-black text-xs text-slate-900 shadow">
                         2
@@ -605,11 +663,17 @@ export default function LeaderboardPage() {
                       </div>
                       <div className="w-18 h-18 md:w-24 md:h-24 rounded-2xl p-[3px] bg-gradient-to-b from-amber-200 via-amber-400 to-amber-600 shadow-xl shadow-amber-500/30 group-hover:scale-105 transition-transform duration-300">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={topThree[0].avatar}
-                          alt={topThree[0].name}
-                          className="w-full h-full object-cover rounded-[13px]"
-                        />
+                        {topThree[0].avatar && topThree[0].avatar.trim() !== "" ? (
+                          <img
+                            src={topThree[0].avatar}
+                            alt={topThree[0].name}
+                            className="w-full h-full object-cover rounded-[13px]"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-[13px] bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center font-black text-white text-xl">
+                            {getInitials(topThree[0].name)}
+                          </div>
+                        )}
                       </div>
                       <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-600 border-2 border-[#090d1a] flex items-center justify-center font-black text-sm text-amber-950 shadow-md">
                         1
@@ -640,11 +704,17 @@ export default function LeaderboardPage() {
                     <div className="relative mb-2">
                       <div className="w-14 h-14 md:w-20 md:h-20 rounded-2xl p-[2px] bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 shadow-lg shadow-amber-800/20 group-hover:scale-105 transition-transform duration-300">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={topThree[2].avatar}
-                          alt={topThree[2].name}
-                          className="w-full h-full object-cover rounded-[14px]"
-                        />
+                        {topThree[2].avatar && topThree[2].avatar.trim() !== "" ? (
+                          <img
+                            src={topThree[2].avatar}
+                            alt={topThree[2].name}
+                            className="w-full h-full object-cover rounded-[14px]"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-amber-800 to-amber-950 flex items-center justify-center font-black text-amber-100 text-lg">
+                            {getInitials(topThree[2].name)}
+                          </div>
+                        )}
                       </div>
                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-800 border-2 border-[#090d1a] flex items-center justify-center font-black text-xs text-amber-100 shadow">
                         3
@@ -722,13 +792,25 @@ export default function LeaderboardPage() {
                         {/* Avatar with optional Level Ring */}
                         <div className="relative shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={entry.avatar}
-                            alt={entry.name}
-                            className={`w-10 h-10 md:w-11 md:h-11 rounded-xl object-cover border ${
-                              isUser ? "border-indigo-400" : "border-white/10"
-                            }`}
-                          />
+                          {entry.avatar && entry.avatar.trim() !== "" ? (
+                            <img
+                              src={entry.avatar}
+                              alt={entry.name}
+                              className={`w-10 h-10 md:w-11 md:h-11 rounded-xl object-cover border ${
+                                isUser ? "border-indigo-400" : "border-white/10"
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`w-10 h-10 md:w-11 md:h-11 rounded-xl flex items-center justify-center font-bold text-sm border ${
+                                isUser
+                                  ? "border-indigo-400 bg-indigo-600 text-white"
+                                  : "border-white/10 bg-slate-800 text-slate-300"
+                              }`}
+                            >
+                              {getInitials(entry.name)}
+                            </div>
+                          )}
                           <span className="absolute -bottom-1 -right-1 bg-slate-900 text-[10px] font-bold px-1 rounded-md text-amber-400 border border-white/10">
                             {entry.level}
                           </span>
@@ -1110,11 +1192,17 @@ export default function LeaderboardPage() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    className="w-10 h-10 rounded-xl object-cover border-2 border-indigo-400"
-                  />
+                  {currentUser.avatar && currentUser.avatar.trim() !== "" ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-xl object-cover border-2 border-indigo-400"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 border-2 border-indigo-400 flex items-center justify-center font-bold text-sm text-white">
+                      {getInitials(currentUser.name)}
+                    </div>
+                  )}
                   <div className="absolute -bottom-1 -right-1 bg-indigo-600 text-white font-black text-[10px] px-1 rounded-md shadow">
                     #{currentUser.rank}
                   </div>

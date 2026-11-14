@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
   try {
     const response = await fetch(`${apiBase}/api/v1/gamification/activity/weekly`, { cache: "no-store" });
     if (!response.ok) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const limit = Math.min(500, Math.max(1, Number(request.nextUrl.searchParams.get("limit") ?? 50)));
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
 
   try {
     const response = await fetch(`${apiBase}/api/v1/content/vocabulary?limit=${limit}`, { cache: "no-store" });
