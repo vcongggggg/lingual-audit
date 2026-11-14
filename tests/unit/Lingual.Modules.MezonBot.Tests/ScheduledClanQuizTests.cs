@@ -59,6 +59,38 @@ public class ScheduledClanQuizTests
     }
 
     [Fact]
+    public async Task MezonClientPinExtensions_ResolvesEngineField_OnRealSdkClientInstance()
+    {
+        // Arrange: Khởi tạo instance SdkClient thật (chưa kết nối mạng)
+        var clientOptions = new Mezon.Net.Sdk.MezonClientOptions(123456L, "fake_token");
+        var client = new Mezon.Net.Sdk.MezonClient(clientOptions);
+
+        // Act & Assert 1: Field _engine tồn tại và được khởi tạo
+        var field = typeof(Mezon.Net.Sdk.MezonClient).GetField("_engine", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(field);
+
+        var engine = field.GetValue(client) as Mezon.Net.Client.MezonClient;
+        Assert.NotNull(engine);
+
+        // Act & Assert 2: Khẳng định KHÔNG ném InvalidOperationException("Không thể truy cập engine từ MezonClient")
+        Exception? capturedInvEx = null;
+        try
+        {
+            await client.CreatePinMessageAsync(new PinMessageParams(123L, 456L, 789L));
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Không thể truy cập engine từ MezonClient"))
+        {
+            capturedInvEx = ex;
+        }
+        catch
+        {
+            // Bỏ qua lỗi kết nối socket/mạng do client test double chưa kết nối
+        }
+
+        Assert.Null(capturedInvEx);
+    }
+
+    [Fact]
     public async Task MezonBotWorker_CreatePinMessageAsync_And_DeletePinMessageAsync_InvokesRealSdkOrExecutor()
     {
         // Arrange

@@ -3481,6 +3481,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     }
 }
 
+/// <summary>
+/// Tiện ích mở rộng hỗ trợ gọi API Ghim / Gỡ ghim tin nhắn (CreatePinMessageAsync, DeletePinMessageAsync).
+/// QUY TẮC NGOẠI LỆ REFLECTION:
+/// (a) Đây là ngoại lệ reflection duy nhất được chấp nhận vì SDK 1.11.0 không mở API pin công khai (Engine là internal);
+/// (b) Khi lỗi thì trả false + log, quiz vẫn chạy nếu ghim thất bại;
+/// (c) Nếu SDK đời sau mở API pin công khai thì phải đổi sang API đó ngay và xóa class này;
+/// (d) Cấm mở rộng reflection cho API khác.
+/// </summary>
 public static class MezonClientPinExtensions
 {
     public static Task CreatePinMessageAsync(this SdkClient client, PinMessageParams body)
