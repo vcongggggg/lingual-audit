@@ -374,6 +374,8 @@ export default function LeaderboardPage() {
   const [timeRange, setTimeRange] = useState<"weekly" | "monthly" | "alltime">("weekly");
   const [selectedBadge, setSelectedBadge] = useState<BadgeItem | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [weeklyProgress, setWeeklyProgress] = useState<DailyProgress[]>(WEEKLY_PROGRESS_DATA);
+  const [badgesList, setBadgesList] = useState<BadgeItem[]>(BADGES_DATA);
   const [activeBarDay, setActiveBarDay] = useState<DailyProgress | null>(WEEKLY_PROGRESS_DATA[6]);
   const [badgeFilter, setBadgeFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(false);
@@ -393,6 +395,39 @@ export default function LeaderboardPage() {
     void refresh();
     const timer = window.setInterval(refresh, 3000);
     return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadGamificationStats = async () => {
+      try {
+        const [actRes, badgeRes] = await Promise.all([
+          fetch("/api/activity/weekly", { cache: "no-store" }),
+          fetch("/api/badges", { cache: "no-store" }),
+        ]);
+
+        if (actRes.ok) {
+          const actData = await actRes.json() as { days?: DailyProgress[] };
+          if (active && Array.isArray(actData.days) && actData.days.length > 0) {
+            setWeeklyProgress(actData.days);
+            const todayDay = actData.days.find((d) => d.isToday) ?? actData.days[actData.days.length - 1];
+            setActiveBarDay(todayDay);
+          }
+        }
+
+        if (badgeRes.ok) {
+          const badgeData = await badgeRes.json() as { badges?: BadgeItem[] };
+          if (active && Array.isArray(badgeData.badges) && badgeData.badges.length > 0) {
+            setBadgesList(badgeData.badges);
+          }
+        }
+      } catch {
+        /* Retain fallback mock when offline */
+      }
+    };
+
+    void loadGamificationStats();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -446,11 +481,11 @@ export default function LeaderboardPage() {
   const personalUserXp = (PERSONAL_RANKINGS.find((item) => item.isCurrentUser)?.xp ?? 0) + quizXp;
 
   // Statistics calculation
-  const totalWeeklyWords = WEEKLY_PROGRESS_DATA.reduce((acc, curr) => acc + curr.words, 0);
-  const weeklyTarget = WEEKLY_PROGRESS_DATA.reduce((acc, curr) => acc + curr.target, 0);
-  const targetPercent = Math.min(100, Math.round((totalWeeklyWords / weeklyTarget) * 100));
+  const totalWeeklyWords = weeklyProgress.reduce((acc, curr) => acc + curr.words, 0);
+  const weeklyTarget = weeklyProgress.reduce((acc, curr) => acc + curr.target, 0);
+  const targetPercent = Math.min(100, Math.round((totalWeeklyWords / (weeklyTarget || 1)) * 100));
   // Filtered badges
-  const filteredBadges = BADGES_DATA.filter((badge) => {
+  const filteredBadges = badgesList.filter((badge) => {
     if (badgeFilter === "unlocked") return badge.unlocked;
     if (badgeFilter === "locked") return !badge.unlocked;
     return true;
@@ -942,7 +977,7 @@ export default function LeaderboardPage() {
 
                   {/* Bars container */}
                   <div className="grid grid-cols-7 gap-2 md:gap-3 items-end h-44 relative z-10 px-1">
-                    {WEEKLY_PROGRESS_DATA.map((item) => {
+                    {weeklyProgress.map((item) => {
                       const heightPercent = Math.min(100, Math.round((item.words / 55) * 100));
                       const isSelected = activeBarDay?.day === item.day;
                       const reachedTarget = item.words >= item.target;
@@ -1041,7 +1076,7 @@ export default function LeaderboardPage() {
                 </div>
 
                 <span className="text-xs font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
-                  {BADGES_DATA.filter((b) => b.unlocked).length}/{BADGES_DATA.length} Đã mở
+                  {badgesList.filter((b) => b.unlocked).length}/{badgesList.length} Đã mở
                 </span>
               </div>
 
@@ -1053,7 +1088,7 @@ export default function LeaderboardPage() {
                     badgeFilter === "all" ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  Tất cả ({BADGES_DATA.length})
+                  Tất cả ({badgesList.length})
                 </button>
                 <button
                   onClick={() => setBadgeFilter("unlocked")}
@@ -1063,7 +1098,7 @@ export default function LeaderboardPage() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  Đã đạt ({BADGES_DATA.filter((b) => b.unlocked).length})
+                  Đã đạt ({badgesList.filter((b) => b.unlocked).length})
                 </button>
                 <button
                   onClick={() => setBadgeFilter("locked")}
@@ -1073,7 +1108,7 @@ export default function LeaderboardPage() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  Chưa đạt ({BADGES_DATA.filter((b) => !b.unlocked).length})
+                  Chưa đạt ({badgesList.filter((b) => !b.unlocked).length})
                 </button>
               </div>
 

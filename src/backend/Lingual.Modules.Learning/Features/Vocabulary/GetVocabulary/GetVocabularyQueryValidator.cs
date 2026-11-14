@@ -8,7 +8,7 @@ public class GetVocabularyQueryValidator : AbstractValidator<GetVocabularyQuery>
     {
         RuleFor(x => x.Limit)
             .GreaterThan(0).WithMessage("Limit must be greater than 0.")
-            .LessThanOrEqualTo(200).WithMessage("Limit must not exceed 200 items.");
+            .LessThanOrEqualTo(500).WithMessage("Limit must not exceed 500 items.");
 
         RuleFor(x => x.SourceLanguage)
             .NotEmpty().WithMessage("Source language is required.");

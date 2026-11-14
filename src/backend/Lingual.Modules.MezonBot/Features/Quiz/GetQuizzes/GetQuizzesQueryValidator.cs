@@ -8,6 +8,6 @@ public class GetQuizzesQueryValidator : AbstractValidator<GetQuizzesQuery>
     {
         RuleFor(x => x.Limit)
             .GreaterThan(0).WithMessage("Limit must be greater than 0.")
-            .LessThanOrEqualTo(100).WithMessage("Limit must not exceed 100 questions.");
+            .LessThanOrEqualTo(300).WithMessage("Limit must not exceed 300 questions.");
     }
 }
