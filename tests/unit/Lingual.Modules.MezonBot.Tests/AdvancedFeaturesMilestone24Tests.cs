@@ -297,8 +297,8 @@ public class AdvancedFeaturesMilestone24Tests
         var workerLogger = new Mock<ILogger<MezonBotWorker>>();
         var worker = new MezonBotWorker(workerLogger.Object, options, scopeFactory);
 
-        // Act - Tạo câu hỏi qua HandleQuizCommandAsync
-        await worker.HandleQuizCommandAsync(channelId: 1001, senderId: "user_test");
+        // Act - Tạo câu hỏi qua HandleReactionQuizCommandAsync
+        await worker.HandleReactionQuizCommandAsync(channelId: 1001, senderId: "user_test");
 
         // Lấy session trong DB để biết đáp án đúng bí mật
         var sessionInDb = await db.ClanQuizSessions.Include(s => s.Question).FirstAsync();
@@ -599,7 +599,7 @@ public class AdvancedFeaturesMilestone24Tests
         long channelId = 55501;
 
         // Lần 1: Tạo quiz thành công
-        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+        await worker.HandleReactionQuizCommandAsync(channelId, senderId: "12345678");
 
         var sessionsCountAfterFirst = await db.ClanQuizSessions.CountAsync();
         sessionsCountAfterFirst.Should().Be(1, "Lần 1 phải tạo 1 session trong DB");
@@ -608,7 +608,7 @@ public class AdvancedFeaturesMilestone24Tests
         MezonBotWorker.ChannelQuizCooldowns.Clear();
 
         // Lần 2: Gọi tiếp /quiz trong cùng kênh khi session 1 vẫn đang open
-        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+        await worker.HandleReactionQuizCommandAsync(channelId, senderId: "12345678");
 
         // Assert:
         // 1. Số lượng session trong DB vẫn giữ nguyên là 1, không tạo thêm session rác
@@ -658,7 +658,7 @@ public class AdvancedFeaturesMilestone24Tests
         MezonBotWorker.ChannelQuizCooldowns[channelId] = DateTime.UtcNow.AddSeconds(-20);
 
         // Act - Gọi /quiz lại
-        await worker.HandleQuizCommandAsync(channelId, senderId: "12345678");
+        await worker.HandleReactionQuizCommandAsync(channelId, senderId: "12345678");
 
         // Assert:
         // 1. Không tạo session nào trong DB

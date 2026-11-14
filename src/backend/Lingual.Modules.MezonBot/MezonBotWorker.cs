@@ -980,6 +980,110 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     {
         try
         {
+            using var scope = _scopeFactory.CreateScope();
+            var quizService = scope.ServiceProvider.GetRequiredService<IClanQuizService>();
+
+            if (await quizService.HasActiveSessionAsync(channelId, isPractice))
+            {
+                var busyMsg = isPractice
+                    ? "⚠️ Bạn đang có một câu đố luyện tập chưa kết thúc!\nHãy chọn đáp án cho câu hỏi hiện tại trước nhé!"
+                    : "⚠️ Đang có một câu đố Clan đang diễn ra!\nHãy nhanh tay bấm chọn đáp án cho câu hỏi hiện tại trên kênh nhé!";
+                await ReplyToChannelAsync(channelId, busyMsg, replyTo);
+                return;
+            }
+
+            const int durationSeconds = 30;
+            var session = await quizService.StartSessionAsync(channelId, senderId, durationSeconds, isPractice);
+
+            if (session == null)
+            {
+                await ReplyToChannelAsync(channelId, "⚠️ Không thể khởi tạo câu đố vào lúc này. Vui lòng thử lại sau ít phút!", replyTo);
+                return;
+            }
+
+            var optionsText = string.Join("\n", session.Options.Select(o => $"{o.Key}. {o.Text}"));
+
+            var title = isPractice ? "📖 TỰ LUYỆN TẬP TỪ VỰNG (DM)" : "🏆 ĐỐ VUI TỪ VỰNG CLAN";
+            var desc = isPractice
+                ? "🎯 Chế độ luyện tập cá nhân: Chọn đáp án đúng bên dưới để nhận phản hồi và giải thích chi tiết ngay lập tức!\n💡 Không áp lực thời gian, không tranh hạng Clan."
+                : "⚡ Nhanh tay chọn đáp án chính xác để ghi điểm cho Clan của bạn!\n⏱️ Thời gian trả lời: 30 giây\n🥇 Đúng nhanh nhất: +15 XP | Đúng tiếp theo: +5 XP";
+
+            var embed = new MessageEmbedBuilder()
+                .SetColor(isPractice ? "#6366F1" : "#F59E0B")
+                .SetTitle(title)
+                .SetDescription(desc)
+                .AddField("📝 Câu hỏi", session.QuestionPrompt, false)
+                .AddField("🎯 Các lựa chọn", optionsText, false)
+                .AddField("📊 Thông tin", $"Trình độ: {session.Level ?? "A1-A2"} • Độ khó: {session.Difficulty ?? 1}/5", false)
+                .SetFooter("Bấm nút bên dưới để chọn đáp án (mỗi bạn được chọn 1 lần) • LINGUAL Quiz", "")
+                .Build();
+
+            var buttonBuilder = new ButtonBuilder();
+            foreach (var opt in session.Options)
+            {
+                var customId = $"btn_quiz_{session.SessionId}_{opt.Key}";
+                buttonBuilder.AddButton(customId, $"{opt.Key}. {opt.Text}", 2, false, "", "");
+            }
+
+            var content = new MessageContentBuilder()
+                .SetText(isPractice ? "📚 Câu hỏi luyện tập của bạn đã sẵn sàng:" : "🔥 Đố vui từ vựng vừa xuất hiện! Chọn đáp án ngay bên dưới:")
+                .AddEmbed(embed)
+                .AddActionRow(buttonBuilder.BuildComponents())
+                .Build();
+
+            var sentMessageId = await ReplyToChannelWithContentAsync(channelId, content, replyTo);
+            if (sentMessageId > 0)
+            {
+                ActiveQuizMessages[session.SessionId] = new QuizMessageMeta(
+                    channelId,
+                    sentMessageId,
+                    session.QuestionPrompt,
+                    session.Level,
+                    session.Difficulty,
+                    session.Options,
+                    isPractice
+                );
+            }
+
+            var cts = new CancellationTokenSource();
+            ActiveQuizTimers[session.SessionId] = cts;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(durationSeconds), cts.Token);
+                    ActiveQuizTimers.TryRemove(session.SessionId, out _);
+                    await ConcludeQuizAsync(channelId, session.SessionId);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Timer bị hủy khi tất cả người chơi đã trả lời hoặc session kết thúc sớm
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ [MezonBot] Lỗi hẹn giờ tự động kết thúc Clan Quiz {SessionId}", session.SessionId);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /quiz cho channel {ChannelId}", channelId);
+            await ReplyToChannelAsync(channelId, "❌ Đã có lỗi xảy ra khi tạo câu đố. Vui lòng thử lại sau!", replyTo);
+        }
+    }
+
+    /// <summary>
+    /// Chức năng Reaction Quiz (thả emoji cờ để chọn đáp án) - Tạm giữ nguyên code trong hệ thống, chưa kích hoạt.
+    /// </summary>
+    public virtual async Task HandleReactionQuizCommandAsync(
+        long channelId,
+        string? senderId,
+        bool isPractice = false,
+        ChannelMessageResponse? replyTo = null)
+    {
+        try
+        {
             var now = DateTime.UtcNow;
 
             // 1. Kiểm tra Cooldown 60 giây theo kênh
