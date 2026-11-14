@@ -38,7 +38,7 @@ namespace Lingual.Modules.MezonBot.Infrastructure.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_scheduled_quiz_runs", x => x.slot_key);
+                    table.PrimaryKey("pk_scheduled_quiz_runs", x => new { x.slot_key, x.channel_id });
                 });
 
             migrationBuilder.CreateTable(

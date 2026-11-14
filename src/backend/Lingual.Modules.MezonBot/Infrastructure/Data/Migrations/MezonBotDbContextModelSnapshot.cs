@@ -601,7 +601,7 @@ namespace Lingual.Modules.MezonBot.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("warned_at");
 
-                    b.HasKey("SlotKey")
+                    b.HasKey("SlotKey", "ChannelId")
                         .HasName("pk_scheduled_quiz_runs");
 
                     b.HasIndex("ChannelId")

@@ -48,11 +48,11 @@ public class ScheduledQuizService : IScheduledQuizService
         if (channelId <= 0) return false;
 
         var existingRun = await _dbContext.ScheduledQuizRuns
-            .FirstOrDefaultAsync(r => r.SlotKey == slotKey, cancellationToken);
+            .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId, cancellationToken);
 
         if (existingRun != null && existingRun.WarnedAt != null)
         {
-            _logger.LogInformation("Slot {SlotKey} đã được thông báo trước lúc {WarnedAt}. Bỏ qua.", slotKey, existingRun.WarnedAt);
+            _logger.LogInformation("Slot {SlotKey} đã được thông báo trước lúc {WarnedAt} tại Kênh {ChannelId}. Bỏ qua.", slotKey, existingRun.WarnedAt, channelId);
             return false;
         }
 
@@ -86,11 +86,11 @@ public class ScheduledQuizService : IScheduledQuizService
         if (channelId <= 0) return null;
 
         var existingRun = await _dbContext.ScheduledQuizRuns
-            .FirstOrDefaultAsync(r => r.SlotKey == slotKey, cancellationToken);
+            .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId, cancellationToken);
 
         if (existingRun != null && existingRun.PostedAt != null)
         {
-            _logger.LogInformation("Slot {SlotKey} đã được phát động lúc {PostedAt}. Bỏ qua.", slotKey, existingRun.PostedAt);
+            _logger.LogInformation("Slot {SlotKey} đã được phát động lúc {PostedAt} tại Kênh {ChannelId}. Bỏ qua.", slotKey, existingRun.PostedAt, channelId);
             return null;
         }
 

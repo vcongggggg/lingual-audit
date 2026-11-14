@@ -293,6 +293,51 @@ public class ScheduledClanQuizTests
     }
 
     [Fact]
+    public async Task PostScheduledQuizAsync_MultipleClansSameSlot_BothSucceed()
+    {
+        // Arrange
+        using var dbContext = CreateInMemoryDbContext();
+        var clanQuizServiceLoggerMock = new Mock<ILogger<ClanQuizService>>();
+        var clanQuizService = new ClanQuizService(dbContext, clanQuizServiceLoggerMock.Object);
+
+        var notifierMock = new Mock<IMezonBotNotifier>();
+        notifierMock.Setup(n => n.SendPublicChannelContentAsync(It.IsAny<long>(), It.IsAny<MessageContent>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(888999111UL);
+
+        var optionsMock = Options.Create(new ScheduledQuizOptions
+        {
+            Enabled = true,
+            TargetChannelId = 1001L,
+            DurationSeconds = 60
+        });
+        var loggerMock = new Mock<ILogger<ScheduledQuizService>>();
+
+        var service = new ScheduledQuizService(
+            dbContext,
+            clanQuizService,
+            notifierMock.Object,
+            optionsMock,
+            loggerMock.Object);
+
+        var slotKey = "2026-11-14_20:30";
+        var channelClanA = 1001L;
+        var channelClanB = 2002L;
+
+        // Act: Cả 2 Clan cùng phát động quiz trong cùng slotKey
+        var sessionClanA = await service.PostScheduledQuizAsync(slotKey, channelClanA, "20:30");
+        var sessionClanB = await service.PostScheduledQuizAsync(slotKey, channelClanB, "20:30");
+
+        // Assert: Cả 2 clan đều phát động thành công và lưu 2 bản ghi riêng biệt trong scheduled_quiz_runs
+        sessionClanA.Should().NotBeNull();
+        sessionClanB.Should().NotBeNull();
+        sessionClanA!.SessionId.Should().NotBe(sessionClanB!.SessionId);
+
+        var runsInDb = await dbContext.ScheduledQuizRuns.Where(r => r.SlotKey == slotKey).ToListAsync();
+        runsInDb.Should().HaveCount(2);
+        runsInDb.Select(r => r.ChannelId).Should().Contain(new[] { channelClanA, channelClanB });
+    }
+
+    [Fact]
     public async Task PostScheduledQuizAsync_PinsNewMessage_AndUnpinsOldQuizMessage()
     {
         // Arrange

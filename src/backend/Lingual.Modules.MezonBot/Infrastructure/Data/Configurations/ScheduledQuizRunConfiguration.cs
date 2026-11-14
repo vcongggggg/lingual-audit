@@ -10,7 +10,7 @@ public class ScheduledQuizRunConfiguration : IEntityTypeConfiguration<ScheduledQ
     {
         builder.ToTable("scheduled_quiz_runs");
 
-        builder.HasKey(r => r.SlotKey);
+        builder.HasKey(r => new { r.SlotKey, r.ChannelId });
 
         builder.Property(r => r.SlotKey)
             .HasMaxLength(32)
