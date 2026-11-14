@@ -625,4 +625,71 @@ public class ScheduledClanQuizTests
         var isExpired = timeAfterCatchUp >= slot0900.AddMinutes(10);
         isExpired.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task CrossClanQuiz_SimultaneousSessions_PickDistinctQuestions_AndConcludeReportsZeroXpForSecondaryClan()
+    {
+        // Arrange
+        var dbContext = CreateInMemoryDbContext();
+        var q1 = new QuizQuestion
+        {
+            Id = Guid.NewGuid(),
+            Prompt = "Question 1 Prompt",
+            Status = "published",
+            Options = @"[{""key"":""A"",""text"":""Option 1"",""is_correct"":true},{""key"":""B"",""text"":""Option 2"",""is_correct"":false}]",
+            Explanation = "Exp 1"
+        };
+        var q2 = new QuizQuestion
+        {
+            Id = Guid.NewGuid(),
+            Prompt = "Question 2 Prompt",
+            Status = "published",
+            Options = @"[{""key"":""A"",""text"":""Option A"",""is_correct"":true},{""key"":""B"",""text"":""Option B"",""is_correct"":false}]",
+            Explanation = "Exp 2"
+        };
+        dbContext.QuizQuestions.AddRange(q1, q2);
+        await dbContext.SaveChangesAsync();
+
+        var clanQuizService = new ClanQuizService(dbContext, NullLogger<ClanQuizService>.Instance);
+        var slotKey = "test_slot_cross_clan_distinct";
+        var channelClanA = 111111L;
+        var channelClanB = 222222L;
+
+        // Act 1: Khởi động 2 session đồng thời cho 2 clan
+        var sessionA = await clanQuizService.StartSessionAsync(channelClanA, null, 60, false, slotKey);
+        var sessionB = await clanQuizService.StartSessionAsync(channelClanB, null, 60, false, slotKey);
+
+        // Assert 1: Hai Clan phải nhận 2 câu hỏi khác biệt nhau hoàn toàn
+        sessionA.Should().NotBeNull();
+        sessionB.Should().NotBeNull();
+        sessionA!.QuestionPrompt.Should().NotBe(sessionB!.QuestionPrompt);
+
+        // Act 2: Học viên trả lời đúng tại Clan A
+        var learnerMezonId = "learner_cross_test_123";
+        var learnerName = "LearnerTest";
+        var resA = await clanQuizService.SubmitAnswerAsync(sessionA.SessionId, channelClanA, learnerMezonId, learnerName, "A");
+
+        // Assert 2: Clan A được thưởng 15 XP
+        resA.XpAwarded.Should().Be(15);
+        resA.IsCorrect.Should().BeTrue();
+
+        // Act 3: Học viên trả lời đúng tại Clan B
+        var resB = await clanQuizService.SubmitAnswerAsync(sessionB.SessionId, channelClanB, learnerMezonId, learnerName, "A");
+
+        // Assert 3: Clan B trả lời đúng nhưng nhận 0 XP (đã nhận ở Clan A trong cùng slot)
+        resB.IsCorrect.Should().BeTrue();
+        resB.XpAwarded.Should().Be(0);
+        resB.Message.Should().Contain("0 XP");
+
+        // Act 4: Tổng kết cả 2 phiên
+        var concludeA = await clanQuizService.ConcludeSessionAsync(sessionA.SessionId);
+        var concludeB = await clanQuizService.ConcludeSessionAsync(sessionB.SessionId);
+
+        // Assert 4: Conclude Clan A báo Winner nhận 15 XP, Conclude Clan B báo Winner nhận 0 XP
+        concludeA.Should().NotBeNull();
+        concludeA!.WinnerXpAwarded.Should().Be(15);
+
+        concludeB.Should().NotBeNull();
+        concludeB!.WinnerXpAwarded.Should().Be(0);
+    }
 }

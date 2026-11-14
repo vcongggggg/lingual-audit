@@ -429,7 +429,7 @@ public class ClanQuizService : IClanQuizService
         {
             scheduledParticipations = await _dbContext.ScheduledQuizParticipations
                 .AsNoTracking()
-                .Where(p => p.SessionId == sessionId)
+                .Where(p => p.SlotKey == session.SlotKey)
                 .ToListAsync();
         }
 
@@ -442,9 +442,22 @@ public class ClanQuizService : IClanQuizService
             .Select(r =>
             {
                 var pRec = scheduledParticipations.FirstOrDefault(p => p.MezonUserId == r.MezonUserId);
-                var xp = pRec != null
-                    ? pRec.XpAwarded
-                    : (r.XpAwarded > 0 ? r.XpAwarded : (!isPractice && r.IsCorrect ? (r.MezonUserId == winnerMezonId ? 15 : 5) : 0));
+                int xp;
+                if (!string.IsNullOrWhiteSpace(session.SlotKey))
+                {
+                    if (pRec != null)
+                    {
+                        xp = pRec.SessionId == sessionId ? pRec.XpAwarded : 0;
+                    }
+                    else
+                    {
+                        xp = r.XpAwarded;
+                    }
+                }
+                else
+                {
+                    xp = r.XpAwarded > 0 ? r.XpAwarded : (!isPractice && r.IsCorrect ? (r.MezonUserId == winnerMezonId ? 15 : 5) : 0);
+                }
 
                 return new QuizParticipantSummaryDto
                 {
@@ -459,7 +472,7 @@ public class ClanQuizService : IClanQuizService
             .ToList();
 
         var winnerParticipant = participants.FirstOrDefault(p => p.MezonUserId == winnerMezonId);
-        var winnerXp = winnerParticipant?.XpAwarded ?? (winnerMezonId != null ? 15 : 0);
+        var winnerXp = winnerParticipant?.XpAwarded ?? 0;
 
         return new ClanQuizConcludeDto
         {
@@ -487,18 +500,26 @@ public class ClanQuizService : IClanQuizService
         var now = DateTime.UtcNow;
         var sevenDaysAgo = now.AddDays(-7);
 
+        // Lấy danh sách questionId đang được sử dụng ở các phiên mở để tránh trùng lặp giữa các Clan cùng slot
+        var activeQuestionIds = await _dbContext.ClanQuizSessions
+            .Where(s => s.Status == "open" && s.ClosesAt > now)
+            .Select(s => s.QuestionId)
+            .ToListAsync();
+
         if (_dbContext.Database.IsRelational())
         {
-            // 1. Ưu tiên câu hỏi chưa hỏi trong 7 ngày gần nhất
+            // 1. Ưu tiên câu hỏi chưa hỏi trong 7 ngày gần nhất và không trùng với phiên đang mở
             question = await _dbContext.QuizQuestions
-                .Where(q => q.Status == "published" && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
+                .Where(q => q.Status == "published"
+                    && !activeQuestionIds.Contains(q.Id)
+                    && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
                 .OrderBy(r => EF.Functions.Random())
                 .FirstOrDefaultAsync();
 
             if (question == null)
             {
                 question = await _dbContext.QuizQuestions
-                    .Where(q => q.Status == "published")
+                    .Where(q => q.Status == "published" && !activeQuestionIds.Contains(q.Id))
                     .OrderBy(q => q.LastAskedAt)
                     .FirstOrDefaultAsync();
             }
@@ -506,13 +527,15 @@ public class ClanQuizService : IClanQuizService
         else
         {
             question = await _dbContext.QuizQuestions
-                .Where(q => q.Status == "published" && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
+                .Where(q => q.Status == "published"
+                    && !activeQuestionIds.Contains(q.Id)
+                    && (q.LastAskedAt == null || q.LastAskedAt < sevenDaysAgo))
                 .FirstOrDefaultAsync();
 
             if (question == null)
             {
                 question = await _dbContext.QuizQuestions
-                    .Where(q => q.Status == "published")
+                    .Where(q => q.Status == "published" && !activeQuestionIds.Contains(q.Id))
                     .OrderBy(q => q.LastAskedAt)
                     .FirstOrDefaultAsync();
             }
@@ -521,7 +544,16 @@ public class ClanQuizService : IClanQuizService
         if (question != null)
         {
             question.LastAskedAt = now;
-            await _dbContext.SaveChangesAsync();
+            if (_dbContext.Database.IsRelational())
+            {
+                await _dbContext.QuizQuestions
+                    .Where(q => q.Id == question.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastAskedAt, now));
+            }
+            else
+            {
+                await _dbContext.SaveChangesAsync();
+            }
             return question;
         }
 

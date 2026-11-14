@@ -3150,15 +3150,37 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                     if (result.IsWinner)
                     {
                         var seconds = result.ResponseMs / 1000.0;
-                        await ReplyToChannelAsync(channelId, $"⚡ {username} đã trả lời ĐÚNG thần tốc trong {seconds:F2}s! Đang dẫn đầu bảng (+15 XP) 🥇");
+                        if (result.XpAwarded > 0)
+                        {
+                            await ReplyToChannelAsync(channelId, $"⚡ {username} đã trả lời ĐÚNG thần tốc trong {seconds:F2}s! Đang dẫn đầu bảng (+{result.XpAwarded} XP) 🥇");
+                        }
+                        else
+                        {
+                            await ReplyToChannelAsync(channelId, $"⚡ {username} đã trả lời ĐÚNG thần tốc trong {seconds:F2}s! Đang dẫn đầu bảng (+0 XP — đã nhận XP khung giờ này ở Clan khác) 🥇");
+                        }
                     }
                     else if (result.IsCorrect)
                     {
-                        await ReplyToChannelAsync(channelId, $"✅ {username} chọn đúng đáp án {selectedKey} (+5 XP)!");
+                        if (result.XpAwarded > 0)
+                        {
+                            await ReplyToChannelAsync(channelId, $"✅ {username} chọn đúng đáp án {selectedKey} (+{result.XpAwarded} XP)!");
+                        }
+                        else
+                        {
+                            await ReplyToChannelAsync(channelId, $"✅ {username} chọn đúng đáp án {selectedKey} (+0 XP — đã nhận XP khung giờ này ở Clan khác)!");
+                        }
                     }
                     else
                     {
                         await ReplyToChannelAsync(channelId, $"❌ {username} chọn đáp án {selectedKey} (chưa chính xác). Hãy đợi tổng kết nhé!");
+                    }
+
+                    if (result.IsCorrect && result.XpAwarded == 0)
+                    {
+                        if (long.TryParse(mezonUserId, out var clanUserUid) && clanUserUid > 0)
+                        {
+                            await SendEphemeralMessageAsync(channelId, clanUserUid, "ℹ️ Bạn đã nhận XP của khung giờ này ở Clan khác rồi nhé. Lượt trả lời này tại Clan này được ghi nhận là lượt luyện tập (+0 XP)!");
+                        }
                     }
                 }
             }
