@@ -35,6 +35,16 @@ public class ScheduledClanQuizTests
         return new MezonBotDbContext(options);
     }
 
+    private MezonBotDbContext CreateNoTrackingInMemoryDbContext(string databaseName)
+    {
+        var options = new DbContextOptionsBuilder<MezonBotDbContext>()
+            .UseInMemoryDatabase(databaseName: databaseName)
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+            .Options;
+
+        return new MezonBotDbContext(options);
+    }
+
     private class OptionItem
     {
         [JsonPropertyName("key")]
@@ -691,5 +701,223 @@ public class ScheduledClanQuizTests
 
         concludeB.Should().NotBeNull();
         concludeB!.WinnerXpAwarded.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PostScheduledQuizAsync_WhenRunExistsWithWarningUnderNoTracking_UpdatesPostedAtAndSessionIdInDatabase()
+    {
+        // Arrange
+        var dbName = $"ScheduledQuiz_NoTracking_Post_{Guid.NewGuid()}";
+        var channelId = 2116390031126958080L;
+        var slotKey = "2026-11-14_20:30";
+
+        // Setup 1: Tạo bản ghi warning trước đó trong DB với posted_at = NULL (mô phỏng PostWarningAsync)
+        using (var setupContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var seedQuestion = new QuizQuestion
+            {
+                Id = Guid.NewGuid(),
+                QuestionType = "multiple_choice",
+                Level = "A1",
+                Difficulty = 1,
+                Points = 10,
+                Prompt = "What is the capital of France?",
+                Status = "published",
+                Options = @"[{""key"":""A"",""text"":""Paris"",""is_correct"":true},{""key"":""B"",""text"":""London"",""is_correct"":false}]",
+                Explanation = "Paris is the capital of France."
+            };
+            setupContext.QuizQuestions.Add(seedQuestion);
+
+            var warnedRun = new ScheduledQuizRun
+            {
+                SlotKey = slotKey,
+                ChannelId = channelId,
+                WarnedAt = DateTime.UtcNow.AddMinutes(-1),
+                PostedAt = null,
+                SessionId = null,
+                PinnedMessageId = null,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+            };
+            setupContext.ScheduledQuizRuns.Add(warnedRun);
+            await setupContext.SaveChangesAsync();
+        }
+
+        // Setup 2: Chạy service với context NoTracking (mô phỏng chính xác cấu hình toàn cục NoTracking của Lingual.Persistence)
+        using (var serviceContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var clanQuizService = new ClanQuizService(serviceContext, NullLogger<ClanQuizService>.Instance);
+            var notifierMock = new Mock<IMezonBotNotifier>();
+            notifierMock.Setup(n => n.SendPublicChannelContentAsync(It.IsAny<long>(), It.IsAny<MessageContent>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1840651253634302976UL);
+
+            var options = Options.Create(new ScheduledQuizOptions
+            {
+                Enabled = true,
+                TargetChannelId = channelId,
+                DurationSeconds = 30
+            });
+
+            var service = new ScheduledQuizService(
+                serviceContext,
+                clanQuizService,
+                notifierMock.Object,
+                options,
+                NullLogger<ScheduledQuizService>.Instance);
+
+            // Act
+            var session = await service.PostScheduledQuizAsync(slotKey, channelId, "20:30");
+
+            session.Should().NotBeNull();
+            session!.SessionId.Should().NotBeEmpty();
+        }
+
+        // Assert 3: Mở một DbContext hoàn toàn mới để xác minh dữ liệu thực tế ĐÃ ĐƯỢC PERSIST XUỐNG DATABASE
+        using (var verifyContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var runInDb = await verifyContext.ScheduledQuizRuns
+                .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId);
+
+            runInDb.Should().NotBeNull();
+            runInDb!.WarnedAt.Should().NotBeNull("warned_at phải được bảo toàn");
+            runInDb.PostedAt.Should().NotBeNull("posted_at KHÔNG ĐƯỢC PHÉP NULL sau khi đã phát động quiz (Fix F5 NoTracking)");
+            runInDb.SessionId.Should().NotBeNull("session_id KHÔNG ĐƯỢC PHÉP NULL sau khi phát động quiz");
+        }
+    }
+
+    [Fact]
+    public async Task PostWarningAsync_WhenRunExistsWithoutWarnedAtUnderNoTracking_UpdatesWarnedAtInDatabase()
+    {
+        // Arrange
+        var dbName = $"ScheduledQuiz_NoTracking_Warn_{Guid.NewGuid()}";
+        var channelId = 2116390031126958080L;
+        var slotKey = "2026-11-14_20:30";
+
+        // Setup 1: Bản ghi đã tồn tại nhưng WarnedAt = null
+        using (var setupContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var initialRun = new ScheduledQuizRun
+            {
+                SlotKey = slotKey,
+                ChannelId = channelId,
+                WarnedAt = null,
+                PostedAt = null,
+                SessionId = null,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5)
+            };
+            setupContext.ScheduledQuizRuns.Add(initialRun);
+            await setupContext.SaveChangesAsync();
+        }
+
+        // Setup 2: Chạy PostWarningAsync với context NoTracking
+        using (var serviceContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var clanQuizServiceMock = new Mock<IClanQuizService>();
+            var notifierMock = new Mock<IMezonBotNotifier>();
+            var options = Options.Create(new ScheduledQuizOptions
+            {
+                Enabled = true,
+                TargetChannelId = channelId
+            });
+
+            var service = new ScheduledQuizService(
+                serviceContext,
+                clanQuizServiceMock.Object,
+                notifierMock.Object,
+                options,
+                NullLogger<ScheduledQuizService>.Instance);
+
+            // Act
+            var result = await service.PostWarningAsync(slotKey, channelId, "20:30");
+
+            result.Should().BeTrue();
+            notifierMock.Verify(n => n.SendPublicChannelTextAsync(channelId, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        // Assert: Xác minh WarnedAt đã được cập nhật thực sự trong DB
+        using (var verifyContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var runInDb = await verifyContext.ScheduledQuizRuns
+                .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId);
+
+            runInDb.Should().NotBeNull();
+            runInDb!.WarnedAt.Should().NotBeNull("warned_at phải được UPDATE thành công vào DB dù DbContext có cấu hình NoTracking");
+        }
+    }
+
+    [Fact]
+    public async Task SubmitAnswerAsync_WhenParticipationExistsUnderNoTracking_UpdatesParticipationInDatabase()
+    {
+        // Arrange
+        var dbName = $"ScheduledQuiz_NoTracking_Part_{Guid.NewGuid()}";
+        var channelId = 2116390031126958080L;
+        var slotKey = "2026-11-14_20:30";
+        var userId = Guid.NewGuid();
+        var mezonUserId = "learner_notracking_001";
+        var sessionId = Guid.NewGuid();
+
+        using (var setupContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var question = new QuizQuestion
+            {
+                Id = Guid.NewGuid(),
+                QuestionType = "multiple_choice",
+                Level = "A1",
+                Difficulty = 1,
+                Points = 10,
+                Prompt = "Select correct option",
+                Status = "published",
+                Options = @"[{""key"":""A"",""text"":""Correct"",""is_correct"":true},{""key"":""B"",""text"":""Wrong"",""is_correct"":false}]",
+                Explanation = "A is correct"
+            };
+            setupContext.QuizQuestions.Add(question);
+
+            var session = new ClanQuizSession
+            {
+                Id = sessionId,
+                ChannelMezonId = channelId.ToString(),
+                QuestionId = question.Id,
+                Status = "open",
+                OpenedAt = DateTime.UtcNow,
+                ClosesAt = DateTime.UtcNow.AddMinutes(5),
+                Responses = "[]",
+                SlotKey = slotKey
+            };
+            setupContext.ClanQuizSessions.Add(session);
+
+            // Người dùng đã có bản ghi tham gia trước đó (ví dụ trả lời sai, 0 XP)
+            var priorParticipation = new ScheduledQuizParticipation
+            {
+                Id = Guid.NewGuid(),
+                SlotKey = slotKey,
+                UserId = userId,
+                MezonUserId = mezonUserId,
+                ClanId = channelId,
+                ChannelId = channelId,
+                SessionId = sessionId,
+                IsCorrect = false,
+                XpAwarded = 0,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+            };
+            setupContext.ScheduledQuizParticipations.Add(priorParticipation);
+            await setupContext.SaveChangesAsync();
+        }
+
+        using (var serviceContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var clanQuizService = new ClanQuizService(serviceContext, NullLogger<ClanQuizService>.Instance);
+
+            // Act: Trả lời đúng trong cùng slot
+            var result = await clanQuizService.SubmitAnswerAsync(sessionId, channelId, mezonUserId, "Learner", "A");
+            result.Should().NotBeNull();
+        }
+
+        using (var verifyContext = CreateNoTrackingInMemoryDbContext(dbName))
+        {
+            var partInDb = await verifyContext.ScheduledQuizParticipations
+                .FirstOrDefaultAsync(p => p.SlotKey == slotKey && p.UserId == userId);
+
+            partInDb.Should().NotBeNull();
+            partInDb!.IsCorrect.Should().BeTrue("is_correct phải được UPDATE thành true trong DB dù DbContext có cấu hình NoTracking");
+        }
     }
 }
