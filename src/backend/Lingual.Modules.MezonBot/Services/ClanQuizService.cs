@@ -234,6 +234,7 @@ public class ClanQuizService : IClanQuizService
                 session.WinningResponseMs = responseMs;
             }
 
+            _dbContext.ClanQuizSessions.Update(session);
             await _dbContext.SaveChangesAsync();
         }
 
@@ -301,6 +302,7 @@ public class ClanQuizService : IClanQuizService
                         existingParticipation.IsCorrect = isCorrect;
                         existingParticipation.XpAwarded = xpAwarded;
                         existingParticipation.CreatedAt = now;
+                        _dbContext.ScheduledQuizParticipations.Update(existingParticipation);
                     }
                     else
                     {
@@ -357,6 +359,7 @@ public class ClanQuizService : IClanQuizService
             {
                 item.XpAwarded = xpAwarded;
                 session.Responses = JsonSerializer.Serialize(inMemList, JsonOptions);
+                _dbContext.ClanQuizSessions.Update(session);
                 await _dbContext.SaveChangesAsync();
             }
         }
@@ -393,6 +396,7 @@ public class ClanQuizService : IClanQuizService
             {
                 inMemSession.Status = "closed";
                 inMemSession.ClosedAt = DateTime.UtcNow;
+                _dbContext.ClanQuizSessions.Update(inMemSession);
                 await _dbContext.SaveChangesAsync();
             }
         }
@@ -552,6 +556,7 @@ public class ClanQuizService : IClanQuizService
             }
             else
             {
+                _dbContext.QuizQuestions.Update(question);
                 await _dbContext.SaveChangesAsync();
             }
             return question;
