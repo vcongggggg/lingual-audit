@@ -75,6 +75,7 @@ public class ScheduledQuizService : IScheduledQuizService
         else
         {
             existingRun.WarnedAt = now;
+            _dbContext.ScheduledQuizRuns.Update(existingRun);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -165,6 +166,7 @@ public class ScheduledQuizService : IScheduledQuizService
             existingRun.SessionId = session.SessionId;
             existingRun.PinnedMessageId = null;
             existingRun.PostedAt = now;
+            _dbContext.ScheduledQuizRuns.Update(existingRun);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
