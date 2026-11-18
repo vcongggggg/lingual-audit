@@ -31,6 +31,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
     private readonly ConcurrentDictionary<long, string> _recentMessageContentCache = new();
     private readonly ConcurrentDictionary<Guid, (long channelId, long mezonUserId)> _userChannelMap = new();
     private SdkClient? _client;
+    public static MezonBotWorker? ActiveInstance { get; private set; }
+    public static long LastActiveClanChannelId { get; private set; }
 
     public class UserRoleplaySession
     {
@@ -323,6 +325,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         _voiceTracker = voiceTracker ?? new VoiceStudyRoomTracker(new Microsoft.Extensions.Logging.Abstractions.NullLogger<VoiceStudyRoomTracker>());
         _essayCoachService = essayCoachService ?? new AiEssayCoachService(new Microsoft.Extensions.Logging.Abstractions.NullLogger<AiEssayCoachService>(), scopeFactory: scopeFactory);
         _essayRateLimiter = essayRateLimiter ?? new EssayRateLimiter(3);
+        ActiveInstance = this;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -548,6 +551,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         {
             ChannelMessageResponse data = (ChannelMessageResponse)eventData;
             ChannelClanMap[data.ChannelId] = data.ClanId;
+            if (data.ClanId > 0)
+            {
+                LastActiveClanChannelId = data.ChannelId;
+            }
             _logger.LogInformation("📩 [MezonBot RAW] Channel: {ChannelId}, Clan: {ClanId}, Public: {IsPublic}, Sender: {SenderId}",
                 data.ChannelId, data.ClanId, data.IsPublic, data.SenderId);
 
@@ -3505,6 +3512,62 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         {
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi gửi Ephemeral Content tới User {UserId}", userId);
         }
+    }
+
+    public static async Task<bool> SendDuelHonorCardToChannelAsync(long channelId, DuelMatchDto match)
+    {
+        var worker = ActiveInstance;
+        if (worker == null || worker._client == null)
+        {
+            return false;
+        }
+
+        var targetChannelId = channelId > 0 ? channelId : LastActiveClanChannelId;
+        if (targetChannelId <= 0)
+        {
+            return false;
+        }
+
+        var isDraw = match.WinnerId == null;
+        var winnerName = isDraw
+            ? "Hòa kịch tính"
+            : (match.WinnerId == match.ChallengerId ? match.ChallengerName : match.OpponentName);
+
+        var title = isDraw
+            ? "⚔️ KẾT QUẢ WORD DUEL 1vs1 — BẤT PHÂN THẮNG BẠI!"
+            : $"🏆 VINH DANH CHIẾN THẮNG WORD DUEL — {winnerName.ToUpper()}!";
+
+        var desc = isDraw
+            ? $"🔥 Trận so tài 5 vòng giữa **{match.ChallengerName}** và **{match.OpponentName}** đã khép lại với tỷ số hòa kịch tính! Cả hai cùng nhận **+15 XP**!"
+            : $"🎉 Chúc mừng **{winnerName}** đã xuất sắc vượt qua đối thủ trong trận đấu tốc độ 5 vòng và giành phần thưởng **+30 XP** (Người tham gia nhận **+10 XP**)!";
+
+        if (match.Status == "forfeit" || match.Status == "disconnect_timeout")
+        {
+            desc += "\n⚠️ *(Kết thúc sớm do đối thủ rời trận / mất kết nối quá 10 giây)*";
+        }
+
+        var embed = new MessageEmbedBuilder()
+            .SetColor(isDraw ? "#F59E0B" : "#10B981")
+            .SetTitle(title)
+            .SetDescription(desc)
+            .AddField($"⚔️ {match.ChallengerName}", $"**{match.ChallengerScore}** điểm", true)
+            .AddField($"🛡️ {match.OpponentName}", $"**{match.OpponentScore}** điểm", true)
+            .AddField("🏅 Phần thưởng XP", isDraw ? "+15 XP mỗi đấu thủ" : $"+30 XP ({winnerName}) • +10 XP (Tham gia)", false)
+            .SetFooter("Gõ /duel @user để thách đấu hoặc /leaderboard để xem Bảng Phong Thần • LINGUAL Word Duel", "")
+            .Build();
+
+        var buttonBuilder = new ButtonBuilder();
+        buttonBuilder.AddButton("btn_duel_start_prompt", "⚔️ Thách đấu ván mới", 3, false, "", "");
+        buttonBuilder.AddButton("btn_view_leaderboard", "🏆 Bảng xếp hạng", 1, false, "", "");
+
+        var content = new MessageContentBuilder()
+            .SetText("📢 Bảng vàng vinh danh kết quả Đấu trường Word Duel 1vs1:")
+            .AddEmbed(embed)
+            .AddActionRow(buttonBuilder.BuildComponents())
+            .Build();
+
+        await worker.ReplyToChannelWithContentAsync(targetChannelId, content);
+        return true;
     }
 }
 

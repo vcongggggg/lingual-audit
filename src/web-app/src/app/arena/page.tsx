@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
@@ -200,6 +201,11 @@ export default function ArenaPage() {
             <button className="arena-primary-button" onClick={startMatch} disabled={isSearching}>
               {isSearching ? <><LoaderCircle className="spin" size={17} /> Đang tìm đối thủ…</> : <><Zap size={17} /> Tìm đối thủ</>}
             </button>
+            <div style={{ marginTop: "10px" }}>
+              <Link href="/duel" className="arena-primary-button" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px", background: "linear-gradient(135deg, #10B981, #059669)", width: "100%", justifyContent: "center" }}>
+                <Swords size={17} /> Đấu trường Realtime SignalR
+              </Link>
+            </div>
             <div className="arena-lobby-stats"><span><UsersIcon /> 128 người đang online</span><span><Gauge size={14} /> Ping trung bình 32ms</span></div>
           </div>
           <aside className="arena-rules">

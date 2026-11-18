@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.MezonBot.Services;
 
 [assembly: InternalsVisibleTo("Lingual.Modules.MezonBot.Tests")]
@@ -36,6 +37,7 @@ public static class MezonBotModuleExtensions
             return new AiEssayCoachService(logger, null, scopeFactory, httpClient, apiKey, baseUrl, model);
         });
         services.AddSingleton<EssayRateLimiter>();
+        services.AddSingleton<IDuelClanNotifier, DuelClanNotifier>();
 
         services.AddSingleton<MezonBotWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<MezonBotWorker>());

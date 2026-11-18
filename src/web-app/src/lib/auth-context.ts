@@ -47,8 +47,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Restore session from localStorage on client-side mount
+    // Restore session from URL params (One-click Mezon SSO Handshake) or localStorage
     try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramToken = urlParams.get('token');
+        const paramMezonUserId = urlParams.get('mezon_user_id') || urlParams.get('userId');
+        const paramDisplayName = urlParams.get('name') || urlParams.get('displayName');
+
+        if (paramToken && paramMezonUserId) {
+          const directUser: User = {
+            id: paramMezonUserId,
+            mezonUserId: paramMezonUserId,
+            displayName: paramDisplayName || 'Mezon Learner',
+            role: 'learner',
+            status: 'active',
+          };
+          localStorage.setItem('accessToken', paramToken);
+          localStorage.setItem('user', JSON.stringify(directUser));
+          setToken(paramToken);
+          setUser(directUser);
+          setLoading(false);
+          return;
+        }
+      }
+
       const storedToken = localStorage.getItem('accessToken');
       const storedUser = localStorage.getItem('user');
 
