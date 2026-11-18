@@ -48,6 +48,9 @@ public class ClanQuizSessionConfiguration : IEntityTypeConfiguration<ClanQuizSes
             .HasDefaultValue("[]")
             .IsRequired();
 
+        builder.Property(c => c.SlotKey)
+            .HasMaxLength(32);
+
         builder.HasOne(c => c.Question)
             .WithMany(q => q.ClanQuizSessions)
             .HasForeignKey(c => c.QuestionId)
