@@ -1,5 +1,7 @@
 using System.Reflection;
+using Lingual.Modules.Learning.Contracts;
 using Lingual.Modules.Learning.Infrastructure.Data;
+using Lingual.Modules.Learning.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +16,10 @@ public static class Extension
 
         // Learning DbContext & Persistence
         services.AddLearningDbContext(configuration);
+
+        // Core Learning Services
+        services.AddScoped<IVocabularyService, VocabularyService>();
+        services.AddScoped<ISrsService, SrsService>();
 
         return builder;
     }

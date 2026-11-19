@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
+import { clientApi } from "@/app/api/api";
 import {
   Volume2,
   RotateCw,
@@ -193,9 +194,9 @@ export default function FlashcardStudy({
     const loadVocabulary = async () => {
       setIsLoadingVocabulary(true);
       try {
-        const response = await fetch("/api/vocabulary?limit=50", { signal: controller.signal });
-        if (!response.ok) throw new Error(`Vocabulary API returned ${response.status}`);
-        const data = (await response.json()) as { words?: VocabularyItem[] };
+        const data = await clientApi.get<{ words?: VocabularyItem[] }>("/api/vocabulary?limit=50", {
+          signal: controller.signal,
+        });
         if (!Array.isArray(data.words) || data.words.length === 0) throw new Error("No vocabulary rows found in database");
         setDatabaseVocabulary(data.words);
         setIsDemoVocabulary(false);
@@ -306,6 +307,7 @@ export default function FlashcardStudy({
     if (onReviewSubmit && !isDemoVocabulary) {
       try {
         await onReviewSubmit(payload);
+        delete reviewIdempotencyKeys.current[`${currentVocab.id}:${rating}`];
       } catch (err) {
         console.error("Lỗi khi gửi kết quả SRS lên server:", err);
         setReviewError("Chưa lưu được kết quả. Hãy thử gửi lại.");

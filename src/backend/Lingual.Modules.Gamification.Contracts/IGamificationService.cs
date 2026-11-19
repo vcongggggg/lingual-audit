@@ -15,4 +15,10 @@ public interface IGamificationService
         string type = "all-time",
         Guid? currentUserId = null,
         CancellationToken cancellationToken = default);
+
+    Task<ClanLeaderboardResponseDto> GetClanLeaderboardAsync(
+        int limit = 20,
+        string type = "all-time",
+        Guid? currentUserId = null,
+        CancellationToken cancellationToken = default);
 }
