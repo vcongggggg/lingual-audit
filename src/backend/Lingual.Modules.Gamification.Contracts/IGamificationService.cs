@@ -21,4 +21,6 @@ public interface IGamificationService
         string type = "all-time",
         Guid? currentUserId = null,
         CancellationToken cancellationToken = default);
+
+    Task<UserProfileSummaryDto> GetUserProfileSummaryAsync(Guid? userId, CancellationToken ct = default);
 }
