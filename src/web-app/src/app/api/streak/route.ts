@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { proxyBackend } from "@/app/api/api";
 
 export async function GET(request: NextRequest) {
-  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
 
-  const url = userId
-    ? `${apiBase}/api/v1/gamification/streak/me?userId=${encodeURIComponent(userId)}`
-    : `${apiBase}/api/v1/gamification/streak/me`;
+  const targetPath = userId
+    ? `/api/v1/gamification/streak/me?userId=${encodeURIComponent(userId)}`
+    : `/api/v1/gamification/streak/me`;
 
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Failed to fetch streak" },
-        { status: response.status }
-      );
-    }
-    return NextResponse.json(await response.json());
-  } catch {
+  const response = await proxyBackend(request, targetPath);
+  if (response.status === 503) {
     return NextResponse.json(
       {
         currentDays: 14,
@@ -31,4 +23,5 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   }
+  return response;
 }

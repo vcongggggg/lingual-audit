@@ -24,8 +24,21 @@ public class GetUserStreakEndpoint : IEndpointBase
             [FromServices] ISender sender,
             CancellationToken ct) =>
         {
-            var targetUserId = userId ?? GetCurrentUserId(httpContext) ?? DefaultDemoUserId;
-            var result = await sender.Send(new GetUserStreakQuery(targetUserId), ct);
+            var targetUserId = userId ?? GetCurrentUserId(httpContext);
+            if (!targetUserId.HasValue)
+            {
+                return Results.Ok(new UserStreakDto(
+                    UserId: Guid.Empty,
+                    CurrentDays: 0,
+                    BestDays: 0,
+                    LastActiveDate: null,
+                    FreezeBalance: 0,
+                    IsActiveToday: false,
+                    TodayXp: 0,
+                    XpNeededForStreak: 20,
+                    UpdatedAt: DateTime.UtcNow));
+            }
+            var result = await sender.Send(new GetUserStreakQuery(targetUserId.Value), ct);
             return Results.Ok(result);
         })
         .WithName("GetMyStreak")

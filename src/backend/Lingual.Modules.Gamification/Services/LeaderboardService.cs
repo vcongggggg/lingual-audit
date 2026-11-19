@@ -17,6 +17,16 @@ public class LeaderboardService(
     private const string AllTimeClanLeaderboardKey = "leaderboard:clan:all-time";
     private const string DemoUserKey = "lingual-local-demo-user";
 
+    public static readonly HashSet<string> ExcludedUserIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        DemoUserKey,
+        "00000000-0000-0000-0000-000000000001",
+        "4943737a-792a-4fca-8315-df58d25c2156"
+    };
+
+    public static bool IsExcludedUser(string? userId) =>
+        string.IsNullOrWhiteSpace(userId) || ExcludedUserIds.Contains(userId);
+
     private record ClanMeta(string Id, string Name, string Tag, string Avatar, int MemberCount, double BaseXp);
 
     private static readonly IReadOnlyList<ClanMeta> DefaultClans =
@@ -30,7 +40,7 @@ public class LeaderboardService(
 
     public async Task IncrementXpAsync(string userId, double xpDelta, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(userId) || xpDelta <= 0)
+        if (string.IsNullOrWhiteSpace(userId) || xpDelta <= 0 || IsExcludedUser(userId))
         {
             return;
         }
@@ -96,6 +106,7 @@ public class LeaderboardService(
             .ToList();
 
         var streakMap = new Dictionary<Guid, int>();
+        var userProfiles = new Dictionary<Guid, (string DisplayName, string? AvatarUrl)>();
         if (userGuids.Count > 0)
         {
             try
@@ -108,32 +119,79 @@ public class LeaderboardService(
             {
                 logger.LogWarning(ex, "Không thể đọc UserStreaks cho leaderboard");
             }
+
+            try
+            {
+                var conn = dbContext.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                {
+                    await conn.OpenAsync(cancellationToken);
+                }
+
+                using var cmd = conn.CreateCommand();
+                var idList = string.Join(",", userGuids.Select(g => $"'{g}'"));
+                cmd.CommandText = $"SELECT id, display_name, avatar_url FROM users WHERE id IN ({idList})";
+
+                using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var id = reader.GetGuid(0);
+                    var name = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    var avatar = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        userProfiles[id] = (name, avatar);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Không thể đọc thông tin người dùng từ bảng users cho leaderboard");
+            }
         }
 
         var resultEntries = new List<LeaderboardEntryDto>(entries.Count);
+        int currentRank = 1;
         for (int i = 0; i < entries.Count; i++)
         {
             var (member, score) = entries[i];
-            string displayName = member == DemoUserKey ? "You" : member;
-            int streakDays = 0;
-            if (Guid.TryParse(member, out var g) && streakMap.TryGetValue(g, out var days))
+            if (IsExcludedUser(member))
             {
-                streakDays = days;
+                _ = redisService.SortedSetRemoveAsync(key, member);
+                continue;
+            }
+
+            string displayName = member;
+            string? avatarUrl = null;
+            int streakDays = 0;
+            if (Guid.TryParse(member, out var g))
+            {
+                if (userProfiles.TryGetValue(g, out var profile))
+                {
+                    displayName = profile.DisplayName;
+                    avatarUrl = profile.AvatarUrl;
+                }
+                if (streakMap.TryGetValue(g, out var days))
+                {
+                    streakDays = days;
+                }
             }
 
             resultEntries.Add(new LeaderboardEntryDto(
-                Rank: i + 1,
+                Rank: currentRank,
                 UserId: member,
                 Name: displayName,
                 Xp: score,
+                AvatarUrl: avatarUrl,
                 Level: Math.Max(1, (int)(score / 500) + 1),
                 WordsLearned: (int)(score / 15),
                 StreakDays: streakDays,
-                PreviousRank: i + 1));
+                PreviousRank: currentRank));
+            currentRank++;
         }
 
         LeaderboardEntryDto? myRank = null;
-        if (currentUserId.HasValue)
+        if (currentUserId.HasValue && !IsExcludedUser(currentUserId.Value.ToString()))
         {
             var userIdStr = currentUserId.Value.ToString();
             try
@@ -144,11 +202,13 @@ public class LeaderboardService(
                 if (rankZeroBased.HasValue && score.HasValue)
                 {
                     streakMap.TryGetValue(currentUserId.Value, out var myStreak);
+                    userProfiles.TryGetValue(currentUserId.Value, out var myProfile);
                     myRank = new LeaderboardEntryDto(
                         Rank: (int)rankZeroBased.Value + 1,
                         UserId: userIdStr,
-                        Name: "You",
+                        Name: myProfile.DisplayName ?? "You",
                         Xp: score.Value,
+                        AvatarUrl: myProfile.AvatarUrl,
                         Level: Math.Max(1, (int)(score.Value / 500) + 1),
                         WordsLearned: (int)(score.Value / 15),
                         StreakDays: myStreak,
@@ -269,7 +329,7 @@ public class LeaderboardService(
             for (short i = 0; i < entries.Count; i++)
             {
                 var (member, score) = entries[i];
-                if (!Guid.TryParse(member, out var userId))
+                if (!Guid.TryParse(member, out var userId) || IsExcludedUser(member))
                 {
                     continue;
                 }
@@ -320,7 +380,14 @@ public class LeaderboardService(
     {
         try
         {
-            var query = dbContext.XpLedgers.AsNoTracking();
+            var excludedGuids = new HashSet<Guid>
+            {
+                Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                Guid.Parse("4943737a-792a-4fca-8315-df58d25c2156")
+            };
+
+            var query = dbContext.XpLedgers.AsNoTracking()
+                .Where(x => !excludedGuids.Contains(x.UserId));
 
             if (type is "weekly" or "week")
             {
@@ -347,6 +414,7 @@ public class LeaderboardService(
             {
                 double scale = type is "weekly" or "week" ? 0.3 : 0.7;
                 var allTimeData = await dbContext.XpLedgers.AsNoTracking()
+                    .Where(x => !excludedGuids.Contains(x.UserId))
                     .GroupBy(x => x.UserId)
                     .Select(g => new { UserId = g.Key.ToString(), TotalXp = (double)g.Sum(x => x.XpDelta) })
                     .OrderByDescending(x => x.TotalXp)

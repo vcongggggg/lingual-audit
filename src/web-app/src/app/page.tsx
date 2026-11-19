@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { readQuizProgress } from "@/lib/quiz-progress";
 import { useAuth } from "@/lib/auth-context";
+import { clientApi } from "@/app/api/api";
 import {
   Trophy,
   Flame,
@@ -232,30 +233,33 @@ export default function LeaderboardPage() {
   const [activeBarDay, setActiveBarDay] = useState<DailyProgress | null>(WEEKLY_PROGRESS_DATA[6]);
   const [badgeFilter, setBadgeFilter] = useState<"all" | "unlocked" | "locked">("all");
   const [isMobileFrameView, setIsMobileFrameView] = useState<boolean>(false);
-  const [quizXp, setQuizXp] = useState(0);
   const [liveRankings, setLiveRankings] = useState<LeaderboardEntry[]>(INITIAL_RANKINGS);
   const [userStreakInfo, setUserStreakInfo] = useState<{ currentDays: number; bestDays: number; isActiveToday: boolean }>({
-    currentDays: 14,
-    bestDays: 14,
-    isActiveToday: true,
+    currentDays: 0,
+    bestDays: 0,
+    isActiveToday: false,
   });
   const [leaderboardUpdatedAt, setLeaderboardUpdatedAt] = useState<string>("vừa xong");
+  const [personalXpState, setPersonalXpState] = useState<number>(() => authUser?.profile?.experiencePoints ?? 0);
+
+  useEffect(() => {
+    if (authUser?.profile?.experiencePoints !== undefined) {
+      setPersonalXpState(authUser.profile.experiencePoints);
+    }
+  }, [authUser?.profile?.experiencePoints]);
 
   useEffect(() => {
     let active = true;
     const fetchStreak = async () => {
       try {
         const streakUrl = authUser?.id ? `/api/streak?userId=${encodeURIComponent(authUser.id)}` : "/api/streak";
-        const res = await fetch(streakUrl, { cache: "no-store" });
-        if (res.ok) {
-          const data = (await res.json()) as { currentDays?: number; bestDays?: number; isActiveToday?: boolean };
-          if (active && data.currentDays !== undefined) {
-            setUserStreakInfo({
-              currentDays: data.currentDays,
-              bestDays: data.bestDays ?? data.currentDays,
-              isActiveToday: data.isActiveToday ?? true,
-            });
-          }
+        const data = await clientApi.get<{ currentDays?: number; bestDays?: number; isActiveToday?: boolean }>(streakUrl);
+        if (active && data && data.currentDays !== undefined) {
+          setUserStreakInfo({
+            currentDays: data.currentDays,
+            bestDays: data.bestDays ?? data.currentDays,
+            isActiveToday: data.isActiveToday ?? true,
+          });
         }
       } catch {
         /* retain current streak info while offline */
@@ -271,9 +275,7 @@ export default function LeaderboardPage() {
     let active = true;
     const refresh = async () => {
       try {
-        const response = await fetch(`/api/leaderboard?scope=${activeTab}&type=${timeRange}`, { cache: "no-store" });
-        if (!response.ok) return;
-        const data = (await response.json()) as {
+        const data = await clientApi.get<{
           updated_at?: string;
           entries?: Array<{
             id?: string;
@@ -292,15 +294,31 @@ export default function LeaderboardPage() {
             clan_name?: string;
             member_count?: number;
           }>;
-        };
-        if (active && Array.isArray(data.entries)) {
-          const mapped: LeaderboardEntry[] = data.entries.map((entry) => {
+        }>(`/api/leaderboard?scope=${activeTab}&type=${timeRange}`);
+
+        if (active && data && Array.isArray(data.entries)) {
+          const isDemoUserId = (id: string) => {
+            const lower = id.toLowerCase();
+            return (
+              lower === "00000000-0000-0000-0000-000000000001" ||
+              lower === "lingual-local-demo-user" ||
+              lower === "4943737a-792a-4fca-8315-df58d25c2156" ||
+              lower.startsWith("00000000-") ||
+              lower.includes("guest") ||
+              lower.includes("demo")
+            );
+          };
+
+          const filteredEntries = data.entries.filter((entry) => !isDemoUserId(String(entry.id ?? entry.user_id)));
+
+          const mapped: LeaderboardEntry[] = filteredEntries.map((entry, index) => {
             const entryId = String(entry.id ?? entry.user_id);
             const isSelf = Boolean(
-              entry.is_current_user ||
-              (authUser?.id && (entry.user_id === authUser.id || entry.id === authUser.id)) ||
-              (authUser?.mezonUserId && entry.user_id === authUser.mezonUserId) ||
-              (!isAuthenticated && entry.user_id === "lingual-local-demo-user")
+              activeTab === "personal" &&
+                isAuthenticated &&
+                (entry.is_current_user ||
+                  (authUser?.id && (entry.user_id === authUser.id || entry.id === authUser.id)) ||
+                  (authUser?.mezonUserId && entry.user_id === authUser.mezonUserId))
             );
 
             const rawName = isSelf && authUser?.displayName ? authUser.displayName : String(entry.name);
@@ -310,8 +328,8 @@ export default function LeaderboardPage() {
 
             return {
               id: entryId,
-              rank: Number(entry.rank),
-              previousRank: Number(entry.previous_rank ?? entry.rank),
+              rank: index + 1,
+              previousRank: Number(entry.previous_rank ?? index + 1),
               name: formattedName,
               avatar: validAvatar,
               level: Number(entry.level ?? 1),
@@ -347,25 +365,19 @@ export default function LeaderboardPage() {
     let active = true;
     const loadGamificationStats = async () => {
       try {
-        const [actRes, badgeRes] = await Promise.all([
-          fetch("/api/activity/weekly", { cache: "no-store" }),
-          fetch("/api/badges", { cache: "no-store" }),
+        const [actData, badgeData] = await Promise.all([
+          clientApi.get<{ days?: DailyProgress[] }>("/api/activity/weekly").catch(() => null),
+          clientApi.get<{ badges?: BadgeItem[] }>("/api/badges").catch(() => null),
         ]);
 
-        if (actRes.ok) {
-          const actData = await actRes.json() as { days?: DailyProgress[] };
-          if (active && Array.isArray(actData.days) && actData.days.length > 0) {
-            setWeeklyProgress(actData.days);
-            const todayDay = actData.days.find((d) => d.isToday) ?? actData.days[actData.days.length - 1];
-            setActiveBarDay(todayDay);
-          }
+        if (actData && active && Array.isArray(actData.days) && actData.days.length > 0) {
+          setWeeklyProgress(actData.days);
+          const todayDay = actData.days.find((d) => d.isToday) ?? actData.days[actData.days.length - 1];
+          setActiveBarDay(todayDay);
         }
 
-        if (badgeRes.ok) {
-          const badgeData = await badgeRes.json() as { badges?: BadgeItem[] };
-          if (active && Array.isArray(badgeData.badges) && badgeData.badges.length > 0) {
-            setBadgesList(badgeData.badges);
-          }
+        if (badgeData && active && Array.isArray(badgeData.badges) && badgeData.badges.length > 0) {
+          setBadgesList(badgeData.badges);
         }
       } catch {
         /* Retain fallback mock when offline */
@@ -375,24 +387,6 @@ export default function LeaderboardPage() {
     void loadGamificationStats();
     return () => { active = false; };
   }, []);
-
-  useEffect(() => {
-    const syncQuizProgress = () => {
-      const since = timeRange === "weekly" ? 7 : timeRange === "monthly" ? 30 : Infinity;
-      const cutoff = Date.now() - since * 24 * 60 * 60 * 1000;
-      const xp = readQuizProgress()
-        .filter((record) => new Date(record.completedAt).getTime() >= cutoff)
-        .reduce((total, record) => total + record.xp, 0);
-      setQuizXp(xp);
-    };
-    syncQuizProgress();
-    window.addEventListener("storage", syncQuizProgress);
-    window.addEventListener("lingual:quiz-progress", syncQuizProgress);
-    return () => {
-      window.removeEventListener("storage", syncQuizProgress);
-      window.removeEventListener("lingual:quiz-progress", syncQuizProgress);
-    };
-  }, [timeRange]);
 
   const handleShareBadge = async () => {
     if (!selectedBadge) return;
@@ -413,14 +407,19 @@ export default function LeaderboardPage() {
     return () => window.removeEventListener("keydown", handleDialogKeyDown);
   }, [selectedBadge]);
 
-  // Active ranking data
-  const currentList = liveRankings.map((entry) =>
-    entry.isCurrentUser ? { ...entry, xp: entry.xp + quizXp } : entry
-  );
+  // Active ranking data: synchronized 100% with server-side leaderboard
+  const currentList = [...liveRankings];
   const topThree = currentList.slice(0, 3);
   const restList = currentList.slice(3);
   const currentUser = currentList.find((item) => item.isCurrentUser);
-  const personalUserXp = (currentUser?.xp ?? 2680) + (currentUser ? 0 : quizXp);
+
+  useEffect(() => {
+    if (activeTab === "personal" && currentUser?.xp) {
+      setPersonalXpState(currentUser.xp);
+    }
+  }, [activeTab, currentUser?.xp]);
+
+  const personalUserXp = (activeTab === "personal" ? (currentUser?.xp ?? personalXpState) : personalXpState);
 
   // Statistics calculation
   const totalWeeklyWords = weeklyProgress.reduce((acc, curr) => acc + curr.words, 0);
@@ -480,25 +479,6 @@ export default function LeaderboardPage() {
 
             {/* Right: Quick User Summary Pills + Mobile Simulator Toggle */}
             <div className="flex items-center gap-2">
-              {/* Toggle Webview preview simulator for demoing */}
-              <button
-                onClick={() => setIsMobileFrameView(!isMobileFrameView)}
-                title="Chuyển chế độ xem mô phỏng Mezon Mobile Webview"
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition-colors shadow-sm"
-              >
-                {isMobileFrameView ? (
-                  <>
-                    <Monitor className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Xem Desktop</span>
-                  </>
-                ) : (
-                  <>
-                    <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Mô phỏng Mezon Webview</span>
-                  </>
-                )}
-              </button>
-
               {/* User quick pill */}
               <div className="flex items-center gap-2 bg-gradient-to-r from-slate-900/90 to-indigo-950/60 border border-indigo-500/20 px-3 py-1.5 rounded-2xl shadow-inner">
                 <div className="flex items-center gap-1 text-amber-400 font-black text-xs md:text-sm">
@@ -689,11 +669,9 @@ export default function LeaderboardPage() {
                     </span>
 
                     {/* Podium Pillar Rank 1 */}
-                    <div className="w-full mt-3 h-28 md:h-36 rounded-t-2xl bg-gradient-to-b from-amber-500/30 via-amber-600/20 to-slate-900/90 border-t-4 border-amber-400 flex flex-col items-center justify-center p-2 shadow-inner relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-t from-transparent via-amber-400/5 to-amber-400/20 pointer-events-none" />
-                      <Trophy className="w-8 h-8 text-amber-400 mb-1 fill-amber-400/50" />
-                      <span className="text-xs md:text-sm font-black text-amber-300 tracking-wider">QUÁN QUÂN</span>
-                      <span className="text-[10px] text-amber-400/80 font-bold mt-0.5">Top 1 Server</span>
+                    <div className="w-full mt-3 h-28 md:h-36 rounded-t-2xl bg-gradient-to-b from-amber-700/40 to-slate-900/80 border-t-2 border-amber-400/60 flex flex-col items-center justify-center p-2 shadow-inner">
+                      <Medal className="w-6 h-6 text-amber-500 mb-1" />
+                      <span className="text-xs font-black text-amber-500 tracking-wider">HẠNG NHẤT</span>
                     </div>
                   </div>
                 )}

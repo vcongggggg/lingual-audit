@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { saveQuizProgress } from "@/lib/quiz-progress";
+import { clientApi } from "@/app/api/api";
 import {
   HelpCircle,
   Clock,
@@ -77,13 +78,13 @@ export default function QuizPracticePage() {
       totalQuestions: questions.length,
     });
     setAttemptSaveError(null);
-    void fetch("/api/quiz-attempts", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ idempotencyKey: quizSessionId.current, xp: totalXp, answers: answersRef.current }),
-    }).then((response) => {
-      if (!response.ok) throw new Error("Could not save quiz attempt");
-    }).catch(() => setAttemptSaveError("Could not save this quiz session. Check the connection and retry the session."));
+    void clientApi
+      .post("/api/quiz-attempts", {
+        idempotencyKey: quizSessionId.current,
+        xp: totalXp,
+        answers: answersRef.current,
+      })
+      .catch(() => setAttemptSaveError("Could not save this quiz session. Check the connection and retry the session."));
   }, [isCompleted, questions.length, score, totalXp]);
 
   useEffect(() => {
@@ -91,9 +92,10 @@ export default function QuizPracticePage() {
     const loadQuestions = async () => {
       setIsLoadingQuestions(true);
       try {
-        const response = await fetch(`/api/quizzes?mode=${selectedMode}`, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Quiz API returned ${response.status}`);
-        const data = (await response.json()) as { questions?: QuizQuestion[] };
+        const data = await clientApi.get<{ questions?: QuizQuestion[] }>(
+          `/api/quizzes?mode=${selectedMode}`,
+          { signal: controller.signal }
+        );
         if (!Array.isArray(data.questions) || data.questions.length === 0) throw new Error("Quiz API returned no questions");
         setQuestions(data.questions);
         setQuestionLoadError(null);

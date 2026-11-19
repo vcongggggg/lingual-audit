@@ -23,7 +23,13 @@ public class SrsService(
         Guid? userId,
         CancellationToken cancellationToken = default)
     {
-        var effectiveUserId = userId ?? DemoUserId;
+        if (!userId.HasValue)
+        {
+            // Người dùng chưa đăng nhập: chế độ học thử không tích lũy điểm XP hay lưu vào thẻ học cố định
+            return new ReviewSubmissionResultDto(Saved: false, Xp: 0, NextDueAt: request.NextDueAt);
+        }
+
+        var effectiveUserId = userId.Value;
         var vocabGuid = Guid.Parse(request.VocabularyId!);
 
         // 1. Cập nhật thẻ nhớ SRS trong CSDL

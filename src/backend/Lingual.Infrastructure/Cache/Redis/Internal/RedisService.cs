@@ -183,6 +183,15 @@ public sealed class RedisService(IConnectionMultiplexer connectionMultiplexer, I
         return await Database.SortedSetAddAsync(keyWithPrefix, member, score);
     }
 
+    public async Task<bool> SortedSetRemoveAsync(string key, string member)
+    {
+        Guard.Against.NullOrEmpty(key);
+        Guard.Against.NullOrEmpty(member);
+
+        var keyWithPrefix = $"{_redisCacheSetting.Prefix}:{key}";
+        return await Database.SortedSetRemoveAsync(keyWithPrefix, member);
+    }
+
     public async Task<double> SortedSetIncrementAsync(string key, string member, double value)
     {
         Guard.Against.NullOrEmpty(key);

@@ -21,8 +21,13 @@ public class GetBadgesEndpoint : IEndpointBase
             [FromServices] ISender sender,
             CancellationToken ct) =>
         {
-            var targetUserId = userId ?? GetCurrentUserId(httpContext) ?? DefaultDemoUserId;
-            var result = await sender.Send(new GetBadgesQuery(targetUserId), ct);
+            var targetUserId = userId ?? GetCurrentUserId(httpContext);
+            if (!targetUserId.HasValue)
+            {
+                var emptyResult = await sender.Send(new GetBadgesQuery(Guid.Empty), ct);
+                return Results.Ok(emptyResult);
+            }
+            var result = await sender.Send(new GetBadgesQuery(targetUserId.Value), ct);
             return Results.Ok(result);
         })
         .WithName("GetBadges")

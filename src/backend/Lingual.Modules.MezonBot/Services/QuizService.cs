@@ -94,10 +94,17 @@ public class QuizService(
         Guid? userId,
         CancellationToken cancellationToken = default)
     {
-        var effectiveUserId = userId ?? DemoUserId;
         var answers = request.Answers ?? new List<QuizAnswerItemDto>();
         int correctCount = answers.Count(a => a.IsCorrect);
         int totalCount = answers.Count;
+
+        if (!userId.HasValue)
+        {
+            // Khách chưa đăng nhập: trả kết quả trực tiếp, không tích điểm XP hay lưu lịch sử
+            return new QuizAttemptResultDto(Saved: false, CorrectAnswers: correctCount, Xp: 0);
+        }
+
+        var effectiveUserId = userId.Value;
 
         // 1. Lưu phiên làm bài vào bảng quiz_attempts
         try

@@ -1,14 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyBackend } from "@/app/api/api";
 
-export async function GET() {
-  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
-  try {
-    const response = await fetch(`${apiBase}/api/v1/gamification/activity/weekly`, { cache: "no-store" });
-    if (!response.ok) {
-      return NextResponse.json({ error: "Could not load weekly activity" }, { status: response.status });
-    }
-    return NextResponse.json(await response.json());
-  } catch {
-    return NextResponse.json({ error: "Could not connect to gamification service" }, { status: 503 });
-  }
+export async function GET(request: NextRequest) {
+  return proxyBackend(request, "/api/v1/gamification/activity/weekly");
 }

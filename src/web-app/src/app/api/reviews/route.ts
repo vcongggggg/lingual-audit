@@ -1,14 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyBackend } from "@/app/api/api";
 
 export async function POST(request: NextRequest) {
-  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5112";
-  try {
-    const response = await fetch(`${apiBase}/api/v1/content/reviews`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify(await request.json()), cache: "no-store",
-    });
-    return NextResponse.json(await response.json(), { status: response.status });
-  } catch {
-    return NextResponse.json({ error: "Could not save review" }, { status: 503 });
-  }
+  return proxyBackend(request, "/api/v1/content/reviews");
 }

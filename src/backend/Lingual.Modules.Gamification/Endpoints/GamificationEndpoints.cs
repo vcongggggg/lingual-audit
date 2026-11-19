@@ -73,18 +73,32 @@ public class GamificationEndpoints : IEndpointBase
             return Results.Ok(new
             {
                 updated_at = result.UpdatedAt,
-                entries = result.Entries.Select(e => new
+                entries = result.Entries
+                    .Where(e => !LeaderboardService.IsExcludedUser(e.UserId))
+                    .Select(e => new
+                    {
+                        rank = e.Rank,
+                        user_id = e.UserId,
+                        name = e.Name,
+                        xp = e.Xp,
+                        avatar = e.AvatarUrl ?? "",
+                        level = e.Level,
+                        words_learned = e.WordsLearned,
+                        streak_days = e.StreakDays,
+                        is_current_user = userId.HasValue && string.Equals(e.UserId, userId.Value.ToString(), StringComparison.OrdinalIgnoreCase)
+                    }),
+                my_rank = (userId.HasValue && !LeaderboardService.IsExcludedUser(userId.Value.ToString()) && result.MyRank != null) ? new
                 {
-                    rank = e.Rank,
-                    user_id = e.UserId,
-                    name = e.Name,
-                    xp = e.Xp,
-                    avatar = e.AvatarUrl ?? "",
-                    level = e.Level,
-                    words_learned = e.WordsLearned,
-                    streak_days = e.StreakDays,
-                    is_current_user = e.UserId == DemoUserKey || (userId.HasValue && e.UserId == userId.Value.ToString())
-                })
+                    rank = result.MyRank.Rank,
+                    user_id = result.MyRank.UserId,
+                    name = result.MyRank.Name,
+                    xp = result.MyRank.Xp,
+                    avatar = result.MyRank.AvatarUrl ?? "",
+                    level = result.MyRank.Level,
+                    words_learned = result.MyRank.WordsLearned,
+                    streak_days = result.MyRank.StreakDays,
+                    is_current_user = true
+                } : null
             });
         })
         .WithName("GetContentLeaderboardAlias")

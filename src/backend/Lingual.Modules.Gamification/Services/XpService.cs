@@ -66,7 +66,7 @@ public class XpService(
         else if (request.SourceId.HasValue && !string.IsNullOrWhiteSpace(request.SourceType))
         {
             bool exists = await dbContext.XpLedgers.AnyAsync(
-                x => x.SourceType == request.SourceType && x.SourceId == request.SourceId,
+                x => x.UserId == request.UserId && x.SourceType == request.SourceType && x.SourceId == request.SourceId,
                 cancellationToken);
 
             if (exists)
