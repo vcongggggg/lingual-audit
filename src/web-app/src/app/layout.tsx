@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AppNavigation from "@/components/AppNavigation";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { LanguageProvider } from "@/lib/language-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,10 +32,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
-        <AuthProvider>
-          <AppNavigation />
-          <div className="app-route-content">{children}</div>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <AppNavigation />
+            <div className="app-route-content">{children}</div>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS vocabulary_items (
     source_language         VARCHAR(16) NOT NULL DEFAULT 'en',
     target_language         VARCHAR(16) NOT NULL DEFAULT 'vi',
     ipa                     VARCHAR(240),
+    cefr_level              VARCHAR(2) NOT NULL DEFAULT 'A1' CHECK (cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     part_of_speech          VARCHAR(32),
     meaning                 TEXT NOT NULL,
     pronunciation_audio_url TEXT,

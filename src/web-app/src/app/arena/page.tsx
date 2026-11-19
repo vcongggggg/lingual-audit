@@ -22,6 +22,7 @@ import {
   ARENA_MOCK_QUESTIONS,
   type ArenaQuestion,
 } from "@/data/arena-mock-data";
+import { useLanguage } from "@/lib/language-context";
 
 type ArenaPhase = "lobby" | "countdown" | "playing" | "finished";
 
@@ -39,6 +40,7 @@ function formatTime(seconds: number) {
 }
 
 export default function ArenaPage() {
+  const { translate: t } = useLanguage();
   const [phase, setPhase] = useState<ArenaPhase>("lobby");
   const [countdown, setCountdown] = useState(3);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -48,7 +50,7 @@ export default function ArenaPage() {
   const [opponentProgress, setOpponentProgress] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [reviews, setReviews] = useState<AnswerReview[]>([]);
-  const [lingLingNote, setLingLingNote] = useState("Mình sẽ theo dõi lỗi sai và tốc độ phản xạ của bạn.");
+  const [lingLingNote, setLingLingNote] = useState(t("Mình sẽ theo dõi lỗi sai và tốc độ phản xạ của bạn.", "I will track your mistakes and reaction speed."));
   const [isSearching, setIsSearching] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -66,8 +68,8 @@ export default function ArenaPage() {
     setSelectedAnswer(null);
     setLingLingNote(
       score >= opponentScore
-        ? "Bạn thắng nhờ giữ nhịp ổn định. Hãy xem lại các từ chưa chắc để tăng độ bền ghi nhớ."
-        : "Đối thủ nhanh hơn một nhịp. Mình đã đánh dấu các từ cần ôn lại ngay sau trận.",
+        ? t("Bạn thắng nhờ giữ nhịp ổn định. Hãy xem lại các từ chưa chắc để tăng độ bền ghi nhớ.", "You won by keeping a steady rhythm. Review uncertain words to strengthen recall.")
+        : t("Đối thủ nhanh hơn một nhịp. Mình đã đánh dấu các từ cần ôn lại ngay sau trận.", "Your opponent was one step faster. I marked the words to review after the match."),
     );
   }, [opponentScore, score]);
 
@@ -133,7 +135,7 @@ export default function ArenaPage() {
       setOpponentProgress(0);
       setReviews([]);
       setSelectedAnswer(null);
-      setLingLingNote("Trận đấu bắt đầu! Đọc kỹ nghĩa, nhưng đừng để mất nhịp.");
+      setLingLingNote(t("Trận đấu bắt đầu! Đọc kỹ nghĩa, nhưng đừng để mất nhịp.", "The match starts now! Read the meaning carefully, but keep your rhythm."));
     }, 900);
   };
 
@@ -145,8 +147,8 @@ export default function ArenaPage() {
     setReviews((items) => [...items, { questionId: question.id, selected: answer, correct }]);
     setLingLingNote(
       correct
-        ? "Chính xác! Bạn đang kết nối từ với ngữ cảnh khá tốt."
-        : `Mình ghi nhận lỗi "${question.prompt}". Đáp án đúng là "${question.answer}".`,
+        ? t("Chính xác! Bạn đang kết nối từ với ngữ cảnh khá tốt.", "Correct! You are connecting words with context very well.")
+        : t(`Mình ghi nhận lỗi "${question.prompt}". Đáp án đúng là "${question.answer}".`, `I noted a mistake with "${question.prompt}". The correct answer is "${question.answer}".`),
     );
     window.setTimeout(() => {
       if (questionIndex >= QUESTIONS.length - 1) finishMatch();
@@ -167,8 +169,8 @@ export default function ArenaPage() {
       {
         sender: "bot",
         text: text.toLowerCase().includes("curious")
-          ? '“Curious” = “tò mò”. Hãy nhớ cụm “curious about” = tò mò về điều gì.'
-          : "Mình sẽ phân tích sau lượt này. Mẹo nhanh: hãy đọc cả từ khóa và ngữ cảnh trước khi chọn đáp án.",
+          ? t('“Curious” = “tò mò”. Hãy nhớ cụm “curious about” = tò mò về điều gì.', '“Curious” means “tò mò”. Remember “curious about” for asking what someone wants to know.')
+          : t("Mình sẽ phân tích sau lượt này. Mẹo nhanh: hãy đọc cả từ khóa và ngữ cảnh trước khi chọn đáp án.", "I will analyze this after the round. Quick tip: read both the keyword and context before choosing."),
       },
     ]);
     setChatInput("");
@@ -183,51 +185,51 @@ export default function ArenaPage() {
     <main className="arena-page">
       <header className="arena-heading">
         <div>
-          <p className="arena-eyebrow"><Swords size={14} /> REAL-TIME VOCABULARY DUEL</p>
-          <h1>Đấu trường Arena</h1>
-          <p>Đấu 1vs1 từ vựng thời gian thực, phản xạ nhanh hơn và học sâu hơn sau mỗi lượt.</p>
+          <p className="arena-eyebrow"><Swords size={14} /> {t("ĐẤU TỪ VỰNG THỜI GIAN THỰC", "REAL-TIME VOCABULARY DUEL")}</p>
+          <h1>{t("Đấu trường Arena", "Arena duel")}</h1>
+          <p>{t("Đấu 1vs1 từ vựng thời gian thực, phản xạ nhanh hơn và học sâu hơn sau mỗi lượt.", "Compete in a real-time 1v1 vocabulary duel, react faster, and learn more deeply each round.")}</p>
         </div>
-        <div className="arena-live-badge"><Radio size={14} /> Máy chủ ổn định <strong>24ms</strong></div>
+        <div className="arena-live-badge"><Radio size={14} /> {t("Máy chủ ổn định", "Server stable")} <strong>24ms</strong></div>
       </header>
 
       {phase === "lobby" && (
         <section className="arena-lobby">
           <div className="arena-lobby-main">
             <div className="arena-hero-icon"><Swords size={32} /></div>
-            <p className="arena-eyebrow">MỞ PHÒNG ĐẤU</p>
-            <h2>Sẵn sàng so tài?</h2>
-            <p>5 câu hỏi · 18 giây mỗi câu · Ghép đối thủ cùng trình độ</p>
+            <p className="arena-eyebrow">{t("MỞ PHÒNG ĐẤU", "OPEN MATCH")}</p>
+            <h2>{t("Sẵn sàng so tài?", "Ready to compete?")}</h2>
+            <p>{t("5 câu hỏi · 18 giây mỗi câu · Ghép đối thủ cùng trình độ", "5 questions · 18 seconds each · Match with a similar level")}</p>
             <button className="arena-primary-button" onClick={startMatch} disabled={isSearching}>
-              {isSearching ? <><LoaderCircle className="spin" size={17} /> Đang tìm đối thủ…</> : <><Zap size={17} /> Tìm đối thủ</>}
+              {isSearching ? <><LoaderCircle className="spin" size={17} /> {t("Đang tìm đối thủ…", "Finding opponent…")}</> : <><Zap size={17} /> {t("Tìm đối thủ", "Find opponent")}</>}
             </button>
             <div className="arena-lobby-stats"><span><UsersIcon /> 128 người đang online</span><span><Gauge size={14} /> Ping trung bình 32ms</span></div>
           </div>
           <aside className="arena-rules">
-            <p className="arena-eyebrow">LUẬT ARENA</p>
-            <div><Timer size={17} /><span><strong>18 giây</strong><small>cho mỗi câu hỏi</small></span></div>
-            <div><Trophy size={17} /><span><strong>+25 XP</strong><small>khi thắng trận</small></span></div>
-            <div><Sparkles size={17} /><span><strong>LingLing AI</strong><small>phân tích lỗi sau trận</small></span></div>
+            <p className="arena-eyebrow">{t("LUẬT ARENA", "ARENA RULES")}</p>
+            <div><Timer size={17} /><span><strong>18 {t("giây", "seconds")}</strong><small>{t("cho mỗi câu hỏi", "per question")}</small></span></div>
+            <div><Trophy size={17} /><span><strong>+25 XP</strong><small>{t("khi thắng trận", "for a win")}</small></span></div>
+            <div><Sparkles size={17} /><span><strong>LingLing AI</strong><small>{t("phân tích lỗi sau trận", "post-match analysis")}</small></span></div>
           </aside>
         </section>
       )}
 
       {phase === "countdown" && (
         <section className="arena-countdown">
-          <p>Đối thủ đã sẵn sàng</p>
+          <p>{t("Đối thủ đã sẵn sàng", "Opponent is ready")}</p>
           <strong>{countdown}</strong>
-          <span>Chuẩn bị chiến đấu!</span>
+          <span>{t("Chuẩn bị chiến đấu!", "Get ready to battle!")}</span>
         </section>
       )}
 
       {(phase === "playing" || phase === "finished") && (
         <section className="arena-match">
           <div className="arena-match-topbar">
-            <span className="arena-round"><Flame size={15} /> Vòng {Math.min(questionIndex + 1, QUESTIONS.length)} / {QUESTIONS.length}</span>
-            <span className="arena-timer"><Timer size={15} /> {phase === "finished" ? "KẾT THÚC" : formatTime(timeLeft)}</span>
-            <span className="arena-streak"><Zap size={14} /> Chuỗi {score}</span>
+            <span className="arena-round"><Flame size={15} /> {t("Vòng", "Round")} {Math.min(questionIndex + 1, QUESTIONS.length)} / {QUESTIONS.length}</span>
+            <span className="arena-timer"><Timer size={15} /> {phase === "finished" ? t("KẾT THÚC", "FINISHED") : formatTime(timeLeft)}</span>
+            <span className="arena-streak"><Zap size={14} /> {t("Chuỗi", "Streak")} {score}</span>
           </div>
           <div className="arena-scoreboard">
-            <PlayerCard name="Bạn" initials="PT" score={score} progress={answeredCount} isCurrent />
+            <PlayerCard name={t("Bạn", "You")} initials="PT" score={score} progress={answeredCount} isCurrent />
             <div className="arena-vs">VS</div>
             <PlayerCard name={OPPONENT.name} initials={OPPONENT.initials} score={opponentScore} progress={opponentProgress} />
           </div>
@@ -251,30 +253,30 @@ export default function ArenaPage() {
           {phase === "finished" && (
             <div className="arena-result-card">
               <div className={`arena-result-icon ${score >= opponentScore ? "win" : "loss"}`}>{score >= opponentScore ? <Trophy size={28} /> : <Shield size={28} />}</div>
-              <p className="arena-eyebrow">KẾT QUẢ TRẬN ĐẤU</p>
-              <h2>{score >= opponentScore ? "Bạn đã chiến thắng!" : "Một trận đấu đáng nhớ!"}</h2>
+              <p className="arena-eyebrow">{t("KẾT QUẢ TRẬN ĐẤU", "MATCH RESULT")}</p>
+              <h2>{score >= opponentScore ? t("Bạn đã chiến thắng!", "You won!") : t("Một trận đấu đáng nhớ!", "A memorable match!")}</h2>
               <div className="arena-final-score"><strong>{score}</strong><span>—</span><strong>{opponentScore}</strong></div>
-              <p>{score >= opponentScore ? "+25 XP · +1 chiến thắng" : "+10 XP · Kinh nghiệm là sức mạnh"} · Độ chính xác {accuracy}%</p>
-              {weakWords.length > 0 && <div className="arena-mistake-summary"><strong>LingLing đánh dấu cần ôn:</strong> {weakWords.join(", ")}</div>}
-              <button className="arena-primary-button" onClick={() => setPhase("lobby")}><Swords size={17} /> Đấu trận mới</button>
+              <p>{score >= opponentScore ? "+25 XP · " + t("+1 chiến thắng", "+1 win") : "+10 XP · " + t("Kinh nghiệm là sức mạnh", "Experience is power")} · {t("Độ chính xác", "Accuracy")} {accuracy}%</p>
+              {weakWords.length > 0 && <div className="arena-mistake-summary"><strong>{t("LingLing đánh dấu cần ôn:", "LingLing marked for review:")}</strong> {weakWords.join(", ")}</div>}
+              <button className="arena-primary-button" onClick={() => setPhase("lobby")}><Swords size={17} /> {t("Đấu trận mới", "New match")}</button>
             </div>
           )}
 
-          <div className="arena-insight-bar"><Bot size={17} /><span><strong>LingLing:</strong> {lingLingNote}</span><button onClick={() => setChatOpen(true)}><MessageCircle size={15} /> Hỏi LingLing</button></div>
+          <div className="arena-insight-bar"><Bot size={17} /><span><strong>LingLing:</strong> {lingLingNote}</span><button onClick={() => setChatOpen(true)}><MessageCircle size={15} /> {t("Hỏi LingLing", "Ask LingLing")}</button></div>
         </section>
       )}
 
-      {chatOpen && <aside className="arena-chat-panel" aria-label="Chatbot LingLing">
-        <div className="arena-chat-header"><div><Bot size={18} /><strong>LingLing AI</strong><small>Đang phân tích trận đấu</small></div><button onClick={() => setChatOpen(false)} aria-label="Đóng chat"><X size={17} /></button></div>
+      {chatOpen && <aside className="arena-chat-panel" aria-label="LingLing chatbot">
+        <div className="arena-chat-header"><div><Bot size={18} /><strong>LingLing AI</strong><small>{t("Đang phân tích trận đấu", "Analyzing the match")}</small></div><button onClick={() => setChatOpen(false)} aria-label={t("Đóng chat", "Close chat")}><X size={17} /></button></div>
         <div className="arena-chat-messages">{chatMessages.map((message, index) => <div key={`${message.sender}-${index}`} className={`arena-chat-message ${message.sender}`}>{message.text}</div>)}</div>
-        <div className="arena-chat-input"><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") sendChat(); }} placeholder="Hỏi về lỗi sai hoặc từ vựng…" /><button onClick={sendChat} aria-label="Gửi tin nhắn"><MessageCircle size={16} /></button></div>
+        <div className="arena-chat-input"><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") sendChat(); }} placeholder={t("Hỏi về lỗi sai hoặc từ vựng…", "Ask about mistakes or vocabulary…")} /><button onClick={sendChat} aria-label={t("Gửi tin nhắn", "Send message")}><MessageCircle size={16} /></button></div>
       </aside>}
     </main>
   );
 }
 
 function PlayerCard({ name, initials, score, progress, isCurrent = false }: { name: string; initials: string; score: number; progress: number; isCurrent?: boolean }) {
-  return <div className={`arena-player ${isCurrent ? "is-current" : ""}`}><div className="arena-player-avatar">{initials}</div><div className="arena-player-info"><strong>{name}</strong><small>{isCurrent ? "Bạn" : `${OPPONENT.level} · 🔥 ${OPPONENT.streak}`}</small></div><strong className="arena-player-score">{score}</strong><div className="arena-player-progress"><span style={{ width: `${Math.min(100, (progress / QUESTIONS.length) * 100)}%` }} /></div></div>;
+  return <div className={`arena-player ${isCurrent ? "is-current" : ""}`}><div className="arena-player-avatar">{initials}</div><div className="arena-player-info"><strong>{name}</strong><small>{isCurrent ? name : `${OPPONENT.level} · 🔥 ${OPPONENT.streak}`}</small></div><strong className="arena-player-score">{score}</strong><div className="arena-player-progress"><span style={{ width: `${Math.min(100, (progress / QUESTIONS.length) * 100)}%` }} /></div></div>;
 }
 
 function UsersIcon() {
