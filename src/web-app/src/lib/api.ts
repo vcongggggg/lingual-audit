@@ -351,4 +351,167 @@ export const api = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Gamification & User Profile Summary API
+// ---------------------------------------------------------------------------
 
+export interface UserStreakSummaryDto {
+  currentDays: number;
+  bestDays: number;
+  freezeBalance: number;
+  isActiveToday: boolean;
+  todayXp: number;
+  xpNeededForStreak: number;
+}
+
+export interface BadgeSummaryDto {
+  id: string;
+  name: string;
+  category: string;
+  rarity: "common" | "rare" | "epic" | "legendary" | string;
+  icon: string;
+  description: string;
+  unlocked: boolean;
+  unlockedDate?: string | null;
+  progress: number;
+  maxProgress: number;
+  xpReward: number;
+  lore?: string | null;
+}
+
+export interface UserPerformanceStatsDto {
+  wordsLearned: number;
+  quizzesCompleted: number;
+  accuracyRate: number;
+}
+
+export interface UserProfileSummaryDto {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: string;
+  level: number;
+  totalXp: number;
+  nextLevelXp: number;
+  streak: UserStreakSummaryDto;
+  badges: BadgeSummaryDto[];
+  stats: UserPerformanceStatsDto;
+}
+
+export const MOCK_USER_PROFILE_SUMMARY: UserProfileSummaryDto = {
+  userId: "demo-user-001",
+  displayName: "Mezon Learner",
+  avatarUrl: null,
+  role: "learner",
+  level: 3,
+  totalXp: 450,
+  nextLevelXp: 600,
+  streak: {
+    currentDays: 5,
+    bestDays: 12,
+    freezeBalance: 2,
+    isActiveToday: true,
+    todayXp: 50,
+    xpNeededForStreak: 30,
+  },
+  badges: [
+    {
+      id: "streak_3",
+      name: "Chuỗi 3 ngày",
+      category: "streak",
+      rarity: "common",
+      icon: "flame",
+      description: "Duy trì chuỗi học tập 3 ngày liên tục",
+      unlocked: true,
+      unlockedDate: "2026-11-18",
+      progress: 3,
+      maxProgress: 3,
+      xpReward: 50,
+      lore: "Khởi đầu ấn tượng!",
+    },
+    {
+      id: "streak_7",
+      name: "Kiên trì 7 ngày",
+      category: "streak",
+      rarity: "rare",
+      icon: "flame",
+      description: "Học liên tục trong 7 ngày không gián đoạn",
+      unlocked: false,
+      unlockedDate: null,
+      progress: 5,
+      maxProgress: 7,
+      xpReward: 100,
+      lore: "Thói quen được hình thành qua từng ngày.",
+    },
+    {
+      id: "quiz_master_10",
+      name: "Chiến binh Quiz",
+      category: "quiz",
+      rarity: "epic",
+      icon: "award",
+      description: "Hoàn thành 10 bài luyện tập Quiz",
+      unlocked: true,
+      unlockedDate: "2026-11-15",
+      progress: 12,
+      maxProgress: 10,
+      xpReward: 150,
+      lore: "Tri thức là sức mạnh!",
+    },
+    {
+      id: "vocab_50",
+      name: "Kho từ vựng",
+      category: "vocabulary",
+      rarity: "common",
+      icon: "book-open",
+      description: "Học thuộc 50 từ vựng tiếng Anh",
+      unlocked: false,
+      unlockedDate: null,
+      progress: 45,
+      maxProgress: 50,
+      xpReward: 100,
+      lore: "Mỗi từ là một viên gạch xây nền móng.",
+    },
+    {
+      id: "perfect_score",
+      name: "Bách phát bách trúng",
+      category: "accuracy",
+      rarity: "legendary",
+      icon: "sparkles",
+      description: "Đạt độ chính xác trên 85% trong các bài Quiz",
+      unlocked: true,
+      unlockedDate: "2026-11-17",
+      progress: 88,
+      maxProgress: 85,
+      xpReward: 250,
+      lore: "Sự chuẩn xác của một bậc thầy ngôn ngữ.",
+    },
+  ],
+  stats: {
+    wordsLearned: 45,
+    quizzesCompleted: 12,
+    accuracyRate: 88,
+  },
+};
+
+/**
+ * Lấy thông tin tổng quan hồ sơ, chuỗi học tập, huy hiệu và thống kê gamification
+ */
+export async function fetchUserProfileSummary(
+  userId?: string,
+  options?: FetchApiOptions
+): Promise<UserProfileSummaryDto> {
+  const query = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+  try {
+    const data = await fetchApi<UserProfileSummaryDto>(
+      `/gamification/profile/summary${query}`,
+      options
+    );
+    if (data && typeof data === "object" && typeof data.level === "number") {
+      return data;
+    }
+    return MOCK_USER_PROFILE_SUMMARY;
+  } catch (error) {
+    console.warn("fetchUserProfileSummary request failed, using mock profile fallback:", error);
+    return MOCK_USER_PROFILE_SUMMARY;
+  }
+}

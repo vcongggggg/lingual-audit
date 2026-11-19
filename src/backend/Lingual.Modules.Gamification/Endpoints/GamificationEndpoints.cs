@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
-using Lingual.Modules.Gamification.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -32,5 +31,28 @@ public class GamificationEndpoints : IEndpointBase
         .Produces<AwardXpResult>(StatusCodes.Status200OK)
         .Produces<AwardXpResult>(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
+        // 2. User Profile & Achievements Summary API
+        group.MapGet("/profile/summary", async (
+            [FromQuery] Guid? userId,
+            HttpContext httpContext,
+            [FromServices] IGamificationService gamificationService,
+            CancellationToken ct) =>
+        {
+            var targetUserId = userId ?? GetCurrentUserId(httpContext);
+            var result = await gamificationService.GetUserProfileSummaryAsync(targetUserId, ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetUserProfileSummary")
+        .WithSummary("Lấy thông tin tổng quan hồ sơ cá nhân và thành tích gamification")
+        .WithDescription("Trả về cấp độ, điểm XP, chuỗi Streak, danh sách huy hiệu và chỉ số học tập.")
+        .Produces<UserProfileSummaryDto>(StatusCodes.Status200OK)
+        .AllowAnonymous();
+    }
+
+    private static Guid? GetCurrentUserId(HttpContext? context)
+    {
+        if (context == null) return null;
+        var sub = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue("sub");
+        return Guid.TryParse(sub, out var guid) ? guid : null;
     }
 }

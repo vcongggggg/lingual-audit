@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Gamepad2, Swords, LogIn, LogOut } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Gamepad2, Swords, LogIn, LogOut, User } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/tutor", label: "LingLing AI", icon: Bot },
   { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
   { href: "/arena", label: "Arena 1vs1", icon: Swords },
+  { href: "/profile", label: "Hồ sơ", icon: User },
 ];
 
 export default function AppNavigation() {
@@ -51,25 +52,31 @@ export default function AppNavigation() {
         {!loading && (
           isAuthenticated && user ? (
             <div className="flex items-center gap-2 bg-[#eff1e8] border border-[#d7ddca] pl-1.5 pr-2 py-1 rounded-xl shadow-xs">
-              {user.avatarUrl && user.avatarUrl.trim() !== "" ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={user.displayName}
-                  className="w-6 h-6 rounded-lg object-cover border border-[#d7ddca]"
-                />
-              ) : (
-                <div className="w-6 h-6 rounded-lg bg-[var(--olive,#69734f)] text-white flex items-center justify-center font-bold text-[11px]">
-                  {user.displayName?.charAt(0).toUpperCase() || "U"}
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 hover:opacity-85 transition-opacity"
+                title="Xem hồ sơ cá nhân"
+              >
+                {user.avatarUrl && user.avatarUrl.trim() !== "" ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.displayName}
+                    className="w-6 h-6 rounded-lg object-cover border border-[#d7ddca]"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-lg bg-[var(--olive,#69734f)] text-white flex items-center justify-center font-bold text-[11px]">
+                    {user.displayName?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                )}
+                <div className="hidden sm:flex flex-col text-left">
+                  <span className="text-xs font-semibold text-[var(--ink,#252820)] max-w-[120px] truncate leading-tight">
+                    {user.displayName}
+                  </span>
+                  <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
+                    {user.role === "admin" ? "Quản trị" : "Học viên"}
+                  </span>
                 </div>
-              )}
-              <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-semibold text-[var(--ink,#252820)] max-w-[120px] truncate leading-tight">
-                  {user.displayName}
-                </span>
-                <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
-                  {user.role === "admin" ? "Quản trị" : "Học viên"}
-                </span>
-              </div>
+              </Link>
               <button
                 onClick={logout}
                 title="Đăng xuất"
