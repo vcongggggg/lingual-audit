@@ -459,7 +459,7 @@ export default function ProfilePage() {
           <div>
             <div className="flex items-center gap-2">
               <Award className="w-6 h-6 text-[var(--olive,#69734f)]" />
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink,#252820)] font-[family-name:Georgia,serif]">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink,#252820)]">
                 Huy Hiệu & Thành Tích
               </h2>
             </div>
@@ -607,7 +607,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-2 mb-6 pb-4 border-b border-[#d7ddca]">
           <TrendingUp className="w-6 h-6 text-[var(--olive,#69734f)]" />
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink,#252820)] font-[family-name:Georgia,serif]">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink,#252820)]">
               Hiệu Suất Học Tập
             </h2>
             <p className="text-xs sm:text-sm text-[var(--muted,#77786f)]">

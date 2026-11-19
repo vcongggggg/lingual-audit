@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, Brain, Flame, Headphones, NotebookTabs, RotateCcw, Sparkles, Trophy, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, Brain, Flame, Gamepad2, Headphones, NotebookTabs, RotateCcw, Sparkles, Trophy, Users, Zap } from "lucide-react";
 import { useAuth } from "@/components/auth/useAuth";
 import { readQuizProgress, type QuizProgressRecord } from "@/lib/quiz-progress";
 import LinguaMascot from "@/components/LinguaMascot";
@@ -88,6 +88,7 @@ export default function HomePage() {
           <Link href="/words" className="dashboard-activity-card activity-vocab"><span className="activity-icon"><BookOpen/></span><span className="activity-copy"><strong>{t("Học từ mới", "Learn new words")}</strong><small>{t("Khám phá từ vựng với thẻ học và ví dụ.", "Explore vocabulary with flashcards and examples.")}</small></span><span className="activity-meta">{vocabularyCount === null ? t("Mở thư viện", "Open library") : `${vocabularyCount}${vocabularyCount === 500 ? "+" : ""} ${t("từ đã tải", "words loaded")}`}<ArrowRight size={15}/></span></Link>
           <Link href="/learn" className="dashboard-activity-card activity-review"><span className="activity-icon"><RotateCcw/></span><span className="activity-copy"><strong>{t("Ôn flashcard", "Review flashcards")}</strong><small>{t("Gợi nhớ chủ động với nhịp lặp lại ngắt quãng.", "Build active recall with spaced repetition.")}</small></span><span className="activity-meta">{t("Bắt đầu phiên ôn", "Start review session")} <ArrowRight size={15}/></span></Link>
           <Link href="/quiz" className="dashboard-activity-card activity-quiz"><span className="activity-icon"><Brain/></span><span className="activity-copy"><strong>{t("Quiz nhanh", "Quick quiz")}</strong><small>{t("Kiểm tra vốn từ và nhận phản hồi ngay.", "Test your vocabulary and get instant feedback.")}</small></span><span className="activity-meta">{t("10 câu · khoảng 5 phút", "10 questions · about 5 minutes")} <ArrowRight size={15}/></span></Link>
+          <Link href="/games" className="dashboard-activity-card activity-games"><span className="activity-icon"><Gamepad2/></span><span className="activity-copy"><strong>{t("Game Center", "Game Center")}</strong><small>{t("6 mini-game phản xạ từ vựng và xếp câu.", "6 fast mini-games for vocabulary reflex and sentence building.")}</small></span><span className="activity-meta">{t("Chơi ngay", "Play now")} <ArrowRight size={15}/></span></Link>
           <div className="dashboard-activity-card activity-planned" aria-label={t("Luyện nghe, tính năng dự kiến", "Listening practice, planned feature")}><span className="activity-icon"><Headphones/></span><span className="activity-copy"><strong>{t("Luyện nghe", "Listening practice")}</strong><small>{t("Rèn khả năng nhận biết từ trong hội thoại.", "Train your ability to recognize words in conversation.")}</small></span><span className="activity-meta">{t("Tính năng dự kiến", "Planned feature")}</span></div>
         </div>
       </section>

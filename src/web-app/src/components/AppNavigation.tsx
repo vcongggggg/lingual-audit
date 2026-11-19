@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Languages, Swords } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Languages, Swords, Gamepad2, LogIn, LogOut, User } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
   { href: "/", labels: { vi: "Tổng quan", en: "Overview" }, icon: House },
   { href: "/learn", labels: { vi: "Flashcard", en: "Flashcards" }, icon: BookOpen },
   { href: "/words", labels: { vi: "Từ vựng", en: "Vocabulary" }, icon: Library },
   { href: "/quiz", labels: { vi: "Luyện tập", en: "Practice" }, icon: NotebookTabs },
+  { href: "/games", labels: { vi: "Game Center", en: "Game Center" }, icon: Gamepad2 },
   { href: "/tutor", labels: { vi: "LingLing AI", en: "LingLing AI" }, icon: Bot },
   { href: "/leaderboard", labels: { vi: "Giải đấu", en: "Leaderboard" }, icon: Trophy },
   { href: "/arena", labels: { vi: "Arena 1vs1", en: "1v1 Arena" }, icon: Swords },
@@ -18,6 +20,7 @@ const NAV_ITEMS = [
 export default function AppNavigation() {
   const pathname = usePathname();
   const { language, toggleLanguage, dictionary } = useLanguage();
+  const { user, isAuthenticated, loading, logout } = useAuth();
 
   return (
     <nav className="app-nav" aria-label={dictionary.navigationLabel}>
@@ -57,6 +60,7 @@ export default function AppNavigation() {
           <span className={language === "en" ? "is-selected" : ""}>EN</span>
         </button>
         <span className="app-nav-note">{dictionary.navigationNote}</span>
+      </div>
 
       {/* Auth Status & User Profile Pill */}
       <div className="app-nav-auth flex items-center gap-2">

@@ -1,0 +1,62 @@
+[
+  {
+    "word": "SMART",
+    "meaningVi": "Thông minh, khéo léo",
+    "hint": "Tính từ chỉ người có trí tuệ nhạy bén hoặc thiết bị hiện đại",
+    "category": "Personality"
+  },
+  {
+    "word": "TRAIN",
+    "meaningVi": "Tàu hỏa / Rèn luyện",
+    "hint": "Phương tiện chạy trên đường ray hoặc hành động rèn luyện kỹ năng",
+    "category": "Travel"
+  },
+  {
+    "word": "CLEAN",
+    "meaningVi": "Sạch sẽ, trong lành",
+    "hint": "Trạng thái không có bụi bẩn, bảo vệ môi trường",
+    "category": "Daily Life"
+  },
+  {
+    "word": "BRAIN",
+    "meaningVi": "Bộ não, trí tuệ",
+    "hint": "Cơ quan chỉ huy suy nghĩ và cảm xúc trong cơ thể",
+    "category": "Health"
+  },
+  {
+    "word": "LIGHT",
+    "meaningVi": "Ánh sáng / Nhẹ nhàng",
+    "hint": "Năng lượng giúp mắt ta nhìn thấy mọi vật",
+    "category": "Nature"
+  },
+  {
+    "word": "EARTH",
+    "meaningVi": "Trái Đất, hành tinh xanh",
+    "hint": "Hành tinh thứ ba tính từ Mặt Trời, ngôi nhà của nhân loại",
+    "category": "Environment"
+  },
+  {
+    "word": "FOCUS",
+    "meaningVi": "Tập trung, trọng tâm",
+    "hint": "Dồn toàn bộ sự chú ý vào một công việc cụ thể",
+    "category": "Education"
+  },
+  {
+    "word": "CLOUD",
+    "meaningVi": "Đám mây / Điện toán đám mây",
+    "hint": "Hơi nước ngưng tụ trên bầu trời hoặc hạ tầng lưu trữ dữ liệu",
+    "category": "Technology"
+  },
+  {
+    "word": "WATER",
+    "meaningVi": "Nước uống, nguồn sống",
+    "hint": "Chất lỏng trong suốt chiếm hơn 70% cơ thể người",
+    "category": "Food"
+  },
+  {
+    "word": "HEART",
+    "meaningVi": "Trái tim, tâm hồn",
+    "hint": "Cơ quan bơm máu nuôi dưỡng toàn bộ cơ thể",
+    "category": "Health"
+  }
+]

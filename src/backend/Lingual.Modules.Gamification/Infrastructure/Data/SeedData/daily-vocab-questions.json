@@ -1,0 +1,4802 @@
+[
+  {
+    "id": "vq-001",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'apple' nghĩa là gì?",
+    "options": [
+      "quả táo",
+      "buồn",
+      "cà phê",
+      "cơm"
+    ],
+    "correctAnswer": "quả táo",
+    "explanation": "'apple' = quả táo.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-002",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'quả chuối' trong tiếng Anh là gì?",
+    "options": [
+      "chair",
+      "banana",
+      "student",
+      "lunch"
+    ],
+    "correctAnswer": "banana",
+    "explanation": "'quả chuối' = 'banana'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-003",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Drink more ___ every day.\"",
+    "options": [
+      "baby",
+      "clean",
+      "water",
+      "cold"
+    ],
+    "correctAnswer": "water",
+    "explanation": "Câu đúng: \"Drink more water every day.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-004",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'bread' nghĩa là gì?",
+    "options": [
+      "cơm",
+      "đường",
+      "sữa",
+      "bánh mì"
+    ],
+    "correctAnswer": "bánh mì",
+    "explanation": "'bread' = bánh mì.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-005",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cơm' trong tiếng Anh là gì?",
+    "options": [
+      "rice",
+      "shoes",
+      "mother",
+      "bread"
+    ],
+    "correctAnswer": "rice",
+    "explanation": "'cơm' = 'rice'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-006",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The baby drinks ___.\"",
+    "options": [
+      "good",
+      "milk",
+      "tired",
+      "new"
+    ],
+    "correctAnswer": "milk",
+    "explanation": "Câu đúng: \"The baby drinks milk.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-007",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'egg' nghĩa là gì?",
+    "options": [
+      "mọi người",
+      "cái ghế",
+      "quả trứng",
+      "bông hoa"
+    ],
+    "correctAnswer": "quả trứng",
+    "explanation": "'egg' = quả trứng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-008",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'con cá' trong tiếng Anh là gì?",
+    "options": [
+      "late",
+      "new",
+      "thirsty",
+      "fish"
+    ],
+    "correctAnswer": "fish",
+    "explanation": "'con cá' = 'fish'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-009",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"He doesn't eat ___.\"",
+    "options": [
+      "meat",
+      "table",
+      "car",
+      "hungry"
+    ],
+    "correctAnswer": "meat",
+    "explanation": "Câu đúng: \"He doesn't eat meat.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-010",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'chicken' nghĩa là gì?",
+    "options": [
+      "đường",
+      "thịt gà",
+      "muối",
+      "tuần"
+    ],
+    "correctAnswer": "thịt gà",
+    "explanation": "'chicken' = thịt gà.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-011",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'trái cây' trong tiếng Anh là gì?",
+    "options": [
+      "shoes",
+      "pen",
+      "fruit",
+      "milk"
+    ],
+    "correctAnswer": "fruit",
+    "explanation": "'trái cây' = 'fruit'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-012",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"This ___ is fresh.\"",
+    "options": [
+      "week",
+      "juice",
+      "friend",
+      "vegetable"
+    ],
+    "correctAnswer": "vegetable",
+    "explanation": "Câu đúng: \"This vegetable is fresh.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-013",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'sugar' nghĩa là gì?",
+    "options": [
+      "đường",
+      "chìa khóa",
+      "vui vẻ",
+      "buổi sáng"
+    ],
+    "correctAnswer": "đường",
+    "explanation": "'sugar' = đường.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-014",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'muối' trong tiếng Anh là gì?",
+    "options": [
+      "meat",
+      "salt",
+      "old",
+      "milk"
+    ],
+    "correctAnswer": "salt",
+    "explanation": "'muối' = 'salt'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-015",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Would you like some ___?\"",
+    "options": [
+      "train",
+      "fruit",
+      "tea",
+      "early"
+    ],
+    "correctAnswer": "tea",
+    "explanation": "Câu đúng: \"Would you like some tea?\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-016",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'coffee' nghĩa là gì?",
+    "options": [
+      "tuần",
+      "xe hơi",
+      "khu vườn",
+      "cà phê"
+    ],
+    "correctAnswer": "cà phê",
+    "explanation": "'coffee' = cà phê.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-017",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'nước ép' trong tiếng Anh là gì?",
+    "options": [
+      "juice",
+      "night",
+      "evening",
+      "thirsty"
+    ],
+    "correctAnswer": "juice",
+    "explanation": "'nước ép' = 'juice'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-018",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"___ is ready.\"",
+    "options": [
+      "big",
+      "breakfast",
+      "angry",
+      "new"
+    ],
+    "correctAnswer": "breakfast",
+    "explanation": "Câu đúng: \"Breakfast is ready.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-019",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'lunch' nghĩa là gì?",
+    "options": [
+      "học sinh",
+      "xinh đẹp",
+      "bữa trưa",
+      "người bạn"
+    ],
+    "correctAnswer": "bữa trưa",
+    "explanation": "'lunch' = bữa trưa.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-020",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'bữa tối' trong tiếng Anh là gì?",
+    "options": [
+      "bag",
+      "week",
+      "sad",
+      "dinner"
+    ],
+    "correctAnswer": "dinner",
+    "explanation": "'bữa tối' = 'dinner'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-021",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"I'm so ___ now.\"",
+    "options": [
+      "hungry",
+      "computer",
+      "early",
+      "big"
+    ],
+    "correctAnswer": "hungry",
+    "explanation": "Câu đúng: \"I'm so hungry now.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-022",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'thirsty' nghĩa là gì?",
+    "options": [
+      "mặt trời",
+      "khát nước",
+      "cơm",
+      "điện thoại"
+    ],
+    "correctAnswer": "khát nước",
+    "explanation": "'thirsty' = khát nước.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-023",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'ngôi nhà' trong tiếng Anh là gì?",
+    "options": [
+      "good",
+      "table",
+      "house",
+      "boy"
+    ],
+    "correctAnswer": "house",
+    "explanation": "'ngôi nhà' = 'house'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-024",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"My ___ is clean.\"",
+    "options": [
+      "tired",
+      "family",
+      "year",
+      "room"
+    ],
+    "correctAnswer": "room",
+    "explanation": "Câu đúng: \"My room is clean.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-025",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'door' nghĩa là gì?",
+    "options": [
+      "cánh cửa",
+      "bữa sáng",
+      "cây bút",
+      "bữa trưa"
+    ],
+    "correctAnswer": "cánh cửa",
+    "explanation": "'door' = cánh cửa.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-026",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cửa sổ' trong tiếng Anh là gì?",
+    "options": [
+      "easy",
+      "window",
+      "child",
+      "snow"
+    ],
+    "correctAnswer": "window",
+    "explanation": "'cửa sổ' = 'window'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-027",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Go to ___ now.\"",
+    "options": [
+      "morning",
+      "chair",
+      "bed",
+      "breakfast"
+    ],
+    "correctAnswer": "bed",
+    "explanation": "Câu đúng: \"Go to bed now.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-028",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'kitchen' nghĩa là gì?",
+    "options": [
+      "nhanh",
+      "quả trứng",
+      "rau củ",
+      "nhà bếp"
+    ],
+    "correctAnswer": "nhà bếp",
+    "explanation": "'kitchen' = nhà bếp.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-029",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cái bàn' trong tiếng Anh là gì?",
+    "options": [
+      "table",
+      "big",
+      "happy",
+      "hungry"
+    ],
+    "correctAnswer": "table",
+    "explanation": "'cái bàn' = 'table'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-030",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Sit on the ___.\"",
+    "options": [
+      "month",
+      "chair",
+      "shirt",
+      "week"
+    ],
+    "correctAnswer": "chair",
+    "explanation": "Câu đúng: \"Sit on the chair.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-031",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'school' nghĩa là gì?",
+    "options": [
+      "quả chuối",
+      "người đàn ông",
+      "trường học",
+      "to lớn"
+    ],
+    "correctAnswer": "trường học",
+    "explanation": "'school' = trường học.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-032",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'giáo viên' trong tiếng Anh là gì?",
+    "options": [
+      "big",
+      "fast",
+      "friend",
+      "teacher"
+    ],
+    "correctAnswer": "teacher",
+    "explanation": "'giáo viên' = 'teacher'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-033",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"She is a good ___.\"",
+    "options": [
+      "student",
+      "wind",
+      "train",
+      "tea"
+    ],
+    "correctAnswer": "student",
+    "explanation": "Câu đúng: \"She is a good student.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-034",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'book' nghĩa là gì?",
+    "options": [
+      "tệ",
+      "quyển sách",
+      "quả táo",
+      "cây bút"
+    ],
+    "correctAnswer": "quyển sách",
+    "explanation": "'book' = quyển sách.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-035",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cây bút' trong tiếng Anh là gì?",
+    "options": [
+      "happy",
+      "mother",
+      "pen",
+      "salt"
+    ],
+    "correctAnswer": "pen",
+    "explanation": "'cây bút' = 'pen'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-036",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"My ___ is heavy.\"",
+    "options": [
+      "evening",
+      "late",
+      "dinner",
+      "bag"
+    ],
+    "correctAnswer": "bag",
+    "explanation": "Câu đúng: \"My bag is heavy.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-037",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'car' nghĩa là gì?",
+    "options": [
+      "xe hơi",
+      "máy tính",
+      "đất nước",
+      "áo sơ mi"
+    ],
+    "correctAnswer": "xe hơi",
+    "explanation": "'car' = xe hơi.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-038",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'xe buýt' trong tiếng Anh là gì?",
+    "options": [
+      "plane",
+      "bus",
+      "school",
+      "morning"
+    ],
+    "correctAnswer": "bus",
+    "explanation": "'xe buýt' = 'bus'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-039",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The ___ is fast.\"",
+    "options": [
+      "beautiful",
+      "boy",
+      "train",
+      "fruit"
+    ],
+    "correctAnswer": "train",
+    "explanation": "Câu đúng: \"The train is fast.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-040",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'bike' nghĩa là gì?",
+    "options": [
+      "người bạn",
+      "sớm",
+      "muộn",
+      "xe đạp"
+    ],
+    "correctAnswer": "xe đạp",
+    "explanation": "'bike' = xe đạp.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-041",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'máy bay' trong tiếng Anh là gì?",
+    "options": [
+      "plane",
+      "man",
+      "street",
+      "sick"
+    ],
+    "correctAnswer": "plane",
+    "explanation": "'máy bay' = 'plane'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-042",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"My ___ is ringing.\"",
+    "options": [
+      "shoes",
+      "phone",
+      "snow",
+      "sister"
+    ],
+    "correctAnswer": "phone",
+    "explanation": "Câu đúng: \"My phone is ringing.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-043",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'computer' nghĩa là gì?",
+    "options": [
+      "tốt",
+      "xe đạp",
+      "máy tính",
+      "mặt trời"
+    ],
+    "correctAnswer": "máy tính",
+    "explanation": "'computer' = máy tính.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-044",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'tiền' trong tiếng Anh là gì?",
+    "options": [
+      "brother",
+      "flower",
+      "tree",
+      "money"
+    ],
+    "correctAnswer": "money",
+    "explanation": "'tiền' = 'money'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-045",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"What ___ is it?\"",
+    "options": [
+      "time",
+      "meat",
+      "money",
+      "table"
+    ],
+    "correctAnswer": "time",
+    "explanation": "Câu đúng: \"What time is it?\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-046",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'day' nghĩa là gì?",
+    "options": [
+      "cái bàn",
+      "ngày",
+      "quả táo",
+      "mọi người"
+    ],
+    "correctAnswer": "ngày",
+    "explanation": "'day' = ngày.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-047",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'ban đêm' trong tiếng Anh là gì?",
+    "options": [
+      "rice",
+      "chair",
+      "night",
+      "meat"
+    ],
+    "correctAnswer": "night",
+    "explanation": "'ban đêm' = 'night'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-048",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Good ___!\"",
+    "options": [
+      "father",
+      "school",
+      "bag",
+      "morning"
+    ],
+    "correctAnswer": "morning",
+    "explanation": "Câu đúng: \"Good morning!\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-049",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'evening' nghĩa là gì?",
+    "options": [
+      "buổi tối",
+      "nhà bếp",
+      "em bé",
+      "nước ép"
+    ],
+    "correctAnswer": "buổi tối",
+    "explanation": "'evening' = buổi tối.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-050",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'tuần' trong tiếng Anh là gì?",
+    "options": [
+      "street",
+      "week",
+      "moon",
+      "teacher"
+    ],
+    "correctAnswer": "week",
+    "explanation": "'tuần' = 'week'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-051",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"It's a long ___.\"",
+    "options": [
+      "sugar",
+      "wind",
+      "month",
+      "sick"
+    ],
+    "correctAnswer": "month",
+    "explanation": "Câu đúng: \"It's a long month.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-052",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'year' nghĩa là gì?",
+    "options": [
+      "công viên",
+      "xinh đẹp",
+      "mặt trăng",
+      "năm"
+    ],
+    "correctAnswer": "năm",
+    "explanation": "'year' = năm.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-053",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'mặt trời' trong tiếng Anh là gì?",
+    "options": [
+      "sun",
+      "beautiful",
+      "fish",
+      "year"
+    ],
+    "correctAnswer": "sun",
+    "explanation": "'mặt trời' = 'sun'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-054",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The ___ is bright.\"",
+    "options": [
+      "friend",
+      "moon",
+      "teacher",
+      "door"
+    ],
+    "correctAnswer": "moon",
+    "explanation": "Câu đúng: \"The moon is bright.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-055",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'rain' nghĩa là gì?",
+    "options": [
+      "cái cặp",
+      "tuyết",
+      "cơn mưa",
+      "căn phòng"
+    ],
+    "correctAnswer": "cơn mưa",
+    "explanation": "'rain' = cơn mưa.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-056",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'tuyết' trong tiếng Anh là gì?",
+    "options": [
+      "tree",
+      "man",
+      "chicken",
+      "snow"
+    ],
+    "correctAnswer": "snow",
+    "explanation": "'tuyết' = 'snow'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-057",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The ___ is strong.\"",
+    "options": [
+      "wind",
+      "baby",
+      "banana",
+      "tired"
+    ],
+    "correctAnswer": "wind",
+    "explanation": "Câu đúng: \"The wind is strong.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-058",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'tree' nghĩa là gì?",
+    "options": [
+      "đất nước",
+      "cây",
+      "khát nước",
+      "mặt trời"
+    ],
+    "correctAnswer": "cây",
+    "explanation": "'tree' = cây.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-059",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'bông hoa' trong tiếng Anh là gì?",
+    "options": [
+      "thirsty",
+      "year",
+      "flower",
+      "fish"
+    ],
+    "correctAnswer": "flower",
+    "explanation": "'bông hoa' = 'flower'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-060",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The ___ is beautiful.\"",
+    "options": [
+      "week",
+      "flower",
+      "book",
+      "garden"
+    ],
+    "correctAnswer": "garden",
+    "explanation": "Câu đúng: \"The garden is beautiful.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-061",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'park' nghĩa là gì?",
+    "options": [
+      "công viên",
+      "mới",
+      "xinh đẹp",
+      "người phụ nữ"
+    ],
+    "correctAnswer": "công viên",
+    "explanation": "'park' = công viên.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-062",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'đường phố' trong tiếng Anh là gì?",
+    "options": [
+      "door",
+      "street",
+      "bus",
+      "dinner"
+    ],
+    "correctAnswer": "street",
+    "explanation": "'đường phố' = 'street'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-063",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Hanoi is a big ___.\"",
+    "options": [
+      "baby",
+      "clean",
+      "city",
+      "child"
+    ],
+    "correctAnswer": "city",
+    "explanation": "Câu đúng: \"Hanoi is a big city.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-064",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'country' nghĩa là gì?",
+    "options": [
+      "đứa trẻ",
+      "con cá",
+      "quả trứng",
+      "đất nước"
+    ],
+    "correctAnswer": "đất nước",
+    "explanation": "'country' = đất nước.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-065",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'gia đình' trong tiếng Anh là gì?",
+    "options": [
+      "family",
+      "father",
+      "fruit",
+      "fish"
+    ],
+    "correctAnswer": "family",
+    "explanation": "'gia đình' = 'family'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-066",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"My ___ cooks well.\"",
+    "options": [
+      "cold",
+      "mother",
+      "meat",
+      "shirt"
+    ],
+    "correctAnswer": "mother",
+    "explanation": "Câu đúng: \"My mother cooks well.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-067",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'father' nghĩa là gì?",
+    "options": [
+      "cậu bé",
+      "cà phê",
+      "bố",
+      "giáo viên"
+    ],
+    "correctAnswer": "bố",
+    "explanation": "'father' = bố.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-068",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'anh trai' trong tiếng Anh là gì?",
+    "options": [
+      "key",
+      "fruit",
+      "moon",
+      "brother"
+    ],
+    "correctAnswer": "brother",
+    "explanation": "'anh trai' = 'brother'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-069",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Her ___ is cute.\"",
+    "options": [
+      "sister",
+      "book",
+      "bed",
+      "hot"
+    ],
+    "correctAnswer": "sister",
+    "explanation": "Câu đúng: \"Her sister is cute.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-070",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'friend' nghĩa là gì?",
+    "options": [
+      "tháng",
+      "người bạn",
+      "quyển sách",
+      "trường học"
+    ],
+    "correctAnswer": "người bạn",
+    "explanation": "'friend' = người bạn.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-071",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'em bé' trong tiếng Anh là gì?",
+    "options": [
+      "plane",
+      "fast",
+      "baby",
+      "flower"
+    ],
+    "correctAnswer": "baby",
+    "explanation": "'em bé' = 'baby'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-072",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"That ___ is kind.\"",
+    "options": [
+      "key",
+      "boy",
+      "flower",
+      "man"
+    ],
+    "correctAnswer": "man",
+    "explanation": "Câu đúng: \"That man is kind.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-073",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'woman' nghĩa là gì?",
+    "options": [
+      "người phụ nữ",
+      "gia đình",
+      "chị gái",
+      "nhà bếp"
+    ],
+    "correctAnswer": "người phụ nữ",
+    "explanation": "'woman' = người phụ nữ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-074",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cậu bé' trong tiếng Anh là gì?",
+    "options": [
+      "time",
+      "boy",
+      "teacher",
+      "meat"
+    ],
+    "correctAnswer": "boy",
+    "explanation": "'cậu bé' = 'boy'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-075",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The ___ sings well.\"",
+    "options": [
+      "hungry",
+      "wind",
+      "girl",
+      "friend"
+    ],
+    "correctAnswer": "girl",
+    "explanation": "Câu đúng: \"The girl sings well.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-076",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'child' nghĩa là gì?",
+    "options": [
+      "anh trai",
+      "mệt mỏi",
+      "cái mũ",
+      "đứa trẻ"
+    ],
+    "correctAnswer": "đứa trẻ",
+    "explanation": "'child' = đứa trẻ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-077",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'mọi người' trong tiếng Anh là gì?",
+    "options": [
+      "people",
+      "breakfast",
+      "sick",
+      "salt"
+    ],
+    "correctAnswer": "people",
+    "explanation": "'mọi người' = 'people'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-078",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"He wears a white ___.\"",
+    "options": [
+      "baby",
+      "shirt",
+      "easy",
+      "salt"
+    ],
+    "correctAnswer": "shirt",
+    "explanation": "Câu đúng: \"He wears a white shirt.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-079",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'shoes' nghĩa là gì?",
+    "options": [
+      "xe hơi",
+      "áo sơ mi",
+      "đôi giày",
+      "cái giường"
+    ],
+    "correctAnswer": "đôi giày",
+    "explanation": "'shoes' = đôi giày.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-080",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cái mũ' trong tiếng Anh là gì?",
+    "options": [
+      "bed",
+      "sad",
+      "big",
+      "hat"
+    ],
+    "correctAnswer": "hat",
+    "explanation": "'cái mũ' = 'hat'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-081",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"I lost my ___.\"",
+    "options": [
+      "key",
+      "student",
+      "egg",
+      "vegetable"
+    ],
+    "correctAnswer": "key",
+    "explanation": "Câu đúng: \"I lost my key.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-082",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'happy' nghĩa là gì?",
+    "options": [
+      "quả táo",
+      "vui vẻ",
+      "cái cặp",
+      "sữa"
+    ],
+    "correctAnswer": "vui vẻ",
+    "explanation": "'happy' = vui vẻ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-083",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'buồn' trong tiếng Anh là gì?",
+    "options": [
+      "happy",
+      "book",
+      "sad",
+      "hungry"
+    ],
+    "correctAnswer": "sad",
+    "explanation": "'buồn' = 'sad'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-084",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"He was ___.\"",
+    "options": [
+      "old",
+      "baby",
+      "rain",
+      "angry"
+    ],
+    "correctAnswer": "angry",
+    "explanation": "Câu đúng: \"He was angry.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-085",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'tired' nghĩa là gì?",
+    "options": [
+      "mệt mỏi",
+      "thịt gà",
+      "nhỏ",
+      "trà"
+    ],
+    "correctAnswer": "mệt mỏi",
+    "explanation": "'tired' = mệt mỏi.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-086",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'ốm' trong tiếng Anh là gì?",
+    "options": [
+      "baby",
+      "sick",
+      "girl",
+      "morning"
+    ],
+    "correctAnswer": "sick",
+    "explanation": "'ốm' = 'sick'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-087",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"The soup is ___.\"",
+    "options": [
+      "bike",
+      "juice",
+      "hot",
+      "milk"
+    ],
+    "correctAnswer": "hot",
+    "explanation": "Câu đúng: \"The soup is hot.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-088",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'cold' nghĩa là gì?",
+    "options": [
+      "cái giường",
+      "to lớn",
+      "ngày",
+      "lạnh"
+    ],
+    "correctAnswer": "lạnh",
+    "explanation": "'cold' = lạnh.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-089",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'to lớn' trong tiếng Anh là gì?",
+    "options": [
+      "big",
+      "man",
+      "day",
+      "sun"
+    ],
+    "correctAnswer": "big",
+    "explanation": "'to lớn' = 'big'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-090",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"A mouse is ___.\"",
+    "options": [
+      "house",
+      "small",
+      "school",
+      "hungry"
+    ],
+    "correctAnswer": "small",
+    "explanation": "Câu đúng: \"A mouse is small.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-091",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'new' nghĩa là gì?",
+    "options": [
+      "máy tính",
+      "ngôi nhà",
+      "mới",
+      "sạch sẽ"
+    ],
+    "correctAnswer": "mới",
+    "explanation": "'new' = mới.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-092",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'cũ' trong tiếng Anh là gì?",
+    "options": [
+      "small",
+      "hungry",
+      "pen",
+      "old"
+    ],
+    "correctAnswer": "old",
+    "explanation": "'cũ' = 'old'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-093",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"She is a ___ girl.\"",
+    "options": [
+      "good",
+      "table",
+      "park",
+      "rice"
+    ],
+    "correctAnswer": "good",
+    "explanation": "Câu đúng: \"She is a good girl.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-094",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'bad' nghĩa là gì?",
+    "options": [
+      "xe đạp",
+      "tệ",
+      "cái ghế",
+      "thời gian"
+    ],
+    "correctAnswer": "tệ",
+    "explanation": "'bad' = tệ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-095",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'xinh đẹp' trong tiếng Anh là gì?",
+    "options": [
+      "tired",
+      "year",
+      "beautiful",
+      "door"
+    ],
+    "correctAnswer": "beautiful",
+    "explanation": "'xinh đẹp' = 'beautiful'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-096",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Keep your room ___.\"",
+    "options": [
+      "meat",
+      "bag",
+      "early",
+      "clean"
+    ],
+    "correctAnswer": "clean",
+    "explanation": "Câu đúng: \"Keep your room clean.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-097",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'easy' nghĩa là gì?",
+    "options": [
+      "dễ dàng",
+      "chị gái",
+      "máy tính",
+      "nóng"
+    ],
+    "correctAnswer": "dễ dàng",
+    "explanation": "'easy' = dễ dàng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-098",
+    "type": "vi_to_en",
+    "cefrLevel": "A2",
+    "question": "'nhanh' trong tiếng Anh là gì?",
+    "options": [
+      "girl",
+      "fast",
+      "book",
+      "house"
+    ],
+    "correctAnswer": "fast",
+    "explanation": "'nhanh' = 'fast'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-099",
+    "type": "fill_blank",
+    "cefrLevel": "A2",
+    "question": "Điền từ thích hợp: \"Don't be ___.\"",
+    "options": [
+      "salt",
+      "snow",
+      "late",
+      "people"
+    ],
+    "correctAnswer": "late",
+    "explanation": "Câu đúng: \"Don't be late.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-100",
+    "type": "en_to_vi",
+    "cefrLevel": "A2",
+    "question": "'early' nghĩa là gì?",
+    "options": [
+      "mẹ",
+      "áo sơ mi",
+      "tuyết",
+      "sớm"
+    ],
+    "correctAnswer": "sớm",
+    "explanation": "'early' = sớm.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-101",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'journey' nghĩa là gì?",
+    "options": [
+      "chuyến hành trình",
+      "cuộc phỏng vấn",
+      "lãng phí",
+      "giấc ngủ"
+    ],
+    "correctAnswer": "chuyến hành trình",
+    "explanation": "'journey' = chuyến hành trình.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-102",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cuộc phiêu lưu' trong tiếng Anh là gì?",
+    "options": [
+      "mountain",
+      "adventure",
+      "hardworking",
+      "journey"
+    ],
+    "correctAnswer": "adventure",
+    "explanation": "'cuộc phiêu lưu' = 'adventure'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-103",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Travel gives ___.\"",
+    "options": [
+      "weather",
+      "mountain",
+      "experience",
+      "choice"
+    ],
+    "correctAnswer": "experience",
+    "explanation": "Câu đúng: \"Travel gives experience.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-104",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'knowledge' nghĩa là gì?",
+    "options": [
+      "trung thành",
+      "hàng xóm",
+      "lo lắng",
+      "kiến thức"
+    ],
+    "correctAnswer": "kiến thức",
+    "explanation": "'knowledge' = kiến thức.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-105",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'kỹ năng' trong tiếng Anh là gì?",
+    "options": [
+      "skill",
+      "hospital",
+      "curious",
+      "owner"
+    ],
+    "correctAnswer": "skill",
+    "explanation": "'kỹ năng' = 'skill'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-106",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Hard work brings ___.\"",
+    "options": [
+      "lazy",
+      "success",
+      "forest",
+      "bill"
+    ],
+    "correctAnswer": "success",
+    "explanation": "Câu đúng: \"Hard work brings success.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-107",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'failure' nghĩa là gì?",
+    "options": [
+      "tò mò",
+      "cuộc phỏng vấn",
+      "thất bại",
+      "hòn đảo"
+    ],
+    "correctAnswer": "thất bại",
+    "explanation": "'failure' = thất bại.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-108",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cơ hội' trong tiếng Anh là gì?",
+    "options": [
+      "rent",
+      "jealous",
+      "diet",
+      "opportunity"
+    ],
+    "correctAnswer": "opportunity",
+    "explanation": "'cơ hội' = 'opportunity'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-109",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"This task is a real ___.\"",
+    "options": [
+      "challenge",
+      "rent",
+      "meeting",
+      "receipt"
+    ],
+    "correctAnswer": "challenge",
+    "explanation": "Câu đúng: \"This task is a real challenge.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-110",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'choice' nghĩa là gì?",
+    "options": [
+      "sáng tạo",
+      "sự lựa chọn",
+      "dòng sông",
+      "giao thông"
+    ],
+    "correctAnswer": "sự lựa chọn",
+    "explanation": "'choice' = sự lựa chọn.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-111",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'quyết định' trong tiếng Anh là gì?",
+    "options": [
+      "waste",
+      "develop",
+      "decision",
+      "agree"
+    ],
+    "correctAnswer": "decision",
+    "explanation": "'quyết định' = 'decision'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-112",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Keep your ___.\"",
+    "options": [
+      "receipt",
+      "doctor",
+      "loyal",
+      "promise"
+    ],
+    "correctAnswer": "promise",
+    "explanation": "Câu đúng: \"Keep your promise.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-113",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'secret' nghĩa là gì?",
+    "options": [
+      "bí mật",
+      "tránh",
+      "xin lỗi",
+      "lời hứa"
+    ],
+    "correctAnswer": "bí mật",
+    "explanation": "'secret' = bí mật.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-114",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'điều bất ngờ' trong tiếng Anh là gì?",
+    "options": [
+      "admit",
+      "surprise",
+      "office",
+      "project"
+    ],
+    "correctAnswer": "surprise",
+    "explanation": "'điều bất ngờ' = 'surprise'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-115",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"He has a good ___.\"",
+    "options": [
+      "customer",
+      "success",
+      "memory",
+      "accident"
+    ],
+    "correctAnswer": "memory",
+    "explanation": "Câu đúng: \"He has a good memory.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-116",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'dream' nghĩa là gì?",
+    "options": [
+      "hòn đảo",
+      "đại dương",
+      "tiết kiệm",
+      "giấc mơ"
+    ],
+    "correctAnswer": "giấc mơ",
+    "explanation": "'dream' = giấc mơ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-117",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'mục tiêu' trong tiếng Anh là gì?",
+    "options": [
+      "goal",
+      "responsible",
+      "flood",
+      "lazy"
+    ],
+    "correctAnswer": "goal",
+    "explanation": "'mục tiêu' = 'goal'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-118",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"What's your ___?\"",
+    "options": [
+      "custom",
+      "plan",
+      "customer",
+      "selfish"
+    ],
+    "correctAnswer": "plan",
+    "explanation": "Câu đúng: \"What's your plan?\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-119",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'habit' nghĩa là gì?",
+    "options": [
+      "so sánh",
+      "tránh",
+      "thói quen",
+      "tiêu xài"
+    ],
+    "correctAnswer": "thói quen",
+    "explanation": "'habit' = thói quen.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-120",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'phong tục' trong tiếng Anh là gì?",
+    "options": [
+      "project",
+      "ceremony",
+      "refuse",
+      "custom"
+    ],
+    "correctAnswer": "custom",
+    "explanation": "'phong tục' = 'custom'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-121",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Learn about the ___.\"",
+    "options": [
+      "culture",
+      "customer",
+      "exercise",
+      "failure"
+    ],
+    "correctAnswer": "culture",
+    "explanation": "Câu đúng: \"Learn about the culture.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-122",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'tradition' nghĩa là gì?",
+    "options": [
+      "kế hoạch",
+      "truyền thống",
+      "từ chối",
+      "giao thông"
+    ],
+    "correctAnswer": "truyền thống",
+    "explanation": "'tradition' = truyền thống.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-123",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'lễ hội' trong tiếng Anh là gì?",
+    "options": [
+      "avoid",
+      "spend",
+      "festival",
+      "river"
+    ],
+    "correctAnswer": "festival",
+    "explanation": "'lễ hội' = 'festival'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-124",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The wedding ___ was lovely.\"",
+    "options": [
+      "health",
+      "argue",
+      "earn",
+      "ceremony"
+    ],
+    "correctAnswer": "ceremony",
+    "explanation": "Câu đúng: \"The wedding ceremony was lovely.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-125",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'appointment' nghĩa là gì?",
+    "options": [
+      "cuộc hẹn",
+      "đạt được",
+      "tai nạn",
+      "so sánh"
+    ],
+    "correctAnswer": "cuộc hẹn",
+    "explanation": "'appointment' = cuộc hẹn.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-126",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cuộc phỏng vấn' trong tiếng Anh là gì?",
+    "options": [
+      "avoid",
+      "interview",
+      "customer",
+      "discuss"
+    ],
+    "correctAnswer": "interview",
+    "explanation": "'cuộc phỏng vấn' = 'interview'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-127",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"He works in an ___.\"",
+    "options": [
+      "patient",
+      "suggest",
+      "office",
+      "recommend"
+    ],
+    "correctAnswer": "office",
+    "explanation": "Câu đúng: \"He works in an office.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-128",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'meeting' nghĩa là gì?",
+    "options": [
+      "giảm giá",
+      "dòng sông",
+      "sự lựa chọn",
+      "cuộc họp"
+    ],
+    "correctAnswer": "cuộc họp",
+    "explanation": "'meeting' = cuộc họp.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-129",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'bản báo cáo' trong tiếng Anh là gì?",
+    "options": [
+      "report",
+      "society",
+      "salary",
+      "price"
+    ],
+    "correctAnswer": "report",
+    "explanation": "'bản báo cáo' = 'report'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-130",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Our ___ is done.\"",
+    "options": [
+      "career",
+      "project",
+      "plan",
+      "custom"
+    ],
+    "correctAnswer": "project",
+    "explanation": "Câu đúng: \"Our project is done.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-131",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'career' nghĩa là gì?",
+    "options": [
+      "chăm chỉ",
+      "thử thách",
+      "sự nghiệp",
+      "cuộc họp"
+    ],
+    "correctAnswer": "sự nghiệp",
+    "explanation": "'career' = sự nghiệp.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-132",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tiền lương' trong tiếng Anh là gì?",
+    "options": [
+      "traffic",
+      "society",
+      "injury",
+      "salary"
+    ],
+    "correctAnswer": "salary",
+    "explanation": "'tiền lương' = 'salary'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-133",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ is happy.\"",
+    "options": [
+      "customer",
+      "island",
+      "office",
+      "argue"
+    ],
+    "correctAnswer": "customer",
+    "explanation": "Câu đúng: \"The customer is happy.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-134",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'service' nghĩa là gì?",
+    "options": [
+      "mô tả",
+      "dịch vụ",
+      "cho mượn",
+      "thích hơn"
+    ],
+    "correctAnswer": "dịch vụ",
+    "explanation": "'service' = dịch vụ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-135",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'chất lượng' trong tiếng Anh là gì?",
+    "options": [
+      "safety",
+      "pollution",
+      "quality",
+      "journey"
+    ],
+    "correctAnswer": "quality",
+    "explanation": "'chất lượng' = 'quality'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-136",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ is fair.\"",
+    "options": [
+      "argue",
+      "describe",
+      "spend",
+      "price"
+    ],
+    "correctAnswer": "price",
+    "explanation": "Câu đúng: \"The price is fair.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-137",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'discount' nghĩa là gì?",
+    "options": [
+      "giảm giá",
+      "nguy hiểm",
+      "chất lượng",
+      "bản báo cáo"
+    ],
+    "correctAnswer": "giảm giá",
+    "explanation": "'discount' = giảm giá.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-138",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'hóa đơn' trong tiếng Anh là gì?",
+    "options": [
+      "knowledge",
+      "receipt",
+      "flood",
+      "environment"
+    ],
+    "correctAnswer": "receipt",
+    "explanation": "'hóa đơn' = 'receipt'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-139",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Can I have the ___?\"",
+    "options": [
+      "discuss",
+      "reliable",
+      "bill",
+      "tradition"
+    ],
+    "correctAnswer": "bill",
+    "explanation": "Câu đúng: \"Can I have the bill?\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-140",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'rent' nghĩa là gì?",
+    "options": [
+      "kiến thức",
+      "lo lắng",
+      "cơn đau",
+      "tiền thuê nhà"
+    ],
+    "correctAnswer": "tiền thuê nhà",
+    "explanation": "'rent' = tiền thuê nhà.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-141",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'chủ sở hữu' trong tiếng Anh là gì?",
+    "options": [
+      "owner",
+      "beach",
+      "generous",
+      "decision"
+    ],
+    "correctAnswer": "owner",
+    "explanation": "'chủ sở hữu' = 'owner'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-142",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"My ___ is friendly.\"",
+    "options": [
+      "ceremony",
+      "neighbor",
+      "service",
+      "failure"
+    ],
+    "correctAnswer": "neighbor",
+    "explanation": "Câu đúng: \"My neighbor is friendly.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-143",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'community' nghĩa là gì?",
+    "options": [
+      "cuộc họp",
+      "hàng xóm",
+      "cộng đồng",
+      "đại dương"
+    ],
+    "correctAnswer": "cộng đồng",
+    "explanation": "'community' = cộng đồng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-144",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'xã hội' trong tiếng Anh là gì?",
+    "options": [
+      "price",
+      "argue",
+      "avoid",
+      "society"
+    ],
+    "correctAnswer": "society",
+    "explanation": "'xã hội' = 'society'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-145",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Protect the ___.\"",
+    "options": [
+      "environment",
+      "decision",
+      "accident",
+      "argue"
+    ],
+    "correctAnswer": "environment",
+    "explanation": "Câu đúng: \"Protect the environment.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-146",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'nature' nghĩa là gì?",
+    "options": [
+      "bản báo cáo",
+      "thiên nhiên",
+      "ích kỷ",
+      "môi trường"
+    ],
+    "correctAnswer": "thiên nhiên",
+    "explanation": "'nature' = thiên nhiên.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-147",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'sự ô nhiễm' trong tiếng Anh là gì?",
+    "options": [
+      "knowledge",
+      "salary",
+      "pollution",
+      "avoid"
+    ],
+    "correctAnswer": "pollution",
+    "explanation": "'sự ô nhiễm' = 'pollution'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-148",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ is nice.\"",
+    "options": [
+      "career",
+      "custom",
+      "nervous",
+      "weather"
+    ],
+    "correctAnswer": "weather",
+    "explanation": "Câu đúng: \"The weather is nice.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-149",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'climate' nghĩa là gì?",
+    "options": [
+      "khí hậu",
+      "chế độ ăn uống",
+      "ký ức",
+      "tò mò"
+    ],
+    "correctAnswer": "khí hậu",
+    "explanation": "'climate' = khí hậu.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-150",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cơn bão' trong tiếng Anh là gì?",
+    "options": [
+      "suggest",
+      "storm",
+      "lazy",
+      "customer"
+    ],
+    "correctAnswer": "storm",
+    "explanation": "'cơn bão' = 'storm'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-151",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ was terrible.\"",
+    "options": [
+      "achieve",
+      "responsible",
+      "flood",
+      "proud"
+    ],
+    "correctAnswer": "flood",
+    "explanation": "Câu đúng: \"The flood was terrible.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-152",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'earthquake' nghĩa là gì?",
+    "options": [
+      "sự nghỉ ngơi",
+      "điều bất ngờ",
+      "tiền thuê nhà",
+      "động đất"
+    ],
+    "correctAnswer": "động đất",
+    "explanation": "'earthquake' = động đất.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-153",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'rừng' trong tiếng Anh là gì?",
+    "options": [
+      "forest",
+      "sleep",
+      "earn",
+      "creative"
+    ],
+    "correctAnswer": "forest",
+    "explanation": "'rừng' = 'forest'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-154",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ is hot.\"",
+    "options": [
+      "interview",
+      "desert",
+      "responsible",
+      "choice"
+    ],
+    "correctAnswer": "desert",
+    "explanation": "Câu đúng: \"The desert is hot.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-155",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'island' nghĩa là gì?",
+    "options": [
+      "gợi ý",
+      "điều bất ngờ",
+      "hòn đảo",
+      "lười biếng"
+    ],
+    "correctAnswer": "hòn đảo",
+    "explanation": "'island' = hòn đảo.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-156",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'bãi biển' trong tiếng Anh là gì?",
+    "options": [
+      "decide",
+      "diet",
+      "agree",
+      "beach"
+    ],
+    "correctAnswer": "beach",
+    "explanation": "'bãi biển' = 'beach'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-157",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Climb the ___.\"",
+    "options": [
+      "mountain",
+      "loyal",
+      "pain",
+      "island"
+    ],
+    "correctAnswer": "mountain",
+    "explanation": "Câu đúng: \"Climb the mountain.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-158",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'river' nghĩa là gì?",
+    "options": [
+      "xã hội",
+      "dòng sông",
+      "hào phóng",
+      "bệnh viện"
+    ],
+    "correctAnswer": "dòng sông",
+    "explanation": "'river' = dòng sông.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-159",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cái hồ' trong tiếng Anh là gì?",
+    "options": [
+      "complain",
+      "surprise",
+      "lake",
+      "danger"
+    ],
+    "correctAnswer": "lake",
+    "explanation": "'cái hồ' = 'lake'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-160",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"The ___ is deep.\"",
+    "options": [
+      "argue",
+      "honest",
+      "spend",
+      "ocean"
+    ],
+    "correctAnswer": "ocean",
+    "explanation": "Câu đúng: \"The ocean is deep.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-161",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'traffic' nghĩa là gì?",
+    "options": [
+      "giao thông",
+      "bãi biển",
+      "lễ hội",
+      "cải thiện"
+    ],
+    "correctAnswer": "giao thông",
+    "explanation": "'traffic' = giao thông.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-162",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tai nạn' trong tiếng Anh là gì?",
+    "options": [
+      "jealous",
+      "accident",
+      "admit",
+      "afford"
+    ],
+    "correctAnswer": "accident",
+    "explanation": "'tai nạn' = 'accident'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-163",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ first.\"",
+    "options": [
+      "ocean",
+      "beach",
+      "safety",
+      "complain"
+    ],
+    "correctAnswer": "safety",
+    "explanation": "Câu đúng: \"Safety first.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-164",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'danger' nghĩa là gì?",
+    "options": [
+      "tiền lương",
+      "mô tả",
+      "hàng xóm",
+      "nguy hiểm"
+    ],
+    "correctAnswer": "nguy hiểm",
+    "explanation": "'danger' = nguy hiểm.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-165",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tình huống khẩn cấp' trong tiếng Anh là gì?",
+    "options": [
+      "emergency",
+      "lend",
+      "salary",
+      "river"
+    ],
+    "correctAnswer": "emergency",
+    "explanation": "'tình huống khẩn cấp' = 'emergency'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-166",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"He's in the ___.\"",
+    "options": [
+      "danger",
+      "hospital",
+      "society",
+      "knowledge"
+    ],
+    "correctAnswer": "hospital",
+    "explanation": "Câu đúng: \"He's in the hospital.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-167",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'doctor' nghĩa là gì?",
+    "options": [
+      "sự an toàn",
+      "thiên nhiên",
+      "bác sĩ",
+      "cuộc họp"
+    ],
+    "correctAnswer": "bác sĩ",
+    "explanation": "'doctor' = bác sĩ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-168",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'bệnh nhân' trong tiếng Anh là gì?",
+    "options": [
+      "price",
+      "lend",
+      "brave",
+      "patient"
+    ],
+    "correctAnswer": "patient",
+    "explanation": "'bệnh nhân' = 'patient'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-169",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Take your ___.\"",
+    "options": [
+      "medicine",
+      "adventure",
+      "doctor",
+      "exercise"
+    ],
+    "correctAnswer": "medicine",
+    "explanation": "Câu đúng: \"Take your medicine.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-170",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'pain' nghĩa là gì?",
+    "options": [
+      "rừng",
+      "cơn đau",
+      "sự nghiệp",
+      "đáng tin cậy"
+    ],
+    "correctAnswer": "cơn đau",
+    "explanation": "'pain' = cơn đau.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-171",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'vết thương' trong tiếng Anh là gì?",
+    "options": [
+      "shy",
+      "traffic",
+      "injury",
+      "generous"
+    ],
+    "correctAnswer": "injury",
+    "explanation": "'vết thương' = 'injury'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-172",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ is wealth.\"",
+    "options": [
+      "experience",
+      "agree",
+      "river",
+      "health"
+    ],
+    "correctAnswer": "health",
+    "explanation": "Câu đúng: \"Health is wealth.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-173",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'exercise' nghĩa là gì?",
+    "options": [
+      "việc tập thể dục",
+      "nhút nhát",
+      "động đất",
+      "bản báo cáo"
+    ],
+    "correctAnswer": "việc tập thể dục",
+    "explanation": "'exercise' = việc tập thể dục.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-174",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'chế độ ăn uống' trong tiếng Anh là gì?",
+    "options": [
+      "loyal",
+      "diet",
+      "weather",
+      "rest"
+    ],
+    "correctAnswer": "diet",
+    "explanation": "'chế độ ăn uống' = 'diet'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-175",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Get enough ___.\"",
+    "options": [
+      "island",
+      "injury",
+      "sleep",
+      "achieve"
+    ],
+    "correctAnswer": "sleep",
+    "explanation": "Câu đúng: \"Get enough sleep.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-176",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'rest' nghĩa là gì?",
+    "options": [
+      "lười biếng",
+      "chất lượng",
+      "cái hồ",
+      "sự nghỉ ngơi"
+    ],
+    "correctAnswer": "sự nghỉ ngơi",
+    "explanation": "'rest' = sự nghỉ ngơi.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-177",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'năng lượng' trong tiếng Anh là gì?",
+    "options": [
+      "energy",
+      "reliable",
+      "dream",
+      "project"
+    ],
+    "correctAnswer": "energy",
+    "explanation": "'năng lượng' = 'energy'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-178",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Be ___.\"",
+    "options": [
+      "achieve",
+      "brave",
+      "dream",
+      "medicine"
+    ],
+    "correctAnswer": "brave",
+    "explanation": "Câu đúng: \"Be brave.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-179",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'proud' nghĩa là gì?",
+    "options": [
+      "cuộc hẹn",
+      "phát triển",
+      "tự hào",
+      "cuộc họp"
+    ],
+    "correctAnswer": "tự hào",
+    "explanation": "'proud' = tự hào.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-180",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'ghen tị' trong tiếng Anh là gì?",
+    "options": [
+      "reliable",
+      "rest",
+      "prefer",
+      "jealous"
+    ],
+    "correctAnswer": "jealous",
+    "explanation": "'ghen tị' = 'jealous'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-181",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"She felt ___.\"",
+    "options": [
+      "nervous",
+      "appointment",
+      "secret",
+      "argue"
+    ],
+    "correctAnswer": "nervous",
+    "explanation": "Câu đúng: \"She felt nervous.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-182",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'calm' nghĩa là gì?",
+    "options": [
+      "lễ hội",
+      "bình tĩnh",
+      "hóa đơn thanh toán",
+      "sự ô nhiễm"
+    ],
+    "correctAnswer": "bình tĩnh",
+    "explanation": "'calm' = bình tĩnh.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-183",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'trung thực' trong tiếng Anh là gì?",
+    "options": [
+      "price",
+      "success",
+      "honest",
+      "failure"
+    ],
+    "correctAnswer": "honest",
+    "explanation": "'trung thực' = 'honest'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-184",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"He's ___.\"",
+    "options": [
+      "calm",
+      "lazy",
+      "goal",
+      "generous"
+    ],
+    "correctAnswer": "generous",
+    "explanation": "Câu đúng: \"He's generous.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-185",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'selfish' nghĩa là gì?",
+    "options": [
+      "ích kỷ",
+      "mượn",
+      "chế độ ăn uống",
+      "cuộc phiêu lưu"
+    ],
+    "correctAnswer": "ích kỷ",
+    "explanation": "'selfish' = ích kỷ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-186",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'trung thành' trong tiếng Anh là gì?",
+    "options": [
+      "mountain",
+      "loyal",
+      "society",
+      "accident"
+    ],
+    "correctAnswer": "loyal",
+    "explanation": "'trung thành' = 'loyal'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-187",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Kids are ___.\"",
+    "options": [
+      "compare",
+      "accident",
+      "curious",
+      "customer"
+    ],
+    "correctAnswer": "curious",
+    "explanation": "Câu đúng: \"Kids are curious.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-188",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'creative' nghĩa là gì?",
+    "options": [
+      "sự an toàn",
+      "động đất",
+      "sự lựa chọn",
+      "sáng tạo"
+    ],
+    "correctAnswer": "sáng tạo",
+    "explanation": "'creative' = sáng tạo.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-189",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tự tin' trong tiếng Anh là gì?",
+    "options": [
+      "confident",
+      "exercise",
+      "custom",
+      "admit"
+    ],
+    "correctAnswer": "confident",
+    "explanation": "'tự tin' = 'confident'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-190",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"He's too ___.\"",
+    "options": [
+      "health",
+      "shy",
+      "salary",
+      "dream"
+    ],
+    "correctAnswer": "shy",
+    "explanation": "Câu đúng: \"He's too shy.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-191",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'lazy' nghĩa là gì?",
+    "options": [
+      "khuyên/giới thiệu",
+      "khí hậu",
+      "lười biếng",
+      "bác sĩ"
+    ],
+    "correctAnswer": "lười biếng",
+    "explanation": "'lazy' = lười biếng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-192",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'chăm chỉ' trong tiếng Anh là gì?",
+    "options": [
+      "bill",
+      "rest",
+      "compare",
+      "hardworking"
+    ],
+    "correctAnswer": "hardworking",
+    "explanation": "'chăm chỉ' = 'hardworking'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-193",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Be ___.\"",
+    "options": [
+      "responsible",
+      "jealous",
+      "exercise",
+      "opportunity"
+    ],
+    "correctAnswer": "responsible",
+    "explanation": "Câu đúng: \"Be responsible.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-194",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'reliable' nghĩa là gì?",
+    "options": [
+      "lo lắng",
+      "đáng tin cậy",
+      "văn phòng",
+      "thích hơn"
+    ],
+    "correctAnswer": "đáng tin cậy",
+    "explanation": "'reliable' = đáng tin cậy.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-195",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'cải thiện' trong tiếng Anh là gì?",
+    "options": [
+      "decision",
+      "culture",
+      "improve",
+      "selfish"
+    ],
+    "correctAnswer": "improve",
+    "explanation": "'cải thiện' = 'improve'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-196",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ new skills.\"",
+    "options": [
+      "culture",
+      "choice",
+      "injury",
+      "develop"
+    ],
+    "correctAnswer": "develop",
+    "explanation": "Câu đúng: \"Develop new skills.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-197",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'achieve' nghĩa là gì?",
+    "options": [
+      "đạt được",
+      "dòng sông",
+      "năng lượng",
+      "tự tin"
+    ],
+    "correctAnswer": "đạt được",
+    "explanation": "'achieve' = đạt được.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-198",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tránh' trong tiếng Anh là gì?",
+    "options": [
+      "skill",
+      "avoid",
+      "project",
+      "discount"
+    ],
+    "correctAnswer": "avoid",
+    "explanation": "'tránh' = 'avoid'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-199",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"I ___ tea.\"",
+    "options": [
+      "compare",
+      "lake",
+      "prefer",
+      "shy"
+    ],
+    "correctAnswer": "prefer",
+    "explanation": "Câu đúng: \"I prefer tea.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-200",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'suggest' nghĩa là gì?",
+    "options": [
+      "dịch vụ",
+      "chuẩn bị",
+      "đưa ra quyết định",
+      "gợi ý"
+    ],
+    "correctAnswer": "gợi ý",
+    "explanation": "'suggest' = gợi ý.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-201",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'khuyên/giới thiệu' trong tiếng Anh là gì?",
+    "options": [
+      "recommend",
+      "memory",
+      "pain",
+      "island"
+    ],
+    "correctAnswer": "recommend",
+    "explanation": "'khuyên/giới thiệu' = 'recommend'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-202",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ now.\"",
+    "options": [
+      "quality",
+      "decide",
+      "complain",
+      "earn"
+    ],
+    "correctAnswer": "decide",
+    "explanation": "Câu đúng: \"Decide now.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-203",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'agree' nghĩa là gì?",
+    "options": [
+      "cơ hội",
+      "đưa ra quyết định",
+      "đồng ý",
+      "truyền thống"
+    ],
+    "correctAnswer": "đồng ý",
+    "explanation": "'agree' = đồng ý.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-204",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'từ chối' trong tiếng Anh là gì?",
+    "options": [
+      "mountain",
+      "dream",
+      "ocean",
+      "refuse"
+    ],
+    "correctAnswer": "refuse",
+    "explanation": "'từ chối' = 'refuse'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-205",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ your mistake.\"",
+    "options": [
+      "admit",
+      "shy",
+      "earthquake",
+      "quality"
+    ],
+    "correctAnswer": "admit",
+    "explanation": "Câu đúng: \"Admit your mistake.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-206",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'apologize' nghĩa là gì?",
+    "options": [
+      "năng lượng",
+      "xin lỗi",
+      "quyết định",
+      "ngọn núi"
+    ],
+    "correctAnswer": "xin lỗi",
+    "explanation": "'apologize' = xin lỗi.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-207",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'phàn nàn' trong tiếng Anh là gì?",
+    "options": [
+      "brave",
+      "improve",
+      "complain",
+      "neighbor"
+    ],
+    "correctAnswer": "complain",
+    "explanation": "'phàn nàn' = 'complain'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-208",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Don't ___.\"",
+    "options": [
+      "project",
+      "promise",
+      "curious",
+      "argue"
+    ],
+    "correctAnswer": "argue",
+    "explanation": "Câu đúng: \"Don't argue.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-209",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'discuss' nghĩa là gì?",
+    "options": [
+      "thảo luận",
+      "xin lỗi",
+      "tránh",
+      "tò mò"
+    ],
+    "correctAnswer": "thảo luận",
+    "explanation": "'discuss' = thảo luận.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-210",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'giải thích' trong tiếng Anh là gì?",
+    "options": [
+      "avoid",
+      "explain",
+      "festival",
+      "achieve"
+    ],
+    "correctAnswer": "explain",
+    "explanation": "'giải thích' = 'explain'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-211",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ your house.\"",
+    "options": [
+      "afford",
+      "price",
+      "describe",
+      "ceremony"
+    ],
+    "correctAnswer": "describe",
+    "explanation": "Câu đúng: \"Describe your house.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-212",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'compare' nghĩa là gì?",
+    "options": [
+      "sự an toàn",
+      "thừa nhận",
+      "bình tĩnh",
+      "so sánh"
+    ],
+    "correctAnswer": "so sánh",
+    "explanation": "'compare' = so sánh.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-213",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'mượn' trong tiếng Anh là gì?",
+    "options": [
+      "borrow",
+      "community",
+      "environment",
+      "forest"
+    ],
+    "correctAnswer": "borrow",
+    "explanation": "'mượn' = 'borrow'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-214",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ me your book.\"",
+    "options": [
+      "explain",
+      "lend",
+      "community",
+      "culture"
+    ],
+    "correctAnswer": "lend",
+    "explanation": "Câu đúng: \"Lend me your book.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-215",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'save' nghĩa là gì?",
+    "options": [
+      "ích kỷ",
+      "giảm giá",
+      "tiết kiệm",
+      "động đất"
+    ],
+    "correctAnswer": "tiết kiệm",
+    "explanation": "'save' = tiết kiệm.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-216",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'tiêu xài' trong tiếng Anh là gì?",
+    "options": [
+      "lake",
+      "owner",
+      "promise",
+      "spend"
+    ],
+    "correctAnswer": "spend",
+    "explanation": "'tiêu xài' = 'spend'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-217",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"Don't ___ water.\"",
+    "options": [
+      "waste",
+      "prefer",
+      "memory",
+      "earthquake"
+    ],
+    "correctAnswer": "waste",
+    "explanation": "Câu đúng: \"Don't waste water.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-218",
+    "type": "en_to_vi",
+    "cefrLevel": "B1",
+    "question": "'earn' nghĩa là gì?",
+    "options": [
+      "ích kỷ",
+      "kiếm tiền",
+      "cơn đau",
+      "so sánh"
+    ],
+    "correctAnswer": "kiếm tiền",
+    "explanation": "'earn' = kiếm tiền.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-219",
+    "type": "vi_to_en",
+    "cefrLevel": "B1",
+    "question": "'đủ khả năng chi trả' trong tiếng Anh là gì?",
+    "options": [
+      "failure",
+      "doctor",
+      "afford",
+      "appointment"
+    ],
+    "correctAnswer": "afford",
+    "explanation": "'đủ khả năng chi trả' = 'afford'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-220",
+    "type": "fill_blank",
+    "cefrLevel": "B1",
+    "question": "Điền từ thích hợp: \"___ for the test.\"",
+    "options": [
+      "mountain",
+      "avoid",
+      "nervous",
+      "prepare"
+    ],
+    "correctAnswer": "prepare",
+    "explanation": "Câu đúng: \"Prepare for the test.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-221",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'phenomenon' nghĩa là gì?",
+    "options": [
+      "hiện tượng",
+      "xấu đi",
+      "làm giảm nhẹ",
+      "trôi qua"
+    ],
+    "correctAnswer": "hiện tượng",
+    "explanation": "'phenomenon' = hiện tượng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-222",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'giả thuyết' trong tiếng Anh là gì?",
+    "options": [
+      "acquire",
+      "hypothesis",
+      "eager",
+      "significant"
+    ],
+    "correctAnswer": "hypothesis",
+    "explanation": "'giả thuyết' = 'hypothesis'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-223",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Show me the ___.\"",
+    "options": [
+      "elapse",
+      "discourse",
+      "evidence",
+      "comprehend"
+    ],
+    "correctAnswer": "evidence",
+    "explanation": "Câu đúng: \"Show me the evidence.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-224",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'consequence' nghĩa là gì?",
+    "options": [
+      "mang tính đổi mới",
+      "mơ hồ",
+      "tranh luận",
+      "hậu quả"
+    ],
+    "correctAnswer": "hậu quả",
+    "explanation": "'consequence' = hậu quả.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-225",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'đáng kể' trong tiếng Anh là gì?",
+    "options": [
+      "significant",
+      "compensate",
+      "eccentric",
+      "discern"
+    ],
+    "correctAnswer": "significant",
+    "explanation": "'đáng kể' = 'significant'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-226",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Water is ___.\"",
+    "options": [
+      "dwell",
+      "essential",
+      "dynamic",
+      "diverge"
+    ],
+    "correctAnswer": "essential",
+    "explanation": "Câu đúng: \"Water is essential.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-227",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'crucial' nghĩa là gì?",
+    "options": [
+      "hợp tác",
+      "phổ biến",
+      "then chốt",
+      "trôi qua"
+    ],
+    "correctAnswer": "then chốt",
+    "explanation": "'crucial' = then chốt.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-228",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'không thể tránh khỏi' trong tiếng Anh là gì?",
+    "options": [
+      "efficient",
+      "diverge",
+      "deviate",
+      "inevitable"
+    ],
+    "correctAnswer": "inevitable",
+    "explanation": "'không thể tránh khỏi' = 'inevitable'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-229",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ art.\"",
+    "options": [
+      "contemporary",
+      "phenomenon",
+      "diminish",
+      "disclose"
+    ],
+    "correctAnswer": "contemporary",
+    "explanation": "Câu đúng: \"Contemporary art.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-230",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'efficient' nghĩa là gì?",
+    "options": [
+      "đền bù",
+      "hiệu quả",
+      "hiệu lực",
+      "quyên góp"
+    ],
+    "correctAnswer": "hiệu quả",
+    "explanation": "'efficient' = hiệu quả.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-231",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'đa dạng' trong tiếng Anh là gì?",
+    "options": [
+      "dismantle",
+      "elaborate",
+      "diverse",
+      "elapse"
+    ],
+    "correctAnswer": "diverse",
+    "explanation": "'đa dạng' = 'diverse'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-232",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"A ___ impact.\"",
+    "options": [
+      "discriminate",
+      "contemplate",
+      "demonstrate",
+      "profound"
+    ],
+    "correctAnswer": "profound",
+    "explanation": "Câu đúng: \"A profound impact.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-233",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'ambiguous' nghĩa là gì?",
+    "options": [
+      "mơ hồ",
+      "suy ra",
+      "thiết yếu",
+      "làm xao nhãng"
+    ],
+    "correctAnswer": "mơ hồ",
+    "explanation": "'ambiguous' = mơ hồ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-234",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'toàn diện' trong tiếng Anh là gì?",
+    "options": [
+      "compensate",
+      "comprehensive",
+      "disrupt",
+      "disseminate"
+    ],
+    "correctAnswer": "comprehensive",
+    "explanation": "'toàn diện' = 'comprehensive'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-235",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"A ___ topic.\"",
+    "options": [
+      "eliminate",
+      "alleviate",
+      "controversial",
+      "eclipse"
+    ],
+    "correctAnswer": "controversial",
+    "explanation": "Câu đúng: \"A controversial topic.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-236",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'innovative' nghĩa là gì?",
+    "options": [
+      "ăn được",
+      "thống trị",
+      "mơ hồ",
+      "mang tính đổi mới"
+    ],
+    "correctAnswer": "mang tính đổi mới",
+    "explanation": "'innovative' = mang tính đổi mới.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-237",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'thu được' trong tiếng Anh là gì?",
+    "options": [
+      "acquire",
+      "compensate",
+      "distract",
+      "collaborate"
+    ],
+    "correctAnswer": "acquire",
+    "explanation": "'thu được' = 'acquire'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-238",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ poverty.\"",
+    "options": [
+      "dismiss",
+      "alleviate",
+      "derive",
+      "dissolve"
+    ],
+    "correctAnswer": "alleviate",
+    "explanation": "Câu đúng: \"Alleviate poverty.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-239",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'anticipate' nghĩa là gì?",
+    "options": [
+      "tháo dỡ",
+      "làm gián đoạn",
+      "dự đoán trước",
+      "hiệu lực"
+    ],
+    "correctAnswer": "dự đoán trước",
+    "explanation": "'anticipate' = dự đoán trước.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-240",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'hợp tác' trong tiếng Anh là gì?",
+    "options": [
+      "contemporary",
+      "significant",
+      "elaborate",
+      "collaborate"
+    ],
+    "correctAnswer": "collaborate",
+    "explanation": "'hợp tác' = 'collaborate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-241",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ the loss.\"",
+    "options": [
+      "compensate",
+      "profound",
+      "domain",
+      "deduce"
+    ],
+    "correctAnswer": "compensate",
+    "explanation": "Câu đúng: \"Compensate the loss.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-242",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'comprehend' nghĩa là gì?",
+    "options": [
+      "sự thỏa hiệp",
+      "hiểu rõ",
+      "tiết lộ",
+      "thống trị"
+    ],
+    "correctAnswer": "hiểu rõ",
+    "explanation": "'comprehend' = hiểu rõ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-243",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'sự thỏa hiệp' trong tiếng Anh là gì?",
+    "options": [
+      "discriminate",
+      "discern",
+      "compromise",
+      "inevitable"
+    ],
+    "correctAnswer": "compromise",
+    "explanation": "'sự thỏa hiệp' = 'compromise'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-244",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ a plan.\"",
+    "options": [
+      "domain",
+      "anticipate",
+      "denote",
+      "conceive"
+    ],
+    "correctAnswer": "conceive",
+    "explanation": "Câu đúng: \"Conceive a plan.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-245",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'condense' nghĩa là gì?",
+    "options": [
+      "cô đọng",
+      "hình thành ý tưởng",
+      "hiểu rõ",
+      "thanh lịch"
+    ],
+    "correctAnswer": "cô đọng",
+    "explanation": "'condense' = cô đọng.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-246",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'suy ngẫm' trong tiếng Anh là gì?",
+    "options": [
+      "demonstrate",
+      "contemplate",
+      "embark",
+      "disrupt"
+    ],
+    "correctAnswer": "contemplate",
+    "explanation": "'suy ngẫm' = 'contemplate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-247",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"The facts ___ him.\"",
+    "options": [
+      "deduce",
+      "depict",
+      "contradict",
+      "durable"
+    ],
+    "correctAnswer": "contradict",
+    "explanation": "Câu đúng: \"The facts contradict him.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-248",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'contribute' nghĩa là gì?",
+    "options": [
+      "bền",
+      "giả thuyết",
+      "giảm bớt",
+      "đóng góp"
+    ],
+    "correctAnswer": "đóng góp",
+    "explanation": "'contribute' = đóng góp.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-249",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'truyền đạt' trong tiếng Anh là gì?",
+    "options": [
+      "convey",
+      "efficient",
+      "dominate",
+      "disparity"
+    ],
+    "correctAnswer": "convey",
+    "explanation": "'truyền đạt' = 'convey'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-250",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ the issue.\"",
+    "options": [
+      "drought",
+      "debate",
+      "doctrine",
+      "depict"
+    ],
+    "correctAnswer": "debate",
+    "explanation": "Câu đúng: \"Debate the issue.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-251",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'deduce' nghĩa là gì?",
+    "options": [
+      "toàn diện",
+      "năng động",
+      "suy ra",
+      "phổ biến"
+    ],
+    "correctAnswer": "suy ra",
+    "explanation": "'deduce' = suy ra.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-252",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'chứng minh' trong tiếng Anh là gì?",
+    "options": [
+      "elevate",
+      "disperse",
+      "discern",
+      "demonstrate"
+    ],
+    "correctAnswer": "demonstrate",
+    "explanation": "'chứng minh' = 'demonstrate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-253",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Red can ___ danger.\"",
+    "options": [
+      "denote",
+      "dissolve",
+      "deviate",
+      "evidence"
+    ],
+    "correctAnswer": "denote",
+    "explanation": "Câu đúng: \"Red can denote danger.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-254",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'depict' nghĩa là gì?",
+    "options": [
+      "giảm bớt",
+      "miêu tả",
+      "lập dị",
+      "hùng biện"
+    ],
+    "correctAnswer": "miêu tả",
+    "explanation": "'depict' = miêu tả.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-255",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'thu được/bắt nguồn' trong tiếng Anh là gì?",
+    "options": [
+      "condense",
+      "convey",
+      "derive",
+      "denote"
+    ],
+    "correctAnswer": "derive",
+    "explanation": "'thu được/bắt nguồn' = 'derive'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-256",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"His health may ___.\"",
+    "options": [
+      "discourse",
+      "ambiguous",
+      "essential",
+      "deteriorate"
+    ],
+    "correctAnswer": "deteriorate",
+    "explanation": "Câu đúng: \"His health may deteriorate.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-257",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'deviate' nghĩa là gì?",
+    "options": [
+      "lệch khỏi",
+      "thu được",
+      "thay thế",
+      "đủ điều kiện"
+    ],
+    "correctAnswer": "lệch khỏi",
+    "explanation": "'deviate' = lệch khỏi.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-258",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'giảm bớt' trong tiếng Anh là gì?",
+    "options": [
+      "diverge",
+      "diminish",
+      "compromise",
+      "discriminate"
+    ],
+    "correctAnswer": "diminish",
+    "explanation": "'giảm bớt' = 'diminish'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-259",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ the truth.\"",
+    "options": [
+      "elaborate",
+      "displace",
+      "discern",
+      "edible"
+    ],
+    "correctAnswer": "discern",
+    "explanation": "Câu đúng: \"Discern the truth.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-260",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'disclose' nghĩa là gì?",
+    "options": [
+      "hiểu rõ",
+      "năng động",
+      "biểu thị",
+      "tiết lộ"
+    ],
+    "correctAnswer": "tiết lộ",
+    "explanation": "'disclose' = tiết lộ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-261",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'diễn ngôn' trong tiếng Anh là gì?",
+    "options": [
+      "discourse",
+      "durable",
+      "efficient",
+      "controversial"
+    ],
+    "correctAnswer": "discourse",
+    "explanation": "'diễn ngôn' = 'discourse'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-262",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Two ___ parts.\"",
+    "options": [
+      "displace",
+      "discrete",
+      "elastic",
+      "dissolve"
+    ],
+    "correctAnswer": "discrete",
+    "explanation": "Câu đúng: \"Two discrete parts.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-263",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'discriminate' nghĩa là gì?",
+    "options": [
+      "hiệu lực",
+      "miêu tả",
+      "phân biệt đối xử",
+      "giả thuyết"
+    ],
+    "correctAnswer": "phân biệt đối xử",
+    "explanation": "'discriminate' = phân biệt đối xử.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-264",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'tháo dỡ' trong tiếng Anh là gì?",
+    "options": [
+      "dispose",
+      "eligible",
+      "depict",
+      "dismantle"
+    ],
+    "correctAnswer": "dismantle",
+    "explanation": "'tháo dỡ' = 'dismantle'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-265",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ the idea.\"",
+    "options": [
+      "dismiss",
+      "dwell",
+      "debate",
+      "comprehensive"
+    ],
+    "correctAnswer": "dismiss",
+    "explanation": "Câu đúng: \"Dismiss the idea.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-266",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'disparity' nghĩa là gì?",
+    "options": [
+      "bắt đầu hành trình",
+      "sự chênh lệch",
+      "truyền đạt",
+      "đương đại"
+    ],
+    "correctAnswer": "sự chênh lệch",
+    "explanation": "'disparity' = sự chênh lệch.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-267",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'giải tán' trong tiếng Anh là gì?",
+    "options": [
+      "distract",
+      "controversial",
+      "disperse",
+      "discern"
+    ],
+    "correctAnswer": "disperse",
+    "explanation": "'giải tán' = 'disperse'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-268",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Machines ___ workers.\"",
+    "options": [
+      "discern",
+      "eccentric",
+      "significant",
+      "displace"
+    ],
+    "correctAnswer": "displace",
+    "explanation": "Câu đúng: \"Machines displace workers.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-269",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'dispose' nghĩa là gì?",
+    "options": [
+      "vứt bỏ",
+      "suy ra",
+      "làm giảm nhẹ",
+      "hiệu lực"
+    ],
+    "correctAnswer": "vứt bỏ",
+    "explanation": "'dispose' = vứt bỏ.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-270",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'làm gián đoạn' trong tiếng Anh là gì?",
+    "options": [
+      "elaborate",
+      "disrupt",
+      "displace",
+      "diverge"
+    ],
+    "correctAnswer": "disrupt",
+    "explanation": "'làm gián đoạn' = 'disrupt'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-271",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ knowledge.\"",
+    "options": [
+      "diverge",
+      "ambiguous",
+      "disseminate",
+      "eager"
+    ],
+    "correctAnswer": "disseminate",
+    "explanation": "Câu đúng: \"Disseminate knowledge.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-272",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'dissolve' nghĩa là gì?",
+    "options": [
+      "thay thế",
+      "đáng kể",
+      "xấu đi",
+      "hòa tan"
+    ],
+    "correctAnswer": "hòa tan",
+    "explanation": "'dissolve' = hòa tan.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-273",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'bóp méo' trong tiếng Anh là gì?",
+    "options": [
+      "distort",
+      "disperse",
+      "deduce",
+      "dominate"
+    ],
+    "correctAnswer": "distort",
+    "explanation": "'bóp méo' = 'distort'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-274",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Don't ___ him.\"",
+    "options": [
+      "elaborate",
+      "distract",
+      "inevitable",
+      "disparity"
+    ],
+    "correctAnswer": "distract",
+    "explanation": "Câu đúng: \"Don't distract him.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-275",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'diverge' nghĩa là gì?",
+    "options": [
+      "mang tính đổi mới",
+      "hạn hán",
+      "rẽ khác nhau",
+      "cô đọng"
+    ],
+    "correctAnswer": "rẽ khác nhau",
+    "explanation": "'diverge' = rẽ khác nhau.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-276",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'học thuyết' trong tiếng Anh là gì?",
+    "options": [
+      "crucial",
+      "elite",
+      "evidence",
+      "doctrine"
+    ],
+    "correctAnswer": "doctrine",
+    "explanation": "'học thuyết' = 'doctrine'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-277",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Public ___.\"",
+    "options": [
+      "domain",
+      "elegant",
+      "contradict",
+      "acquire"
+    ],
+    "correctAnswer": "domain",
+    "explanation": "Câu đúng: \"Public domain.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-278",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'dominate' nghĩa là gì?",
+    "options": [
+      "tranh luận",
+      "thống trị",
+      "loại bỏ",
+      "đóng góp"
+    ],
+    "correctAnswer": "thống trị",
+    "explanation": "'dominate' = thống trị.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-279",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'quyên góp' trong tiếng Anh là gì?",
+    "options": [
+      "phenomenon",
+      "deteriorate",
+      "donate",
+      "elite"
+    ],
+    "correctAnswer": "donate",
+    "explanation": "'quyên góp' = 'donate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-280",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"The ___ was severe.\"",
+    "options": [
+      "denote",
+      "compromise",
+      "elaborate",
+      "drought"
+    ],
+    "correctAnswer": "drought",
+    "explanation": "Câu đúng: \"The drought was severe.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-281",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'durable' nghĩa là gì?",
+    "options": [
+      "bền",
+      "sự chênh lệch",
+      "giả thuyết",
+      "thu được"
+    ],
+    "correctAnswer": "bền",
+    "explanation": "'durable' = bền.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-282",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'ngẫm nghĩ' trong tiếng Anh là gì?",
+    "options": [
+      "compromise",
+      "dwell",
+      "depict",
+      "evidence"
+    ],
+    "correctAnswer": "dwell",
+    "explanation": "'ngẫm nghĩ' = 'dwell'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-283",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"A ___ leader.\"",
+    "options": [
+      "edible",
+      "distract",
+      "dynamic",
+      "controversial"
+    ],
+    "correctAnswer": "dynamic",
+    "explanation": "Câu đúng: \"A dynamic leader.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-284",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'eager' nghĩa là gì?",
+    "options": [
+      "thống trị",
+      "bền",
+      "giải tán",
+      "háo hức"
+    ],
+    "correctAnswer": "háo hức",
+    "explanation": "'eager' = háo hức.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-285",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'lập dị' trong tiếng Anh là gì?",
+    "options": [
+      "eccentric",
+      "eclipse",
+      "dominate",
+      "convey"
+    ],
+    "correctAnswer": "eccentric",
+    "explanation": "'lập dị' = 'eccentric'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-286",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"A solar ___.\"",
+    "options": [
+      "discern",
+      "eclipse",
+      "ecstatic",
+      "donate"
+    ],
+    "correctAnswer": "eclipse",
+    "explanation": "Câu đúng: \"A solar eclipse.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-287",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'ecology' nghĩa là gì?",
+    "options": [
+      "hòa tan",
+      "không thể tránh khỏi",
+      "sinh thái học",
+      "ngẫm nghĩ"
+    ],
+    "correctAnswer": "sinh thái học",
+    "explanation": "'ecology' = sinh thái học.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-288",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'ngây ngất' trong tiếng Anh là gì?",
+    "options": [
+      "efficient",
+      "domain",
+      "dynamic",
+      "ecstatic"
+    ],
+    "correctAnswer": "ecstatic",
+    "explanation": "'ngây ngất' = 'ecstatic'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-289",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ plants.\"",
+    "options": [
+      "edible",
+      "contemporary",
+      "anticipate",
+      "eloquent"
+    ],
+    "correctAnswer": "edible",
+    "explanation": "Câu đúng: \"Edible plants.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-290",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'efficacy' nghĩa là gì?",
+    "options": [
+      "đủ điều kiện",
+      "hiệu lực",
+      "riêng biệt",
+      "trôi qua"
+    ],
+    "correctAnswer": "hiệu lực",
+    "explanation": "'efficacy' = hiệu lực.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-291",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'công phu' trong tiếng Anh là gì?",
+    "options": [
+      "eloquent",
+      "donate",
+      "elaborate",
+      "eccentric"
+    ],
+    "correctAnswer": "elaborate",
+    "explanation": "'công phu' = 'elaborate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-292",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"Let time ___.\"",
+    "options": [
+      "controversial",
+      "contribute",
+      "elaborate",
+      "elapse"
+    ],
+    "correctAnswer": "elapse",
+    "explanation": "Câu đúng: \"Let time elapse.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-293",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'elastic' nghĩa là gì?",
+    "options": [
+      "co giãn",
+      "tranh luận",
+      "tháo dỡ",
+      "bóp méo"
+    ],
+    "correctAnswer": "co giãn",
+    "explanation": "'elastic' = co giãn.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-294",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'thanh lịch' trong tiếng Anh là gì?",
+    "options": [
+      "distract",
+      "elegant",
+      "discourse",
+      "ambiguous"
+    ],
+    "correctAnswer": "elegant",
+    "explanation": "'thanh lịch' = 'elegant'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-295",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"___ the mood.\"",
+    "options": [
+      "denote",
+      "displace",
+      "elevate",
+      "collaborate"
+    ],
+    "correctAnswer": "elevate",
+    "explanation": "Câu đúng: \"Elevate the mood.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-296",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'eligible' nghĩa là gì?",
+    "options": [
+      "đa dạng",
+      "sâu sắc",
+      "đương đại",
+      "đủ điều kiện"
+    ],
+    "correctAnswer": "đủ điều kiện",
+    "explanation": "'eligible' = đủ điều kiện.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-297",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'loại bỏ' trong tiếng Anh là gì?",
+    "options": [
+      "eliminate",
+      "displace",
+      "ambiguous",
+      "acquire"
+    ],
+    "correctAnswer": "eliminate",
+    "explanation": "'loại bỏ' = 'eliminate'.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-298",
+    "type": "fill_blank",
+    "cefrLevel": "B2",
+    "question": "Điền từ thích hợp: \"The political ___.\"",
+    "options": [
+      "elapse",
+      "elite",
+      "eligible",
+      "discriminate"
+    ],
+    "correctAnswer": "elite",
+    "explanation": "Câu đúng: \"The political elite.\"",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-299",
+    "type": "en_to_vi",
+    "cefrLevel": "B2",
+    "question": "'eloquent' nghĩa là gì?",
+    "options": [
+      "sự chênh lệch",
+      "bóp méo",
+      "hùng biện",
+      "rẽ khác nhau"
+    ],
+    "correctAnswer": "hùng biện",
+    "explanation": "'eloquent' = hùng biện.",
+    "source": "ai-generated",
+    "verified": false
+  },
+  {
+    "id": "vq-300",
+    "type": "vi_to_en",
+    "cefrLevel": "B2",
+    "question": "'bắt đầu hành trình' trong tiếng Anh là gì?",
+    "options": [
+      "disclose",
+      "deviate",
+      "eliminate",
+      "embark"
+    ],
+    "correctAnswer": "embark",
+    "explanation": "'bắt đầu hành trình' = 'embark'.",
+    "source": "ai-generated",
+    "verified": false
+  }
+]

@@ -28,16 +28,6 @@ export default function LearnPage() {
       </header>
       <FlashcardStudy onReviewSubmit={saveReview} />
       <footer className="learn-footer"><span>{t("Lặp lại ngắt quãng giúp ghi nhớ lâu hơn.", "Spaced repetition helps you remember for longer.")}</span><span>SM-2</span></footer>
-        <div className="learn-context">
-          <BookOpen aria-hidden="true" />
-          <span>Phiên ôn từ vựng</span>
-        </div>
-      </header>
-      <FlashcardStudy onReviewSubmit={saveReview} />
-      <footer className="learn-footer">
-        <span>Lặp lại ngắt quãng giúp ghi nhớ lâu hơn.</span>
-        <span>SM-2</span>
-      </footer>
     </main>
   );
 }
