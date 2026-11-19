@@ -16,6 +16,8 @@ public class GamificationDbContext(DbContextOptions<GamificationDbContext> optio
     public DbSet<GameWordPool> GameWordPools => Set<GameWordPool>();
     public DbSet<GameQuestion> GameQuestions => Set<GameQuestion>();
     public DbSet<ActiveGameAttempt> ActiveGameAttempts => Set<ActiveGameAttempt>();
+    public DbSet<Badge> Badges => Set<Badge>();
+    public DbSet<UserBadge> UserBadges => Set<UserBadge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

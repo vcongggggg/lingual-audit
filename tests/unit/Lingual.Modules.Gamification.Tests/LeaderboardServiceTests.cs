@@ -64,7 +64,7 @@ public class LeaderboardServiceTests
                 true))
             .ReturnsAsync(new List<(string Member, double Score)>
             {
-                ("lingual-local-demo-user", 100)
+                ("user-test", 100)
             });
 
         // Act - limit = 0 (phải bị clamp lên 1)
@@ -73,7 +73,7 @@ public class LeaderboardServiceTests
         // Assert
         result.Entries.Should().HaveCount(1);
         result.Entries[0].Rank.Should().Be(1);
-        result.Entries[0].Name.Should().Be("You");
+        result.Entries[0].Name.Should().Be("user-test");
         result.Entries[0].Xp.Should().Be(100);
     }
 

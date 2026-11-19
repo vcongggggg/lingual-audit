@@ -19,6 +19,8 @@ public static class Extension
 
         // Learning Services
         services.AddScoped<IFlashcardService, FlashcardService>();
+        services.AddScoped<IVocabularyService, VocabularyService>();
+        services.AddScoped<ISrsService, SrsService>();
 
         return builder;
     }

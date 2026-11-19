@@ -39,6 +39,20 @@ public static class TimeZoneHelper
         return $"{localNow.Year}-W{week:D2}";
     }
 
+    public static string GetCurrentMonthKey()
+    {
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTimeZone);
+        return $"{localNow.Year}-M{localNow.Month:D2}";
+    }
+
+    public static (DateOnly Start, DateOnly End) GetCurrentMonthRange()
+    {
+        var today = GetCurrentVietnamDate();
+        var start = new DateOnly(today.Year, today.Month, 1);
+        var end = start.AddMonths(1).AddDays(-1);
+        return (start, end);
+    }
+
     public static (DateOnly Start, DateOnly End) GetCurrentWeekRange()
     {
         var today = GetCurrentVietnamDate();

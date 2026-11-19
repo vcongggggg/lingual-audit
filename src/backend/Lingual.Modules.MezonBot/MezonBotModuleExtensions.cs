@@ -23,6 +23,7 @@ public static class MezonBotModuleExtensions
         services.AddScoped<IMezonUserResolver, MezonUserResolver>();
         services.AddScoped<ISrsReminderService, SrsReminderService>();
         services.AddSingleton<IVoiceStudyRoomTracker, VoiceStudyRoomTracker>();
+        services.AddSingleton<IButtonInteractionObserver, ButtonInteractionObserver>();
         services.AddHttpClient("GeminiEssayClient");
         services.AddSingleton<IAiEssayCoachService>(sp =>
         {

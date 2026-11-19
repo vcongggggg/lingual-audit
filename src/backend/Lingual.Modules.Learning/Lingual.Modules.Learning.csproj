@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
   </ItemGroup>
@@ -23,7 +23,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Lingual.SharedKernel\Lingual.SharedKernel.csproj" />
     <ProjectReference Include="..\Lingual.Persistence\Lingual.Persistence.csproj" />
+    <ProjectReference Include="..\Lingual.Infrastructure\Lingual.Infrastructure.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Learning.Contracts\Lingual.Modules.Learning.Contracts.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.Gamification.Contracts\Lingual.Modules.Gamification.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

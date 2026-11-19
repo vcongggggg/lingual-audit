@@ -34,6 +34,8 @@ public interface IRedisService
 
     Task<bool> SortedSetAddAsync(string key, string member, double score);
 
+    Task<bool> SortedSetRemoveAsync(string key, string member);
+
     Task<double> SortedSetIncrementAsync(string key, string member, double value);
 
     Task<IEnumerable<(string Member, double Score)>> SortedSetRangeByRankWithScoresAsync(

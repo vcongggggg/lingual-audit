@@ -19,6 +19,7 @@ public static class Extension
 
         // Core Gamification Services
         services.AddScoped<IStreakService, StreakService>();
+        services.AddScoped<IBadgeService, BadgeService>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IXpService, XpService>();
         services.AddScoped<IGamificationService, GamificationService>();
