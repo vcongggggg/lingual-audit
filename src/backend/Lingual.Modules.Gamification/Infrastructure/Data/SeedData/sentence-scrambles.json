@@ -1,0 +1,319 @@
+[
+  {
+    "id": "bsc-1",
+    "prompt": "Nice to meet you in Vietnam",
+    "tokens": [
+      "to",
+      "Nice",
+      "Vietnam",
+      "in",
+      "you",
+      "meet"
+    ],
+    "answer": "Nice to meet you in Vietnam",
+    "level": "A1"
+  },
+  {
+    "id": "bsc-2",
+    "prompt": "I drink hot coffee every morning",
+    "tokens": [
+      "drink",
+      "hot",
+      "every",
+      "I",
+      "morning",
+      "coffee"
+    ],
+    "answer": "I drink hot coffee every morning",
+    "level": "A1"
+  },
+  {
+    "id": "bsc-3",
+    "prompt": "She booked a double room at the hotel",
+    "tokens": [
+      "room",
+      "hotel",
+      "at",
+      "the",
+      "She",
+      "booked",
+      "double",
+      "a"
+    ],
+    "answer": "She booked a double room at the hotel",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-4",
+    "prompt": "Renewable energy sources reduce carbon emissions",
+    "tokens": [
+      "reduce",
+      "energy",
+      "carbon",
+      "Renewable",
+      "sources",
+      "emissions"
+    ],
+    "answer": "Renewable energy sources reduce carbon emissions",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-5",
+    "prompt": "Artificial intelligence is transforming global healthcare",
+    "tokens": [
+      "transforming",
+      "Artificial",
+      "healthcare",
+      "intelligence",
+      "global",
+      "is"
+    ],
+    "answer": "Artificial intelligence is transforming global healthcare",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-6",
+    "prompt": "Regular exercise keeps your mind and body healthy",
+    "tokens": [
+      "keeps",
+      "Regular",
+      "healthy",
+      "exercise",
+      "mind",
+      "and",
+      "body",
+      "your"
+    ],
+    "answer": "Regular exercise keeps your mind and body healthy",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-7",
+    "prompt": "Scientists must gather empirical evidence to substantiate theories",
+    "tokens": [
+      "empirical",
+      "gather",
+      "substantiate",
+      "evidence",
+      "must",
+      "theories",
+      "Scientists",
+      "to"
+    ],
+    "answer": "Scientists must gather empirical evidence to substantiate theories",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-8",
+    "prompt": "Effective communication is essential for career success",
+    "tokens": [
+      "for",
+      "communication",
+      "essential",
+      "Effective",
+      "career",
+      "success",
+      "is"
+    ],
+    "answer": "Effective communication is essential for career success",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-9",
+    "prompt": "He bought a round trip ticket to Da Nang",
+    "tokens": [
+      "ticket",
+      "round",
+      "trip",
+      "bought",
+      "He",
+      "to",
+      "a",
+      "Da Nang"
+    ],
+    "answer": "He bought a round trip ticket to Da Nang",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-10",
+    "prompt": "Please turn off the lights before leaving the office",
+    "tokens": [
+      "leaving",
+      "lights",
+      "Please",
+      "turn",
+      "the",
+      "off",
+      "before",
+      "the",
+      "office"
+    ],
+    "answer": "Please turn off the lights before leaving the office",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-11",
+    "prompt": "The software engineer optimized database performance significantly",
+    "tokens": [
+      "performance",
+      "database",
+      "software",
+      "The",
+      "engineer",
+      "optimized",
+      "significantly"
+    ],
+    "answer": "The software engineer optimized database performance significantly",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-12",
+    "prompt": "Eating fresh vegetables provides essential vitamins and minerals",
+    "tokens": [
+      "essential",
+      "Eating",
+      "provides",
+      "fresh",
+      "vegetables",
+      "and",
+      "minerals",
+      "vitamins"
+    ],
+    "answer": "Eating fresh vegetables provides essential vitamins and minerals",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-13",
+    "prompt": "They signed an international trade agreement yesterday afternoon",
+    "tokens": [
+      "trade",
+      "signed",
+      "They",
+      "afternoon",
+      "agreement",
+      "an",
+      "international",
+      "yesterday"
+    ],
+    "answer": "They signed an international trade agreement yesterday afternoon",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-14",
+    "prompt": "Online learning platforms offer flexible schedules for working adults",
+    "tokens": [
+      "flexible",
+      "schedules",
+      "learning",
+      "Online",
+      "offer",
+      "platforms",
+      "for",
+      "working",
+      "adults"
+    ],
+    "answer": "Online learning platforms offer flexible schedules for working adults",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-15",
+    "prompt": "The international flight was delayed due to heavy thunderstorm",
+    "tokens": [
+      "due",
+      "international",
+      "flight",
+      "The",
+      "delayed",
+      "was",
+      "to",
+      "thunderstorm",
+      "heavy"
+    ],
+    "answer": "The international flight was delayed due to heavy thunderstorm",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-16",
+    "prompt": "Cybersecurity measures protect sensitive financial data from hackers",
+    "tokens": [
+      "sensitive",
+      "protect",
+      "measures",
+      "Cybersecurity",
+      "data",
+      "from",
+      "financial",
+      "hackers"
+    ],
+    "answer": "Cybersecurity measures protect sensitive financial data from hackers",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-17",
+    "prompt": "Consistent vocabulary review improves language retention dramatically",
+    "tokens": [
+      "review",
+      "Consistent",
+      "retention",
+      "improves",
+      "vocabulary",
+      "language",
+      "dramatically"
+    ],
+    "answer": "Consistent vocabulary review improves language retention dramatically",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-18",
+    "prompt": "The doctor advised the patient to rest for three days",
+    "tokens": [
+      "advised",
+      "doctor",
+      "The",
+      "to",
+      "patient",
+      "the",
+      "rest",
+      "three",
+      "days",
+      "for"
+    ],
+    "answer": "The doctor advised the patient to rest for three days",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-19",
+    "prompt": "Modern technology allows people to work remotely from anywhere",
+    "tokens": [
+      "remotely",
+      "allows",
+      "technology",
+      "Modern",
+      "people",
+      "to",
+      "from",
+      "work",
+      "anywhere"
+    ],
+    "answer": "Modern technology allows people to work remotely from anywhere",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-20",
+    "prompt": "The research team presented their findings at the annual conference",
+    "tokens": [
+      "presented",
+      "team",
+      "research",
+      "The",
+      "findings",
+      "their",
+      "the",
+      "at",
+      "conference",
+      "annual"
+    ],
+    "answer": "The research team presented their findings at the annual conference",
+    "level": "B1"
+  }
+]

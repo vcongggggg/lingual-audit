@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Swords, LogIn, LogOut, User } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Gamepad2, Swords, LogIn, LogOut, User } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/learn", label: "Flashcard", icon: BookOpen },
   { href: "/words", label: "Từ vựng", icon: Library },
   { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
+  { href: "/games", label: "Game Center", icon: Gamepad2 },
   { href: "/tutor", label: "LingLing AI", icon: Bot },
   { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
   { href: "/arena", label: "Arena 1vs1", icon: Swords },

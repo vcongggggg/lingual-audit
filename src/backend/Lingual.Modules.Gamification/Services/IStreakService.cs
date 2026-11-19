@@ -15,4 +15,6 @@ public interface IStreakService
         int wordsCount = 0,
         CancellationToken cancellationToken = default);
     Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    Task<StreakFreezeResultDto> UseStreakFreezeAsync(Guid userId, CancellationToken cancellationToken = default);
 }

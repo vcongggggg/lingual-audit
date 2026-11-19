@@ -31,7 +31,6 @@ public class GamificationEndpoints : IEndpointBase
         .Produces<AwardXpResult>(StatusCodes.Status200OK)
         .Produces<AwardXpResult>(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
-
         // 2. User Profile & Achievements Summary API
         group.MapGet("/profile/summary", async (
             [FromQuery] Guid? userId,

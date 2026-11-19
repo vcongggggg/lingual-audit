@@ -33,6 +33,11 @@ public class GamificationService(
         return streakService.CheckInAsync(userId, cancellationToken);
     }
 
+    public Task<StreakFreezeResultDto> UseStreakFreezeAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return streakService.UseStreakFreezeAsync(userId, cancellationToken);
+    }
+
     public Task<LeaderboardResponseDto> GetLeaderboardAsync(
         int limit = 20,
         string type = "all-time",
