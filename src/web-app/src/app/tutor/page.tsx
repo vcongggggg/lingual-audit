@@ -17,6 +17,7 @@ import {
   MessageSquare,
   ArrowRight
 } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 interface Scenario {
   id: string;
@@ -94,6 +95,7 @@ const QUICK_PROMPTS: Record<string, string[]> = {
 };
 
 export default function TutorPage() {
+  const { translate: t } = useLanguage();
   const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
   const [selectedScenario, setSelectedScenario] = useState<Scenario>(DEFAULT_SCENARIOS[0]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -141,7 +143,7 @@ export default function TutorPage() {
         {
           id: "grammar-intro",
           sender: "bot",
-          text: "Xin chào! Mình là Mascot LingLing. Bạn hãy nhập bất kỳ câu tiếng Anh nào vào khung bên dưới, mình sẽ phân tích ngữ pháp, chỉ ra lỗi sai và hướng dẫn cách diễn đạt chuẩn bản xứ nhé!",
+          text: t("Xin chào! Mình là Mascot LingLing. Bạn hãy nhập bất kỳ câu tiếng Anh nào vào khung bên dưới, mình sẽ phân tích ngữ pháp, chỉ ra lỗi sai và hướng dẫn cách diễn đạt chuẩn bản xứ nhé!", "Hello! I am LingLing Mascot. Enter any English sentence below and I will analyze the grammar, point out mistakes, and guide you toward natural phrasing."),
           timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -292,9 +294,9 @@ export default function TutorPage() {
             <span className="tutor-badge">
               <Sparkles size={14} /> AI TUTOR • GOOGLE GEMINI
             </span>
-            <h1 className="tutor-title">Luyện Giao Tiếp cùng Mascot LingLing</h1>
+            <h1 className="tutor-title">{t("Luyện Giao Tiếp cùng Mascot LingLing", "Practice conversation with LingLing")}</h1>
             <p className="tutor-desc">
-              Thực hành đàm thoại tiếng Anh theo ngữ cảnh thực tế, nhận phản hồi ngữ pháp tức thì và nâng cao phản xạ tự nhiên.
+              {t("Thực hành đàm thoại tiếng Anh theo ngữ cảnh thực tế, nhận phản hồi ngữ pháp tức thì và nâng cao phản xạ tự nhiên.", "Practice English conversation in real-world contexts, get instant grammar feedback, and build natural responses.")}
             </p>
           </div>
           <div className="tutor-mascot-box">
@@ -308,20 +310,20 @@ export default function TutorPage() {
             className={`tutor-tab-btn ${activeTab === "roleplay" ? "is-active" : ""}`}
             onClick={() => setActiveTab("roleplay")}
           >
-            <MessageSquare size={16} /> Đóng vai Tình huống (Roleplay)
+            <MessageSquare size={16} /> {t("Đóng vai Tình huống (Roleplay)", "Roleplay scenarios")}
           </button>
           <button
             className={`tutor-tab-btn ${activeTab === "grammar" ? "is-active" : ""}`}
             onClick={() => setActiveTab("grammar")}
           >
-            <HelpCircle size={16} /> Kiểm tra & Sửa ngữ pháp (/ask)
+            <HelpCircle size={16} /> {t("Kiểm tra & Sửa ngữ pháp (/ask)", "Check & fix grammar (/ask)")}
           </button>
         </div>
       </header>
 
       {/* Roleplay Scenarios Selection */}
       {activeTab === "roleplay" && (
-        <section className="tutor-scenarios" aria-label="Danh mục kịch bản">
+        <section className="tutor-scenarios" aria-label={t("Danh mục kịch bản", "Scenario categories")}>
           {scenarios.map((sc) => {
             const ScIcon = SCENARIO_ICONS[sc.code] || MessageSquare;
             const isSelected = selectedScenario.code === sc.code;
@@ -337,8 +339,8 @@ export default function TutorPage() {
                   </span>
                   <span className="scenario-level">{sc.level}</span>
                 </div>
-                <h2 className="scenario-title">{sc.title}</h2>
-                <p className="scenario-desc">{sc.description}</p>
+                <h2 className="scenario-title">{t(sc.title, sc.code === "cafe_order" ? "London coffee shop" : sc.code === "airport_checkin" ? "International airport check-in" : "Job interview")}</h2>
+                <p className="scenario-desc">{t(sc.description, sc.code === "cafe_order" ? "Practice ordering drinks, choosing sizes and milk, and paying at a London barista counter." : sc.code === "airport_checkin" ? "Practice check-in, baggage, and departure gate questions at Heathrow Airport." : "Practice answering interview questions about experience, strengths, and career goals.")}</p>
                 <span className="scenario-role">🎭 {sc.characterRole}</span>
               </button>
             );
@@ -360,14 +362,14 @@ export default function TutorPage() {
               </h3>
               <p>
                 {activeTab === "roleplay"
-                  ? `Đang trong tình huống: ${selectedScenario.title}`
-                  : "Chế độ cố vấn ngữ pháp thông minh"}
+                  ? `${t("Đang trong tình huống", "Scenario")}: ${selectedScenario.title}`
+                  : t("Chế độ cố vấn ngữ pháp thông minh", "Smart grammar coach mode")}
               </p>
             </div>
           </div>
           {activeTab === "roleplay" && (
-            <button className="chat-reset-btn" onClick={resetSession} title="Bắt đầu lại phiên hội thoại">
-              <RotateCcw size={15} /> Làm mới
+            <button className="chat-reset-btn" onClick={resetSession} title={t("Bắt đầu lại phiên hội thoại", "Restart conversation")}>
+              <RotateCcw size={15} /> {t("Làm mới", "Reset")}
             </button>
           )}
         </div>
@@ -391,7 +393,7 @@ export default function TutorPage() {
                   <div className="chat-feedback-card">
                     <div className="feedback-header">
                       <Lightbulb size={16} />
-                      <strong>Gợi ý ngữ pháp từ LingLing</strong>
+                      <strong>{t("Gợi ý ngữ pháp từ LingLing", "Grammar tip from LingLing")}</strong>
                     </div>
                     {msg.feedbackCorrection && (
                       <p className="feedback-correction">
@@ -426,7 +428,7 @@ export default function TutorPage() {
                   <span className="dot"></span>
                   <span className="dot"></span>
                   <span className="dot"></span>
-                  <span className="typing-text">LingLing đang lắng nghe và suy nghĩ...</span>
+                  <span className="typing-text">{t("LingLing đang lắng nghe và suy nghĩ...", "LingLing is listening and thinking…")}</span>
                 </div>
               </div>
             </div>
@@ -437,7 +439,7 @@ export default function TutorPage() {
         {/* Quick Suggestion Prompts */}
         {activeTab === "roleplay" && QUICK_PROMPTS[selectedScenario.code] && (
           <div className="chat-quick-prompts">
-            <span className="quick-prompt-label">Gợi ý câu:</span>
+            <span className="quick-prompt-label">{t("Gợi ý câu:", "Try saying:")}</span>
             {QUICK_PROMPTS[selectedScenario.code].map((prompt, i) => (
               <button
                 key={i}
@@ -461,8 +463,8 @@ export default function TutorPage() {
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder={
               activeTab === "roleplay"
-                ? `Nhập câu tiếng Anh để đối đáp với ${selectedScenario.characterRole}...`
-                : "Nhập câu tiếng Anh bất kỳ để LingLing kiểm tra lỗi ngữ pháp..."
+                ? `${t("Nhập câu tiếng Anh để đối đáp với", "Enter an English sentence to reply to")} ${selectedScenario.characterRole}...`
+                : t("Nhập câu tiếng Anh bất kỳ để LingLing kiểm tra lỗi ngữ pháp...", "Enter any English sentence for LingLing to check...")
             }
             disabled={loading}
             onKeyDown={(e) => {
@@ -478,7 +480,7 @@ export default function TutorPage() {
             disabled={!inputMessage.trim() || loading}
           >
             <Send size={16} />
-            <span>Gửi</span>
+            <span>{t("Gửi", "Send")}</span>
           </button>
         </div>
       </main>

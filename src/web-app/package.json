@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "set NODE_OPTIONS=--max-old-space-size=4096 && tsc --noEmit"
+    "test": "set NODE_OPTIONS=--max-old-space-size=4096 && tsc --noEmit",
+    "stress:arena": "node scripts/stress-arena.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",

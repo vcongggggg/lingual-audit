@@ -2,36 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Gamepad2, Swords, LogIn, LogOut, User } from "lucide-react";
+import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Languages, Swords, Gamepad2, LogIn, LogOut, User } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Tổng quan", icon: House },
-  { href: "/learn", label: "Flashcard", icon: BookOpen },
-  { href: "/words", label: "Từ vựng", icon: Library },
-  { href: "/quiz", label: "Luyện tập", icon: NotebookTabs },
-  { href: "/games", label: "Game Center", icon: Gamepad2 },
-  { href: "/tutor", label: "LingLing AI", icon: Bot },
-  { href: "/leaderboard", label: "Giải đấu", icon: Trophy },
-  { href: "/arena", label: "Arena 1vs1", icon: Swords },
-  { href: "/profile", label: "Hồ sơ", icon: User },
+  { href: "/", labels: { vi: "Tổng quan", en: "Overview" }, icon: House },
+  { href: "/learn", labels: { vi: "Flashcard", en: "Flashcards" }, icon: BookOpen },
+  { href: "/words", labels: { vi: "Từ vựng", en: "Vocabulary" }, icon: Library },
+  { href: "/quiz", labels: { vi: "Luyện tập", en: "Practice" }, icon: NotebookTabs },
+  { href: "/games", labels: { vi: "Game Center", en: "Game Center" }, icon: Gamepad2 },
+  { href: "/tutor", labels: { vi: "LingLing AI", en: "LingLing AI" }, icon: Bot },
+  { href: "/leaderboard", labels: { vi: "Giải đấu", en: "Leaderboard" }, icon: Trophy },
+  { href: "/arena", labels: { vi: "Arena 1vs1", en: "1v1 Arena" }, icon: Swords },
 ];
 
 export default function AppNavigation() {
   const pathname = usePathname();
-  const { user, isAuthenticated, logout, loading } = useAuth();
+  const { language, toggleLanguage, dictionary } = useLanguage();
+  const { user, isAuthenticated, loading, logout } = useAuth();
 
   return (
-    <nav className="app-nav" aria-label="Điều hướng chính">
-      {/* Brand Identity */}
-      <Link className="app-brand" href="/" aria-label="LinguaMezon, trang tổng quan">
+    <nav className="app-nav" aria-label={dictionary.navigationLabel}>
+      <Link className="app-brand" href="/" aria-label={language === "vi" ? "LinguaMezon, trang tổng quan" : "LinguaMezon, overview page"}>
         <span className="app-brand-mark" aria-hidden="true"><BookOpen /></span>
         <span>Lingua<span className="app-brand-accent">Mezon</span></span>
       </Link>
 
       {/* Main Navigation Links */}
       <div className="app-nav-items">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, labels, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
@@ -41,10 +41,25 @@ export default function AppNavigation() {
               aria-current={active ? "page" : undefined}
             >
               <Icon aria-hidden="true" />
-              <span>{label}</span>
+              <span>{labels[language]}</span>
             </Link>
           );
         })}
+      </div>
+      <div className="app-nav-actions">
+        <button
+          className="app-language-toggle"
+          type="button"
+          onClick={toggleLanguage}
+          aria-label={dictionary.navigationAriaLabel}
+          title={dictionary.languageName}
+        >
+          <Languages size={15} aria-hidden="true" />
+          <span className={language === "vi" ? "is-selected" : ""}>VI</span>
+          <span aria-hidden="true">/</span>
+          <span className={language === "en" ? "is-selected" : ""}>EN</span>
+        </button>
+        <span className="app-nav-note">{dictionary.navigationNote}</span>
       </div>
 
       {/* Auth Status & User Profile Pill */}

@@ -38,6 +38,11 @@ public class VocabularyItemConfiguration : BaseConfiguration<VocabularyItem>
         builder.Property(v => v.Ipa)
             .HasMaxLength(240);
 
+        builder.Property(v => v.CefrLevel)
+            .HasMaxLength(2)
+            .HasDefaultValue("A1")
+            .IsRequired();
+
         builder.Property(v => v.PartOfSpeech)
             .HasMaxLength(32);
 

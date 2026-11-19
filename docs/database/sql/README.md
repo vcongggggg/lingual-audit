@@ -14,6 +14,8 @@ Relational schema for PostgreSQL 13+. The schema is split by product module; run
 
 `user.sql` is the prerequisite for all modules. `curriculum.sql` precedes `learning.sql` and `quiz.sql`; `community.sql` precedes `competition.sql`. `audit.sql` references `users`. `analytics.sql` is post-MVP. Alternatively, run `00_init_all.sql` to initialize all 22 tables and 11 triggers in a single transaction. Scripts use `IF NOT EXISTS` for tables/indexes so they can be re-applied during development, but are not a versioned migration system. Back up production data and use explicit migrations for schema changes.
 
+- Vocabulary starter data: `seed_vocabulary_a1_a2_500.sql` (500 A1?A2 words). The full Oxford/OVDP/Tatoeba dataset is `seed_vocabulary_bulk.sql` (5,113 words across A1?C2); it adds the CEFR column if needed and is safe to rerun.
+
 Design notes:
 
 - Security & Audit: `audit_logs` is an append-only log (ADM-09, ADM-12). In production, enforce non-repudiation by restricting mutations for the application service role:

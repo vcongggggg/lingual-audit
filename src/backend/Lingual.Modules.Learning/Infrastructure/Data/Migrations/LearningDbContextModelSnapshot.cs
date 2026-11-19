@@ -410,6 +410,14 @@ namespace Lingual.Modules.Learning.Infrastructure.Data.Migrations
                         .HasColumnType("character varying(240)")
                         .HasColumnName("ipa");
 
+                    b.Property<string>("CefrLevel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasDefaultValue("A1")
+                        .HasColumnName("cefr_level");
+
                     b.Property<string>("Meaning")
                         .IsRequired()
                         .HasColumnType("text")
