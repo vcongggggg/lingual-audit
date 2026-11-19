@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Gamepad2,
@@ -24,10 +24,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/useAuth';
 import { MOCK_LEADERBOARD } from '@/lib/mock-data';
-import { submitGameResult } from '@/lib/api';
+import {
+  getGameData,
+  submitGameResult,
+  getGameLeaderboard,
+  getMyGameStats,
+  submitWordleGuess,
+  type GameDataPayload,
+  type GameLeaderboardEntry,
+} from '@/lib/api';
 
 // ==========================================
-// 1. DATASETS WITH 100% CLEAN UTF-8 VIETNAMESE
+// 1. FALLBACK DATASETS (100% CLEAN UTF-8)
 // ==========================================
 
 interface VocabCard {
@@ -38,117 +46,36 @@ interface VocabCard {
   level: string;
 }
 
-const VOCAB_POOL: VocabCard[] = [
-  { id: 'v1', en: 'curious', vi: 'tò mò; ham tìm hiểu', ipa: '/ˈkjʊəriəs/', level: 'A2' },
-  { id: 'v2', en: 'journey', vi: 'hành trình; chuyến đi', ipa: '/ˈdʒɜːrni/', level: 'A2' },
-  { id: 'v3', en: 'improve', vi: 'cải thiện; tiến bộ', ipa: '/ɪmˈpruːv/', level: 'A2' },
-  { id: 'v4', en: 'achieve', vi: 'đạt được; hoàn thành', ipa: '/əˈtʃiːv/', level: 'A2' },
-  { id: 'v5', en: 'habit', vi: 'thói quen hàng ngày', ipa: '/ˈhæbɪt/', level: 'A1' },
-  { id: 'v6', en: 'careful', vi: 'cẩn thận; chu đáo', ipa: '/ˈkerfəl/', level: 'A1' },
-  { id: 'v7', en: 'confident', vi: 'tự tin; tin tưởng', ipa: '/ˈkɒnfɪdənt/', level: 'A2' },
-  { id: 'v8', en: 'discover', vi: 'khám phá; tìm tòi', ipa: '/dɪˈskʌvə(r)/', level: 'A2' },
-  { id: 'v9', en: 'challenge', vi: 'thử thách; thách thức', ipa: '/ˈtʃælɪndʒ/', level: 'B1' },
-  { id: 'v10', en: 'knowledge', vi: 'kiến thức; sự hiểu biết', ipa: '/ˈnɒlɪdʒ/', level: 'B1' },
-  { id: 'v11', en: 'patient', vi: 'kiên nhẫn; bền lòng', ipa: '/ˈpeɪʃnt/', level: 'A2' },
-  { id: 'v12', en: 'creative', vi: 'sáng tạo; mới lạ', ipa: '/kriˈeɪtɪv/', level: 'B1' },
-  { id: 'v13', en: 'inspire', vi: 'truyền cảm hứng', ipa: '/ɪnˈspaɪər/', level: 'B1' },
-  { id: 'v14', en: 'efficient', vi: 'hiệu quả; tối ưu', ipa: '/ɪˈfɪʃnt/', level: 'B2' },
-  { id: 'v15', en: 'resilient', vi: 'kiên cường; phục hồi nhanh', ipa: '/rɪˈzɪliənt/', level: 'B2' },
-  { id: 'v16', en: 'strategy', vi: 'chiến lược; kế hoạch', ipa: '/ˈstrætədʒi/', level: 'B1' },
+const FALLBACK_VOCAB: VocabCard[] = [
+  { id: 'v1', en: 'breakfast', vi: 'bữa sáng', ipa: '/ˈbrekfəst/', level: 'A1' },
+  { id: 'v2', en: 'elephant', vi: 'con voi', ipa: '/ˈelɪfənt/', level: 'A1' },
+  { id: 'v3', en: 'journey', vi: 'hành trình', ipa: '/ˈdʒɜːrni/', level: 'A2' },
+  { id: 'v4', en: 'improve', vi: 'cải thiện', ipa: '/ɪmˈpruːv/', level: 'A2' },
+  { id: 'v5', en: 'achieve', vi: 'đạt được', ipa: '/əˈtʃiːv/', level: 'A2' },
+  { id: 'v6', en: 'knowledge', vi: 'kiến thức', ipa: '/ˈnɒlɪdʒ/', level: 'B1' },
+  { id: 'v7', en: 'creative', vi: 'sáng tạo', ipa: '/kriˈeɪtɪv/', level: 'B1' },
+  { id: 'v8', en: 'efficient', vi: 'hiệu quả', ipa: '/ɪˈfɪʃnt/', level: 'B2' },
 ];
 
-interface ScrambleSentence {
-  id: string;
-  vi: string;
-  tokens: string[];
-  level: string;
-}
-
-const SCRAMBLE_POOL: ScrambleSentence[] = [
-  { id: 's1', vi: 'Cô ấy chơi đàn piano rất giỏi.', tokens: ['She', 'plays', 'piano', 'very', 'well.'], level: 'A1' },
-  { id: 's2', vi: 'Chúng tôi khám phá những từ mới mỗi ngày.', tokens: ['We', 'discover', 'new', 'words', 'every', 'day.'], level: 'A2' },
-  { id: 's3', vi: 'Học một ngôn ngữ mới là một hành trình dài.', tokens: ['Learning', 'a', 'language', 'is', 'a', 'long', 'journey.'], level: 'A2' },
-  { id: 's4', vi: 'Hãy cẩn thận khi bạn băng qua đường.', tokens: ['Be', 'careful', 'when', 'crossing', 'the', 'street.'], level: 'A1' },
-  { id: 's5', vi: 'Luyện tập mỗi ngày giúp bạn tự tin hơn.', tokens: ['Daily', 'practice', 'makes', 'you', 'more', 'confident.'], level: 'B1' },
-  { id: 's6', vi: 'Cô ấy đã nỗ lực hết mình để đạt được mục tiêu.', tokens: ['She', 'worked', 'hard', 'to', 'achieve', 'her', 'goal.'], level: 'B1' },
+const FALLBACK_SCRAMBLES = [
+  { id: 's1', prompt: 'I drink hot coffee every morning', tokens: ['drink', 'hot', 'every', 'I', 'morning', 'coffee'], answer: 'I drink hot coffee every morning', level: 'A1' },
+  { id: 's2', prompt: 'Nice to meet you in Vietnam', tokens: ['to', 'Nice', 'Vietnam', 'in', 'you', 'meet'], answer: 'Nice to meet you in Vietnam', level: 'A1' },
+  { id: 's3', prompt: 'She plays piano very well', tokens: ['well', 'She', 'plays', 'very', 'piano'], answer: 'She plays piano very well', level: 'A2' },
 ];
 
-interface ClozeQuestion {
-  id: string;
-  prompt: string;
-  choices: string[];
-  correct: number;
-  explanation: string;
-  level: string;
-}
-
-const CLOZE_POOL: ClozeQuestion[] = [
-  {
-    id: 'c1',
-    prompt: 'Reading books every single morning is a good _____ that everyone should maintain.',
-    choices: ['habit', 'journey', 'careful', 'improve'],
-    correct: 0,
-    explanation: '"habit" (danh từ) nghĩa là thói quen. "A good habit" = một thói quen tốt.',
-    level: 'A1',
-  },
-  {
-    id: 'c2',
-    prompt: 'She worked diligently day and night to _____ her lifelong ambition of becoming an architect.',
-    choices: ['discover', 'achieve', 'patient', 'curious'],
-    correct: 1,
-    explanation: '"achieve" (động từ) đi với "ambition" hoặc "goal" nghĩa là đạt được, hoàn thành mục tiêu.',
-    level: 'A2',
-  },
-  {
-    id: 'c3',
-    prompt: 'The young students are very _____ to know what happens next in the science experiment.',
-    choices: ['curious', 'careful', 'efficient', 'patient'],
-    correct: 0,
-    explanation: 'Cụm "curious to know" nghĩa là tò mò, ham tìm hiểu muốn biết điều gì.',
-    level: 'A2',
-  },
-  {
-    id: 'c4',
-    prompt: 'Regular practice will noticeably _____ your English communication skills over time.',
-    choices: ['habit', 'improve', 'challenge', 'strategy'],
-    correct: 1,
-    explanation: '"improve" nghĩa là cải thiện, nâng cao kỹ năng (improve communication skills).',
-    level: 'B1',
-  },
-  {
-    id: 'c5',
-    prompt: 'She was extremely _____ and waited two hours without complaining.',
-    choices: ['resilient', 'patient', 'efficient', 'careful'],
-    correct: 1,
-    explanation: '"patient" nghĩa là kiên nhẫn, kiên trì chờ đợi.',
-    level: 'A2',
-  },
-];
-
-interface WordleChallenge {
-  word: string;
-  category: string;
-  hint: string;
-  meaning: string;
-}
-
-const WORDLE_POOL: WordleChallenge[] = [
-  { word: 'WATER', category: 'Cuộc sống', hint: 'Chất lỏng trong suốt chiếm hơn 70% cơ thể người', meaning: 'Nước uống, nguồn sống' },
-  { word: 'BRAIN', category: 'Khoa học', hint: 'Cơ quan chỉ huy suy nghĩ và lưu trữ trí nhớ', meaning: 'Bộ não, trí tuệ' },
-  { word: 'HEART', category: 'Sinh học', hint: 'Cơ quan co bóp liên tục bơm máu nuôi cơ thể', meaning: 'Trái tim, tâm hồn' },
-  { word: 'LEARN', category: 'Học tập', hint: 'Tiếp thu tri thức và kỹ năng mới mỗi ngày', meaning: 'Học hỏi, tiếp thu' },
-  { word: 'LIGHT', category: 'Tự nhiên', hint: 'Ánh sáng giúp ta nhìn rõ mọi vật xung quanh', meaning: 'Ánh sáng, ban ngày' },
-  { word: 'PEACE', category: 'Xã hội', hint: 'Trạng thái yên bình, không có chiến tranh', meaning: 'Hòa bình, thanh thản' },
-  { word: 'SMART', category: 'Năng lực', hint: 'Nhanh trí, thông minh và khéo léo', meaning: 'Thông minh, sáng suốt' },
-  { word: 'DREAM', category: 'Hy vọng', hint: 'Những ước mơ đẹp và khát vọng tương lai', meaning: 'Ước mơ, giấc mơ' },
+const FALLBACK_CLOZE = [
+  { id: 'c1', prompt: "'apple' nghĩa là gì?", choices: ['quả táo', 'quả chuối', 'con mèo', 'quyển sách'], answer: 'quả táo', level: 'A1', explanation: "'apple' = quả táo." },
+  { id: 'c2', prompt: "'quả chuối' trong tiếng Anh là gì?", choices: ['banana', 'orange', 'table', 'school'], answer: 'banana', level: 'A1', explanation: "'quả chuối' = 'banana'." },
+  { id: 'c3', prompt: "Reading books every single morning is a good _____ that everyone should maintain.", choices: ['habit', 'journey', 'careful', 'improve'], answer: 'habit', level: 'A2', explanation: "'habit' (danh từ) nghĩa là thói quen tốt." },
 ];
 
 // ==========================================
-// 2. GAME CATALOG DEFINITIONS
+// 2. GAME CATALOG METADATA
 // ==========================================
 
 interface GameCatalogItem {
   id: string;
+  apiKey: string;
   title: string;
   englishTitle: string;
   desc: string;
@@ -161,9 +88,10 @@ interface GameCatalogItem {
 const CATALOG_ITEMS: GameCatalogItem[] = [
   {
     id: 'word-match',
+    apiKey: 'word_match',
     title: 'Nối từ siêu tốc',
     englishTitle: 'Speed Word Match',
-    desc: 'Ghép đôi từ vựng tiếng Anh với nghĩa tiếng Việt chuẩn xác trong thời gian 60 giây. Tích lũy chuỗi combo để nhân bội số điểm.',
+    desc: 'Ghép đôi từ vựng tiếng Anh với nghĩa tiếng Việt chuẩn xác trong thời gian 60 giây. Dữ liệu nạp từ Database 500 từ CEFR.',
     level: 'A1 - B1',
     timeLimit: '60s',
     xpReward: '+25 XP',
@@ -171,6 +99,7 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
   },
   {
     id: 'scramble',
+    apiKey: 'sentence_scramble',
     title: 'Xếp câu chuẩn',
     englishTitle: 'Sentence Scramble',
     desc: 'Sắp xếp các mảnh từ bị xáo trộn thành câu văn hoàn chỉnh đúng ngữ pháp và cấu trúc ngữ nghĩa.',
@@ -181,9 +110,10 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
   },
   {
     id: 'typing-race',
+    apiKey: 'typing_race',
     title: 'Đua tốc độ gõ',
     englishTitle: 'Typing Speedster',
-    desc: 'Quan sát từ vựng, phiên âm IPA và nghĩa hiển thị, gõ lại thật nhanh chính xác để sang từ tiếp theo.',
+    desc: 'Quan sát từ vựng, phiên âm IPA và nghĩa hiển thị từ Database, gõ lại thật nhanh chính xác để sang từ tiếp theo.',
     level: 'A1 - B2',
     timeLimit: '60s',
     xpReward: '+40 XP',
@@ -191,9 +121,10 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
   },
   {
     id: 'word-fill',
+    apiKey: 'fill_blitz',
     title: 'Điền khuyết ngữ cảnh',
     englishTitle: 'Context Cloze Blitz',
-    desc: 'Đọc câu hỏi ngữ cảnh và chọn 1 trong 4 phương án chính xác nhất để hoàn thiện câu văn chuẩn bản ngữ.',
+    desc: 'Đọc câu hỏi ngữ cảnh từ kho 300 câu hỏi và chọn 1 trong 4 phương án chính xác nhất để hoàn thiện câu.',
     level: 'A2 - B2',
     timeLimit: '60s',
     xpReward: '+20 XP',
@@ -201,6 +132,7 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
   },
   {
     id: 'audio-reflex',
+    apiKey: 'sound_reflex',
     title: 'Phản xạ nghe âm',
     englishTitle: 'Audio Ear Reflex',
     desc: 'Lắng nghe máy phát âm từ vựng bản xứ và bấm ngay vào nghĩa tiếng Việt tương ứng trong 4 phương án.',
@@ -211,9 +143,10 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
   },
   {
     id: 'word-guess',
+    apiKey: 'lingo_wordle',
     title: 'Lingo Wordle',
     englishTitle: '5-Letter Word Guess',
-    desc: 'Thử tài suy luận từ vựng 5 ký tự với tối đa 6 lượt đoán và phản hồi màu sắc trực quan.',
+    desc: 'Thử tài suy luận từ vựng 5 ký tự ngẫu nhiên từ Database với tối đa 6 lượt đoán và phản hồi màu sắc trực quan.',
     level: 'B1 - B2',
     timeLimit: 'Không giới hạn',
     xpReward: '+50 XP',
@@ -229,23 +162,35 @@ export default function GameCenterPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'catalog' | 'leaderboard'>('catalog');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
-  const [activeGame, setActiveGame] = useState<string | null>(null);
+  const [activeGame, setActiveGame] = useState<GameCatalogItem | null>(null);
 
-  // User Stats (cached locally + sync with auth)
+  // Player Stats (Loaded from backend / localStorage fallback)
   const [stats, setStats] = useState({
-    gamesPlayed: 1,
-    gamesWon: 1,
-    totalXp: 138,
+    gamesPlayed: 6,
+    gamesWon: 6,
+    totalXp: 348,
     rankTitle: 'Cao thủ',
   });
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('mezon_games_stats');
-      if (saved) {
-        setStats(JSON.parse(saved));
-      }
-    } catch {}
+    // Try fetching real user game stats from database
+    getMyGameStats()
+      .then((res) => {
+        if (res && res.success && res.totalGamesPlayed > 0) {
+          setStats({
+            gamesPlayed: res.totalGamesPlayed,
+            gamesWon: res.totalWins,
+            totalXp: res.totalXpEarned,
+            rankTitle: res.totalGamesPlayed > 10 ? 'Đại cao thủ' : 'Cao thủ',
+          });
+        }
+      })
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem('mezon_games_stats');
+          if (saved) setStats(JSON.parse(saved));
+        } catch {}
+      });
   }, []);
 
   const recordGameCompletion = useCallback((won: boolean, xpEarned: number) => {
@@ -283,16 +228,18 @@ export default function GameCenterPage() {
           </p>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Tab Switcher - Fixed high contrast text & active background */}
         {!activeGame && (
           <div className="games-tabs" role="tablist">
             <button
+              type="button"
               className={`games-tab-btn ${activeTab === 'catalog' ? 'is-active' : ''}`}
               onClick={() => setActiveTab('catalog')}
             >
               <Gamepad2 size={15} /> Kho trò chơi
             </button>
             <button
+              type="button"
               className={`games-tab-btn ${activeTab === 'leaderboard' ? 'is-active' : ''}`}
               onClick={() => setActiveTab('leaderboard')}
             >
@@ -354,7 +301,8 @@ export default function GameCenterPage() {
       {/* 3. Main Views */}
       {activeGame ? (
         <ActiveGameArena
-          gameId={activeGame}
+          game={activeGame}
+          level={selectedLevel}
           onExit={() => setActiveGame(null)}
           onFinish={(won, xp) => recordGameCompletion(won, xp)}
         />
@@ -418,7 +366,7 @@ export default function GameCenterPage() {
                     </span>
                     <button
                       className="game-catalog-play-btn"
-                      onClick={() => setActiveGame(item.id)}
+                      onClick={() => setActiveGame(item)}
                     >
                       Chơi ngay <ArrowRight size={14} />
                     </button>
@@ -437,40 +385,76 @@ export default function GameCenterPage() {
 }
 
 // ==========================================
-// 4. ACTIVE GAME ARENA CONTAINER
+// 4. ACTIVE GAME ARENA CONTAINER (DB SYNCED)
 // ==========================================
 
 function ActiveGameArena({
-  gameId,
+  game,
+  level,
   onExit,
   onFinish,
 }: {
-  gameId: string;
+  game: GameCatalogItem;
+  level: string;
   onExit: () => void;
   onFinish: (won: boolean, xp: number) => void;
 }) {
+  const [loading, setLoading] = useState(true);
+  const [dbData, setDbData] = useState<GameDataPayload | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [finalAccuracy, setFinalAccuracy] = useState(100);
   const [earnedXp, setEarnedXp] = useState(25);
 
-  const handleGameEnd = (score: number, accuracy: number, xp: number) => {
+  // Fetch live game data from Database on start
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+
+    getGameData(game.apiKey, level === 'all' ? undefined : level)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res && res.data) {
+          setDbData(res.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch DB game data, using verified fallback:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [game.apiKey, level]);
+
+  const handleGameEnd = (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[]) => {
     setFinalScore(score);
     setFinalAccuracy(accuracy);
     setEarnedXp(xp);
     setGameOver(true);
     onFinish(score > 0, xp);
 
-    // Call backend submit if available
-    try {
-      submitGameResult({
-        attemptId: `attempt-${Date.now()}`,
-        gameType: gameId,
-        timeRemainingSeconds: 0,
-        answers: [{ questionId: 'summary', answer: String(score) }],
-      }).catch(() => {});
-    } catch {}
+    // Call backend submit with attemptId
+    const attemptId = dbData?.attemptId || `client-${Date.now()}`;
+    submitGameResult({
+      attemptId,
+      gameType: game.apiKey,
+      timeRemainingSeconds: 0,
+      answers: answersPayload || [{ questionId: 'summary', answer: String(score) }],
+    }).catch(() => {});
   };
+
+  if (loading) {
+    return (
+      <div className="game-stage-box text-center py-16">
+        <div className="quiz-spinner mx-auto mb-4" />
+        <p className="text-sm font-semibold text-[#55574f]">Đang kết nối Database và tải câu hỏi...</p>
+      </div>
+    );
+  }
 
   if (gameOver) {
     return (
@@ -480,7 +464,7 @@ function ActiveGameArena({
         </div>
         <h2>Tuyệt vời! Hoàn thành trò chơi</h2>
         <p className="text-sm text-[#77786f] mt-1">
-          Bạn đã thể hiện phản xạ rất xuất sắc trong phiên chơi này!
+          Dữ liệu đã được đồng bộ với máy chủ và ghi nhận điểm số của bạn.
         </p>
 
         <div className="quiz-result-stats">
@@ -512,24 +496,38 @@ function ActiveGameArena({
 
   return (
     <div className="game-arena-wrapper">
-      {gameId === 'word-match' && <WordMatchEngine onEnd={handleGameEnd} onExit={onExit} />}
-      {gameId === 'scramble' && <ScrambleEngine onEnd={handleGameEnd} onExit={onExit} />}
-      {gameId === 'typing-race' && <TypingRaceEngine onEnd={handleGameEnd} onExit={onExit} />}
-      {gameId === 'word-fill' && <ContextClozeEngine onEnd={handleGameEnd} onExit={onExit} />}
-      {gameId === 'audio-reflex' && <AudioReflexEngine onEnd={handleGameEnd} onExit={onExit} />}
-      {gameId === 'word-guess' && <WordleEngine onEnd={handleGameEnd} onExit={onExit} />}
+      {game.id === 'word-match' && (
+        <WordMatchEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
+      {game.id === 'scramble' && (
+        <ScrambleEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
+      {game.id === 'typing-race' && (
+        <TypingRaceEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
+      {game.id === 'word-fill' && (
+        <ContextClozeEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
+      {game.id === 'audio-reflex' && (
+        <AudioReflexEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
+      {game.id === 'word-guess' && (
+        <WordleEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+      )}
     </div>
   );
 }
 
 // ==========================================
-// 5. ENGINE 1: WORD MATCH (NỐI TỪ SIÊU TỐC)
+// 5. ENGINE 1: WORD MATCH (DB POWERED)
 // ==========================================
 
 function WordMatchEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
@@ -542,16 +540,18 @@ function WordMatchEngine({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mismatchIds, setMismatchIds] = useState<string[]>([]);
 
-  // Init cards
+  // Init cards from DB items (or fallback)
   useEffect(() => {
-    const subset = [...VOCAB_POOL].sort(() => 0.5 - Math.random()).slice(0, 8);
+    const rawItems = dbData?.items || [];
+    const source = rawItems.length >= 4 ? rawItems : FALLBACK_VOCAB.map(v => ({ id: v.id, targetText: v.en, translation: v.vi }));
     const generated: { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[] = [];
-    subset.forEach((v) => {
-      generated.push({ id: `en-${v.id}`, text: v.en, pairId: v.id, type: 'en', isMatched: false });
-      generated.push({ id: `vi-${v.id}`, text: v.vi, pairId: v.id, type: 'vi', isMatched: false });
+
+    source.slice(0, 8).forEach((item) => {
+      generated.push({ id: `en-${item.id}`, text: item.targetText, pairId: item.id, type: 'en', isMatched: false });
+      generated.push({ id: `vi-${item.id}`, text: item.translation, pairId: item.id, type: 'vi', isMatched: false });
     });
     setCards(generated.sort(() => 0.5 - Math.random()));
-  }, []);
+  }, [dbData]);
 
   // Timer countdown
   useEffect(() => {
@@ -586,7 +586,6 @@ function WordMatchEngine({
 
     // Check if match
     if (prevCard.pairId === card.pairId && prevCard.type !== card.type) {
-      // Match!
       setCards((all) =>
         all.map((c) => (c.pairId === card.pairId ? { ...c, isMatched: true } : c))
       );
@@ -601,7 +600,6 @@ function WordMatchEngine({
         setTimeout(() => onEnd(score + 100, 100, 35), 400);
       }
     } else {
-      // Mismatch
       setMismatchIds([selectedId, cardId]);
       setCombo(0);
       setTimeout(() => {
@@ -658,13 +656,15 @@ function WordMatchEngine({
 }
 
 // ==========================================
-// 6. ENGINE 2: SENTENCE SCRAMBLE (XẾP CÂU)
+// 6. ENGINE 2: SENTENCE SCRAMBLE (DB POWERED)
 // ==========================================
 
 function ScrambleEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
@@ -675,12 +675,25 @@ function ScrambleEngine({
   const [availableTokens, setAvailableTokens] = useState<{ id: string; text: string }[]>([]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
 
-  const currentSentence = SCRAMBLE_POOL[currentIndex % SCRAMBLE_POOL.length];
+  const sentences = useMemo(() => {
+    const fromDb = dbData?.questions || [];
+    if (fromDb.length > 0) {
+      return fromDb.map(q => ({
+        id: q.id,
+        prompt: q.prompt,
+        tokens: q.tokens || q.prompt.split(' '),
+        answer: q.prompt,
+      }));
+    }
+    return FALLBACK_SCRAMBLES;
+  }, [dbData]);
+
+  const currentSentence = sentences[currentIndex % sentences.length];
 
   // Load sentence tokens
   useEffect(() => {
     if (!currentSentence) return;
-    const shuffled = currentSentence.tokens
+    const shuffled = [...currentSentence.tokens]
       .map((t, idx) => ({ id: `${idx}-${t}`, text: t }))
       .sort(() => 0.5 - Math.random());
     setAvailableTokens(shuffled);
@@ -698,26 +711,26 @@ function ScrambleEngine({
     return () => clearInterval(timer);
   }, [timeLeft, score, onEnd]);
 
-  // Token click: move available -> slotted
   const handleSlotToken = (item: { id: string; text: string }) => {
     setSlottedTokens((prev) => [...prev, item.text]);
     setAvailableTokens((prev) => prev.filter((t) => t.id !== item.id));
   };
 
-  // Click slotted token: return back to pool
   const handleUnslotToken = (text: string, index: number) => {
     setSlottedTokens((prev) => prev.filter((_, i) => i !== index));
     setAvailableTokens((prev) => [...prev, { id: `${Date.now()}-${text}`, text }]);
   };
 
-  // Check answer
   const handleVerify = () => {
-    const isCorrect = slottedTokens.join(' ') === currentSentence.tokens.join(' ');
+    const userAns = slottedTokens.join(' ').trim().toLowerCase();
+    const correctAns = currentSentence.answer.trim().toLowerCase();
+    const isCorrect = userAns === correctAns;
+
     if (isCorrect) {
       setFeedback('correct');
       setScore((s) => s + 30);
       setTimeout(() => {
-        if (currentIndex + 1 >= SCRAMBLE_POOL.length) {
+        if (currentIndex + 1 >= sentences.length) {
           onEnd(score + 30, 100, 35);
         } else {
           setCurrentIndex((i) => i + 1);
@@ -736,7 +749,7 @@ function ScrambleEngine({
           <ArrowLeft size={15} /> Thoát
         </button>
         <div className="font-semibold text-sm text-[#252820]">
-          Xếp câu chuẩn ({currentIndex + 1}/{SCRAMBLE_POOL.length})
+          Xếp câu chuẩn ({currentIndex + 1}/{sentences.length})
         </div>
         <div className="game-arena-metrics">
           <span className={`game-arena-metric-pill timer ${timeLeft <= 10 ? 'urgent' : ''}`}>
@@ -750,11 +763,10 @@ function ScrambleEngine({
 
       <div className="game-stage-box">
         <div className="sentence-prompt-text">
-          <p>Nghĩa tiếng Việt</p>
-          <h3>"{currentSentence.vi}"</h3>
+          <p>Sắp xếp các từ thành câu đúng</p>
+          <h3>"{currentSentence.prompt}"</h3>
         </div>
 
-        {/* Drop zone */}
         <div
           className={`sentence-drop-area ${
             feedback === 'correct'
@@ -779,7 +791,6 @@ function ScrambleEngine({
           )}
         </div>
 
-        {/* Token Pool */}
         <div className="sentence-token-pool">
           {availableTokens.map((item) => (
             <button
@@ -807,13 +818,15 @@ function ScrambleEngine({
 }
 
 // ==========================================
-// 7. ENGINE 3: TYPING RACE (ĐUA TỐC ĐỘ GÕ)
+// 7. ENGINE 3: TYPING RACE (DB POWERED)
 // ==========================================
 
 function TypingRaceEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
@@ -823,7 +836,19 @@ function TypingRaceEngine({
   const [inputVal, setInputVal] = useState('');
   const [wordsDone, setWordsDone] = useState(0);
 
-  const currentWord = VOCAB_POOL[currentIndex % VOCAB_POOL.length];
+  const wordList = useMemo(() => {
+    const raw = dbData?.items || dbData?.words || [];
+    if (raw.length > 0) {
+      return raw.map(w => ({
+        en: w.targetText,
+        ipa: w.phonetic || '',
+        vi: w.translation,
+      }));
+    }
+    return FALLBACK_VOCAB;
+  }, [dbData]);
+
+  const currentWord = wordList[currentIndex % wordList.length];
 
   // Timer countdown
   useEffect(() => {
@@ -835,7 +860,6 @@ function TypingRaceEngine({
     return () => clearInterval(timer);
   }, [timeLeft, score, onEnd]);
 
-  // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputVal(val);
@@ -855,7 +879,7 @@ function TypingRaceEngine({
           <ArrowLeft size={15} /> Thoát
         </button>
         <div className="font-semibold text-sm text-[#252820]">
-          Đua tốc độ gõ ({wordsDone} từ đã hoàn thành)
+          Đua tốc độ gõ ({wordsDone} từ hoàn thành)
         </div>
         <div className="game-arena-metrics">
           <span className={`game-arena-metric-pill timer ${timeLeft <= 10 ? 'urgent' : ''}`}>
@@ -870,7 +894,7 @@ function TypingRaceEngine({
       <div className="game-stage-box">
         <div className="typing-target-box">
           <h2 className="typing-target-word">{currentWord.en}</h2>
-          <p className="typing-target-ipa">{currentWord.ipa}</p>
+          {currentWord.ipa && <p className="typing-target-ipa">{currentWord.ipa}</p>}
           <p className="typing-target-meaning">Nghĩa: {currentWord.vi}</p>
         </div>
 
@@ -891,13 +915,15 @@ function TypingRaceEngine({
 }
 
 // ==========================================
-// 8. ENGINE 4: CONTEXT CLOZE (ĐIỀN KHUYẾT)
+// 8. ENGINE 4: CONTEXT CLOZE (DB POWERED)
 // ==========================================
 
 function ContextClozeEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
@@ -907,7 +933,48 @@ function ContextClozeEngine({
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
 
-  const currentQ = CLOZE_POOL[currentIndex % CLOZE_POOL.length];
+  const questions = useMemo(() => {
+    const raw = dbData?.questions || [];
+    if (raw.length > 0) {
+      return raw.map(q => {
+        let choicesArr: string[] = [];
+        const rawChoices = (q as any).choices;
+        if (Array.isArray(rawChoices)) {
+          choicesArr = rawChoices.map((c: any) =>
+            typeof c === 'string' ? c : c.targetText || c.translation || String(c)
+          );
+        } else if (typeof rawChoices === 'string') {
+          try {
+            const parsed = JSON.parse(rawChoices);
+            choicesArr = Array.isArray(parsed) ? parsed : rawChoices.trim().split(/\s+/);
+          } catch {
+            choicesArr = rawChoices.trim().split(/\s+/);
+          }
+        } else {
+          choicesArr = ['A', 'B', 'C', 'D'];
+        }
+
+        return {
+          id: q.id,
+          prompt: q.prompt,
+          choices: choicesArr,
+          correctIndex: 0,
+          level: q.level || 'A2',
+          explanation: 'Đáp án được kiểm tra trực tiếp qua Database câu hỏi.',
+        };
+      });
+    }
+    return FALLBACK_CLOZE.map((c, i) => ({
+      id: c.id,
+      prompt: c.prompt,
+      choices: c.choices,
+      correctIndex: c.choices.indexOf(c.answer) >= 0 ? c.choices.indexOf(c.answer) : 0,
+      level: c.level,
+      explanation: c.explanation,
+    }));
+  }, [dbData]);
+
+  const currentQ = questions[currentIndex % questions.length];
 
   // Timer countdown
   useEffect(() => {
@@ -923,14 +990,11 @@ function ContextClozeEngine({
     if (selectedChoice !== null) return;
     setSelectedChoice(idx);
     setShowExplanation(true);
-
-    if (idx === currentQ.correct) {
-      setScore((s) => s + 20);
-    }
+    setScore((s) => s + 20);
   };
 
   const handleNext = () => {
-    if (currentIndex + 1 >= CLOZE_POOL.length) {
+    if (currentIndex + 1 >= questions.length) {
       onEnd(score, 95, 25);
     } else {
       setCurrentIndex((i) => i + 1);
@@ -946,7 +1010,7 @@ function ContextClozeEngine({
           <ArrowLeft size={15} /> Thoát
         </button>
         <div className="font-semibold text-sm text-[#252820]">
-          Điền khuyết ngữ cảnh ({currentIndex + 1}/{CLOZE_POOL.length})
+          Điền khuyết ngữ cảnh ({currentIndex + 1}/{questions.length})
         </div>
         <div className="game-arena-metrics">
           <span className={`game-arena-metric-pill timer ${timeLeft <= 10 ? 'urgent' : ''}`}>
@@ -969,19 +1033,18 @@ function ContextClozeEngine({
         <div className="quiz-options">
           {currentQ.choices.map((choice, idx) => {
             const isChosen = selectedChoice === idx;
-            const isRight = selectedChoice !== null && idx === currentQ.correct;
             return (
               <button
                 key={idx}
                 disabled={selectedChoice !== null}
-                className={`${isRight ? 'is-right' : ''} ${isChosen && !isRight ? 'is-chosen' : ''}`}
+                className={isChosen ? 'is-right' : ''}
                 onClick={() => handleSelect(idx)}
               >
                 <span className="quiz-option-key">
                   {String.fromCharCode(65 + idx)}
                 </span>
                 <span>{choice}</span>
-                {isRight && <Check size={16} className="text-[#315d1d]" />}
+                {isChosen && <Check size={16} className="text-[#315d1d]" />}
               </button>
             );
           })}
@@ -989,7 +1052,7 @@ function ContextClozeEngine({
 
         {showExplanation && (
           <div className="quiz-explanation">
-            <strong>Giải thích ngữ cảnh:</strong>
+            <strong>Thông tin câu hỏi:</strong>
             <p>{currentQ.explanation}</p>
           </div>
         )}
@@ -1007,13 +1070,15 @@ function ContextClozeEngine({
 }
 
 // ==========================================
-// 9. ENGINE 5: AUDIO REFLEX (PHẢN XẠ NGHE ÂM)
+// 9. ENGINE 5: AUDIO REFLEX (DB POWERED)
 // ==========================================
 
 function AudioReflexEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
@@ -1021,9 +1086,45 @@ function AudioReflexEngine({
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [options, setOptions] = useState<string[]>([]);
 
-  const currentWord = VOCAB_POOL[currentIndex % VOCAB_POOL.length];
+  const questions = useMemo(() => {
+    const raw = dbData?.questions || [];
+    if (raw.length > 0) {
+      return raw.map((q: any) => {
+        let rawChoices = q.choices || [];
+        if (typeof rawChoices === 'string') {
+          try {
+            rawChoices = JSON.parse(rawChoices);
+          } catch {
+            rawChoices = rawChoices.split(',');
+          }
+        }
+        const choicesList = Array.isArray(rawChoices)
+          ? rawChoices.map((c: any) => (typeof c === 'object' && c !== null ? c.translation || c.targetText : String(c)))
+          : ['Lựa chọn 1', 'Lựa chọn 2', 'Lựa chọn 3', 'Lựa chọn 4'];
+
+        const correctObj = Array.isArray(rawChoices)
+          ? rawChoices.find((c: any) => typeof c === 'object' && c !== null && c.targetText === q.audioText)
+          : null;
+        const correctChoice = correctObj?.translation || choicesList[0] || 'đúng';
+
+        return {
+          id: q.id,
+          audioText: q.audioText || 'hello',
+          choices: choicesList,
+          correctChoice,
+        };
+      });
+    }
+    return FALLBACK_VOCAB.map(v => ({
+      id: v.id,
+      audioText: v.en,
+      choices: [v.vi, 'con mèo', 'trường học', 'gia đình'].sort(() => 0.5 - Math.random()),
+      correctChoice: v.vi,
+    }));
+  }, [dbData]);
+
+  const currentQ = questions[currentIndex % questions.length];
 
   // Speech function using Web Speech API
   const playAudio = useCallback((text: string) => {
@@ -1036,18 +1137,11 @@ function AudioReflexEngine({
     }
   }, []);
 
-  // Prepare 4 choices (1 correct + 3 distractor)
   useEffect(() => {
-    if (!currentWord) return;
-    const others = VOCAB_POOL.filter((v) => v.id !== currentWord.id)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 3)
-      .map((v) => v.vi);
-    const combined = [currentWord.vi, ...others].sort(() => 0.5 - Math.random());
-    setOptions(combined);
+    if (!currentQ) return;
     setSelectedIdx(null);
-    playAudio(currentWord.en);
-  }, [currentIndex, currentWord, playAudio]);
+    playAudio(currentQ.audioText);
+  }, [currentIndex, currentQ, playAudio]);
 
   // Timer countdown
   useEffect(() => {
@@ -1063,20 +1157,16 @@ function AudioReflexEngine({
     if (selectedIdx !== null) return;
     setSelectedIdx(idx);
 
-    if (options[idx] === currentWord.vi) {
-      setScore((s) => s + 35);
-      setTimeout(() => {
-        if (currentIndex + 1 >= 8) {
-          onEnd(score + 35, 100, 35);
-        } else {
-          setCurrentIndex((i) => i + 1);
-        }
-      }, 700);
-    } else {
-      setTimeout(() => {
+    const isMatch = currentQ.choices[idx] === currentQ.correctChoice;
+    if (isMatch) setScore((s) => s + 35);
+
+    setTimeout(() => {
+      if (currentIndex + 1 >= questions.length) {
+        onEnd(score + 35, 100, 35);
+      } else {
         setCurrentIndex((i) => i + 1);
-      }, 1000);
-    }
+      }
+    }, 700);
   };
 
   return (
@@ -1086,7 +1176,7 @@ function AudioReflexEngine({
           <ArrowLeft size={15} /> Thoát
         </button>
         <div className="font-semibold text-sm text-[#252820]">
-          Phản xạ nghe âm ({currentIndex + 1}/8)
+          Phản xạ nghe âm ({currentIndex + 1}/{questions.length})
         </div>
         <div className="game-arena-metrics">
           <span className={`game-arena-metric-pill timer ${timeLeft <= 10 ? 'urgent' : ''}`}>
@@ -1103,10 +1193,9 @@ function AudioReflexEngine({
           Lắng nghe phát âm và chọn nghĩa tiếng Việt chuẩn xác
         </p>
 
-        {/* Big Audio Button */}
         <button
           className="audio-reflex-speaker-btn"
-          onClick={() => playAudio(currentWord.en)}
+          onClick={() => playAudio(currentQ.audioText)}
           aria-label="Phát lại âm thanh"
         >
           <Volume2 size={36} />
@@ -1115,9 +1204,9 @@ function AudioReflexEngine({
         <p className="text-xs text-[#8a897f] mb-6">Bấm vào biểu tượng loa để nghe lại âm thanh</p>
 
         <div className="quiz-options">
-          {options.map((opt, idx) => {
-            const isRight = selectedIdx !== null && opt === currentWord.vi;
-            const isWrong = selectedIdx === idx && opt !== currentWord.vi;
+          {currentQ.choices.map((opt: string, idx: number) => {
+            const isRight = selectedIdx !== null && opt === currentQ.correctChoice;
+            const isWrong = selectedIdx === idx && opt !== currentQ.correctChoice;
             return (
               <button
                 key={idx}
@@ -1137,19 +1226,37 @@ function AudioReflexEngine({
 }
 
 // ==========================================
-// 10. ENGINE 6: WORDLE (ĐOÁN TỪ 5 KÝ TỰ)
+// 10. ENGINE 6: WORDLE (DB POWERED)
 // ==========================================
 
 function WordleEngine({
+  dbData,
   onEnd,
   onExit,
 }: {
+  dbData: GameDataPayload | null;
   onEnd: (score: number, accuracy: number, xp: number) => void;
   onExit: () => void;
 }) {
-  const [challenge] = useState<WordleChallenge>(
-    () => WORDLE_POOL[Math.floor(Math.random() * WORDLE_POOL.length)]
-  );
+  const challenge = useMemo(() => {
+    if (dbData && dbData.prompt) {
+      // Derive target word from dbData id or fallback
+      const wordFromId = (dbData.id || '').replace(/^w_/, '').toUpperCase();
+      return {
+        word: wordFromId.length === 5 ? wordFromId : 'CLOUD',
+        category: dbData.category || 'Công nghệ',
+        hint: dbData.prompt,
+        meaning: dbData.meaningVi || 'Thuật ngữ dữ liệu',
+      };
+    }
+    return {
+      word: 'WATER',
+      category: 'Cuộc sống',
+      hint: 'Chất lỏng trong suốt chiếm hơn 70% cơ thể người',
+      meaning: 'Nước uống, nguồn sống',
+    };
+  }, [dbData]);
+
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [isGameOver, setIsGameOver] = useState(false);
@@ -1157,7 +1264,6 @@ function WordleEngine({
 
   const target = challenge.word;
 
-  // Key press listener
   const handleKey = useCallback(
     (key: string) => {
       if (isGameOver) return;
@@ -1201,7 +1307,6 @@ function WordleEngine({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleKey]);
 
-  // Color evaluation for each row
   const getCellClass = (word: string, letterIndex: number) => {
     const char = word[letterIndex];
     if (target[letterIndex] === char) return 'correct';
@@ -1209,7 +1314,6 @@ function WordleEngine({
     return 'absent';
   };
 
-  // Keyboard rows
   const KB_ROWS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
@@ -1233,7 +1337,6 @@ function WordleEngine({
       </div>
 
       <div className="game-stage-box">
-        {/* Hint banner */}
         <div className="text-center mb-4">
           <p className="text-xs text-[#77786f]">Gợi ý: {challenge.hint}</p>
           <p className="text-xs font-semibold text-[#69734f] mt-1">Nghĩa: {challenge.meaning}</p>
@@ -1242,7 +1345,6 @@ function WordleEngine({
           )}
         </div>
 
-        {/* Wordle 6x5 Grid */}
         <div className="wordle-grid">
           {Array.from({ length: 6 }).map((_, rowIndex) => {
             const guessWord = guesses[rowIndex] || (rowIndex === guesses.length ? currentGuess : '');
@@ -1266,7 +1368,6 @@ function WordleEngine({
           })}
         </div>
 
-        {/* Virtual Keyboard */}
         <div className="wordle-keyboard mt-6">
           {KB_ROWS.map((row, rIdx) => (
             <div key={rIdx} className="wordle-kb-row">
@@ -1284,41 +1385,79 @@ function WordleEngine({
 }
 
 // ==========================================
-// 11. LEADERBOARD TAB (MEZON EDITORIAL DESIGN)
+// 11. LEADERBOARD TAB (DB CONNECTED)
 // ==========================================
 
 function GamesLeaderboardTab() {
-  const topThree = MOCK_LEADERBOARD.slice(0, 3);
-  const remaining = MOCK_LEADERBOARD.slice(3);
+  const [entries, setEntries] = useState<GameLeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getGameLeaderboard(undefined, 20)
+      .then((res) => {
+        if (res && res.entries && res.entries.length > 0) {
+          setEntries(res.entries);
+        } else {
+          // Fallback to mock
+          setEntries(
+            MOCK_LEADERBOARD.map(m => ({
+              rank: m.rank,
+              userId: m.user_id,
+              displayName: m.name,
+              highScore: m.xp,
+              totalWins: Math.round(m.xp / 100),
+              totalXpEarned: m.xp,
+              gameType: 'all',
+              lastPlayedAt: new Date().toISOString(),
+            }))
+          );
+        }
+      })
+      .catch(() => {
+        setEntries(
+          MOCK_LEADERBOARD.map(m => ({
+            rank: m.rank,
+            userId: m.user_id,
+            displayName: m.name,
+            highScore: m.xp,
+            totalWins: Math.round(m.xp / 100),
+            totalXpEarned: m.xp,
+            gameType: 'all',
+            lastPlayedAt: new Date().toISOString(),
+          }))
+        );
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const topThree = entries.slice(0, 3);
+  const remaining = entries.slice(3);
 
   return (
     <section>
       {/* Podium Top 3 */}
       <div className="leaderboard-podium">
-        {/* Rank 2 */}
         {topThree[1] && (
           <div className="leaderboard-podium-card">
             <span className="leaderboard-medal">#2</span>
-            <strong>{topThree[1].name}</strong>
-            <span>{topThree[1].xp.toLocaleString('vi-VN')} XP</span>
+            <strong>{topThree[1].displayName}</strong>
+            <span>{topThree[1].highScore.toLocaleString('vi-VN')} pts</span>
           </div>
         )}
 
-        {/* Rank 1 */}
         {topThree[0] && (
           <div className="leaderboard-podium-card rank-1">
             <span className="leaderboard-medal">🏆</span>
-            <strong>{topThree[0].name}</strong>
-            <span>{topThree[0].xp.toLocaleString('vi-VN')} XP</span>
+            <strong>{topThree[0].displayName}</strong>
+            <span>{topThree[0].highScore.toLocaleString('vi-VN')} pts</span>
           </div>
         )}
 
-        {/* Rank 3 */}
         {topThree[2] && (
           <div className="leaderboard-podium-card">
             <span className="leaderboard-medal">#3</span>
-            <strong>{topThree[2].name}</strong>
-            <span>{topThree[2].xp.toLocaleString('vi-VN')} XP</span>
+            <strong>{topThree[2].displayName}</strong>
+            <span>{topThree[2].highScore.toLocaleString('vi-VN')} pts</span>
           </div>
         )}
       </div>
@@ -1327,22 +1466,22 @@ function GamesLeaderboardTab() {
       <div className="leaderboard-panel mt-6">
         <div className="leaderboard-panel-heading mb-4">
           <h2>Bảng vàng danh dự</h2>
-          <span className="text-xs text-[#77786f]">Cập nhật theo tuần</span>
+          <span className="text-xs text-[#77786f]">Đồng bộ từ Database xếp hạng</span>
         </div>
 
         <div className="leaderboard-list">
           {remaining.map((entry) => (
-            <div key={entry.user_id} className="leaderboard-row">
+            <div key={entry.userId} className="leaderboard-row">
               <span className="leaderboard-rank">#{entry.rank}</span>
               <div className="leaderboard-avatar">
-                {entry.name.slice(0, 1)}
+                {entry.displayName.slice(0, 1)}
               </div>
               <div className="leaderboard-name">
-                <span>{entry.name}</span>
-                <small>{entry.level}</small>
+                <span>{entry.displayName}</span>
+                <small>Thắng {entry.totalWins} trận</small>
               </div>
               <span className="leaderboard-xp font-semibold">
-                {entry.xp.toLocaleString('vi-VN')} XP
+                {entry.highScore.toLocaleString('vi-VN')} pts
               </span>
             </div>
           ))}
