@@ -339,3 +339,16 @@ export async function submitWordleGuess(
   });
 }
 
+export const api = {
+  getGamePools: async (params?: { cefrLevel?: string; topic?: string; limit?: number; random?: boolean }) => {
+    return { items: [], total: 0 };
+  },
+  getDictationSentences: async (params?: { cefrLevel?: string; limit?: number; random?: boolean }) => {
+    return { items: [], total: 0 };
+  },
+  getDailyVocabQuestions: async (params?: { cefrLevel?: string; limit?: number; random?: boolean }) => {
+    return { items: [], total: 0 };
+  },
+};
+
+
