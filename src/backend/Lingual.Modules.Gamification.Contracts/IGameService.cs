@@ -11,6 +11,8 @@ public interface IGameService
 
     Task<GameSubmitResultDto> SubmitGameAsync(GameSubmitRequestDto request, Guid userId, string? displayName = null, CancellationToken ct = default);
 
+    Task<WordleGuessResponseDto> EvaluateWordleGuessAsync(WordleGuessRequestDto request, Guid userId, CancellationToken ct = default);
+
     Task<GameLeaderboardResponseDto> GetLeaderboardAsync(string? type, int limit = 20, CancellationToken ct = default);
 
     Task<UserGameStatsResponseDto> GetUserStatsAsync(Guid userId, CancellationToken ct = default);

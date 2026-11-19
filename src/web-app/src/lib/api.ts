@@ -268,6 +268,7 @@ export interface MyGameStatsDto {
     highScore: number;
     totalGames: number;
     totalWins: number;
+    totalXp: number;
     avgAccuracy: number;
     lastPlayedAt: string;
   }>;
@@ -316,3 +317,25 @@ export async function getMyGameStats(explicitToken?: string): Promise<MyGameStat
     explicitToken,
   });
 }
+
+export interface WordleGuessResponse {
+  success: boolean;
+  evaluations: ("correct" | "present" | "absent")[];
+  remainingAttempts: number;
+  isWon: boolean;
+  isGameOver: boolean;
+  message?: string;
+}
+
+export async function submitWordleGuess(
+  attemptId: string,
+  guess: string,
+  explicitToken?: string
+): Promise<WordleGuessResponse> {
+  return fetchApi<WordleGuessResponse>("/games/wordle/guess", {
+    method: "POST",
+    explicitToken,
+    body: JSON.stringify({ attemptId, guess }),
+  });
+}
+

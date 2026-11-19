@@ -86,7 +86,40 @@ public class GameEndpoints : IEndpointBase
         .Produces<GameSubmitResultDto>(StatusCodes.Status200OK)
         .RequireAuthorization();
 
-        // 3. GET /api/v1/games/leaderboard?type=&limit=20
+        // 3. POST /api/v1/games/wordle/guess
+        group.MapPost("/wordle/guess", async (
+            [FromBody] WordleGuessRequestDto request,
+            HttpContext httpContext,
+            [FromServices] IGameService gameService,
+            CancellationToken ct) =>
+        {
+            var userId = GetCurrentUserId(httpContext);
+            if (!userId.HasValue)
+            {
+                return Results.Unauthorized();
+            }
+
+            try
+            {
+                var result = await gameService.EvaluateWordleGuessAsync(request, userId.Value, ct);
+                return Results.Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message });
+            }
+        })
+        .WithName("EvaluateWordleGuess")
+        .WithSummary("Đánh giá lượt đoán Wordle từng chữ cái")
+        .WithDescription("Đánh giá độ chính xác của từ 5 chữ cái (correct/present/absent) và bảo mật từ bí mật.")
+        .Produces<WordleGuessResponseDto>(StatusCodes.Status200OK)
+        .RequireAuthorization();
+
+        // 4. GET /api/v1/games/leaderboard?type=&limit=20
         group.MapGet("/leaderboard", async (
             [FromQuery] string? type,
             [FromQuery] int limit = 20,

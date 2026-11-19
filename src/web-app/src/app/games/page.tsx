@@ -15,6 +15,7 @@ import {
 import {
   getGameData,
   submitGameResult,
+  submitWordleGuess,
   getGameLeaderboard,
   getMyGameStats,
   type GameSubmitResult,
@@ -118,6 +119,7 @@ export default function GamesHubPage() {
   const [wordleCategory, setWordleCategory] = useState<string>("");
   const [wordleMeaningVi, setWordleMeaningVi] = useState<string>("");
   const [wordleGuesses, setWordleGuesses] = useState<string[]>([]);
+  const [wordleEvaluations, setWordleEvaluations] = useState<string[][]>([]);
   const [currentGuess, setCurrentGuess] = useState<string>("");
   const [wordleKeyColors, setWordleKeyColors] = useState<Record<string, string>>({});
   const [wordleGameOver, setWordleGameOver] = useState<boolean>(false);
@@ -359,6 +361,7 @@ export default function GamesHubPage() {
         setWordleCategory(res.data.category || "");
         setWordleMeaningVi(res.data.meaningVi || "");
         setWordleGuesses([]);
+        setWordleEvaluations([]);
         setCurrentGuess("");
         setWordleKeyColors({});
         setWordleGameOver(false);
@@ -523,7 +526,7 @@ export default function GamesHubPage() {
   };
 
   // 6. Lingo Wordle Handlers
-  const handleWordleKeyPress = (key: string) => {
+  const handleWordleKeyPress = async (key: string) => {
     if (wordleGameOver) return;
 
     if (key === "ENTER") {
@@ -532,18 +535,57 @@ export default function GamesHubPage() {
         return;
       }
 
-      answersBuffer.current.push({
-        questionId: attemptId,
-        answer: currentGuess.toUpperCase(),
-      });
+      const guessWord = currentGuess.toUpperCase();
+      try {
+        const res = await submitWordleGuess(attemptId, guessWord);
+        if (!res.success) {
+          alert(res.message || "Không thể kiểm tra từ đoán.");
+          return;
+        }
 
-      const nextGuesses = [...wordleGuesses, currentGuess.toUpperCase()];
-      setWordleGuesses(nextGuesses);
-      setCurrentGuess("");
+        answersBuffer.current.push({
+          questionId: attemptId,
+          answer: guessWord,
+        });
 
-      if (nextGuesses.length >= 6) {
-        setWordleGameOver(true);
-        setTimeout(() => handleFinishGame(0), 800);
+        const nextGuesses = [...wordleGuesses, guessWord];
+        setWordleGuesses(nextGuesses);
+        setWordleEvaluations((prev) => [...prev, res.evaluations]);
+        setCurrentGuess("");
+
+        // Update keyboard colors according to highest priority: is-correct > is-present > is-absent
+        setWordleKeyColors((prev) => {
+          const updated = { ...prev };
+          const priority: Record<string, number> = {
+            "is-correct": 3,
+            "is-present": 2,
+            "is-absent": 1,
+          };
+
+          for (let i = 0; i < 5; i++) {
+            const letter = guessWord[i];
+            const evalState = `is-${res.evaluations[i]}`;
+            const currentPriority = priority[updated[letter]] || 0;
+            const newPriority = priority[evalState] || 0;
+            if (newPriority > currentPriority) {
+              updated[letter] = evalState;
+            }
+          }
+          return updated;
+        });
+
+        if (res.isWon) {
+          playSynthesizedSound("victory");
+          setWordleGameOver(true);
+          setTimeout(() => handleFinishGame(0), 1000);
+        } else if (res.isGameOver || nextGuesses.length >= 6) {
+          playSynthesizedSound("buzzer");
+          setWordleGameOver(true);
+          setTimeout(() => handleFinishGame(0), 1000);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Lỗi khi kiểm tra từ đoán.";
+        alert(msg);
       }
     } else if (key === "BACKSPACE" || key === "DEL") {
       setCurrentGuess((prev) => prev.slice(0, -1));
@@ -761,6 +803,7 @@ export default function GamesHubPage() {
                 category={wordleCategory}
                 meaningVi={wordleMeaningVi}
                 guesses={wordleGuesses}
+                evaluations={wordleEvaluations}
                 currentGuess={currentGuess}
                 keyColors={wordleKeyColors}
                 gameOver={wordleGameOver}

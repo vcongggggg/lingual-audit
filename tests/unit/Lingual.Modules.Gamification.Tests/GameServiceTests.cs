@@ -262,4 +262,233 @@ public class GameServiceTests
         stats.ByGame.Should().ContainKey("word_match");
         stats.ByGame.Should().ContainKey("typing_race");
     }
+
+    [Fact]
+    public async Task SubmitGameAsync_ClientClaims60Remaining_CalculatesBonusBasedOnRealRemainingDuration()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        // Physical duration is 50 seconds (StartedAt 50s ago)
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "time-bonus-001",
+            UserId = userId,
+            GameType = "word_match",
+            StartedAt = DateTime.UtcNow.AddSeconds(-50),
+            QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"}]"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        // Client falsely claims 60 seconds remaining
+        var request = new GameSubmitRequestDto
+        {
+            AttemptId = "time-bonus-001",
+            GameType = "word_match",
+            TimeRemainingSeconds = 60,
+            Answers = new List<GameAnswerSubmissionDto>
+            {
+                new() { QuestionId = "w1", Answer = "Con mèo" }
+            }
+        };
+
+        var result = await service.SubmitGameAsync(request, userId, "HonestServer", CancellationToken.None);
+
+        // Real remaining is 60 - 50 = 10s -> timeBonus is floor(10 * 0.8) = 8, NOT floor(60 * 0.8) = 48!
+        result.TimeBonus.Should().Be(8);
+    }
+
+    [Fact]
+    public async Task SubmitGameAsync_DurationExceeds75Seconds_ThrowsTimeoutException()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        // Physical duration is 76 seconds (exceeds 60s + 15s grace)
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "timeout-001",
+            UserId = userId,
+            GameType = "word_match",
+            StartedAt = DateTime.UtcNow.AddSeconds(-76),
+            QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"}]"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var request = new GameSubmitRequestDto
+        {
+            AttemptId = "timeout-001",
+            GameType = "word_match",
+            TimeRemainingSeconds = 0,
+            Answers = new List<GameAnswerSubmissionDto>
+            {
+                new() { QuestionId = "w1", Answer = "Con mèo" }
+            }
+        };
+
+        var act = async () => await service.SubmitGameAsync(request, userId, "SlowPlayer", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Hết giờ*");
+    }
+
+    [Fact]
+    public async Task EvaluateWordleGuessAsync_ExactMatch_MarksAllCorrectAndWins()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "wordle-eval-001",
+            UserId = userId,
+            GameType = "lingo_wordle",
+            StartedAt = DateTime.UtcNow,
+            QuestionsPayloadJson = "{\"secretWord\":\"SMART\",\"guesses\":[]}"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var request = new WordleGuessRequestDto("wordle-eval-001", "SMART");
+        var result = await service.EvaluateWordleGuessAsync(request, userId, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Evaluations.Should().Equal("correct", "correct", "correct", "correct", "correct");
+        result.IsWon.Should().BeTrue();
+        result.IsGameOver.Should().BeTrue();
+        result.RemainingAttempts.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task EvaluateWordleGuessAsync_DuplicateLetters_EvaluatesCorrectFrequencies()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        // Secret: APPLE (A:1, P:2, L:1, E:1). Guess: PUPPY (P:3, U:1, Y:1).
+        // Index 2 is 'P' == 'P' -> correct.
+        // Index 0 is 'P' in target -> present (consumed 2nd P).
+        // Index 3 is 'P' -> absent (no more P's left!).
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "wordle-eval-002",
+            UserId = userId,
+            GameType = "lingo_wordle",
+            StartedAt = DateTime.UtcNow,
+            QuestionsPayloadJson = "{\"secretWord\":\"APPLE\",\"guesses\":[]}"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var request = new WordleGuessRequestDto("wordle-eval-002", "PUPPY");
+        var result = await service.EvaluateWordleGuessAsync(request, userId, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        result.Evaluations.Should().Equal("present", "absent", "correct", "absent", "absent");
+        result.IsWon.Should().BeFalse();
+        result.IsGameOver.Should().BeFalse();
+        result.RemainingAttempts.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task EvaluateWordleGuessAsync_ExceedsMax6Guesses_ThrowsInvalidOperationException()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "wordle-eval-003",
+            UserId = userId,
+            GameType = "lingo_wordle",
+            StartedAt = DateTime.UtcNow,
+            QuestionsPayloadJson = "{\"secretWord\":\"SMART\",\"guesses\":[\"CRANE\",\"AUDIO\",\"LIGHT\",\"PLAZA\",\"GHOST\",\"FLUTE\"]}"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var request = new WordleGuessRequestDto("wordle-eval-003", "BRAIN");
+        var act = async () => await service.EvaluateWordleGuessAsync(request, userId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*vượt quá*");
+    }
+
+    [Fact]
+    public async Task GetGameDataAsync_EmptyWordPool_ThrowsKeyNotFoundException()
+    {
+        var db = CreateInMemoryDb();
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var act = async () => await service.GetGameDataAsync("word_match", null, Guid.NewGuid(), CancellationToken.None);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("*từ vựng*");
+    }
+
+    [Fact]
+    public async Task SubmitGameAsync_AwardedStamps_RecordedInSessionMetadataJson()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        var attempt = new ActiveGameAttempt
+        {
+            AttemptId = "stamp-001",
+            UserId = userId,
+            GameType = "word_match",
+            StartedAt = DateTime.UtcNow.AddSeconds(-10),
+            QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"}]"
+        };
+        db.ActiveGameAttempts.Add(attempt);
+        await db.SaveChangesAsync();
+
+        var gMock = new Mock<IGamificationService>();
+        var lMock = new Mock<ILogger<GameService>>();
+        var service = new GameService(db, gMock.Object, lMock.Object);
+
+        var request = new GameSubmitRequestDto
+        {
+            AttemptId = "stamp-001",
+            GameType = "word_match",
+            TimeRemainingSeconds = 50,
+            Answers = new List<GameAnswerSubmissionDto>
+            {
+                new() { QuestionId = "w1", Answer = "Con mèo" }
+            }
+        };
+
+        var result = await service.SubmitGameAsync(request, userId, "StampUser", CancellationToken.None);
+
+        result.StampsAwarded.Should().Contain("PERFECT_SCORE");
+
+        var session = await db.GameSessions.FirstOrDefaultAsync(s => s.AttemptId == "stamp-001");
+        session.Should().NotBeNull();
+        session!.MetadataJson.Should().Contain("PERFECT_SCORE");
+        session.MetadataJson.Should().Contain("stamps");
+    }
 }

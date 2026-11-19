@@ -77,6 +77,11 @@ public class GameService : IGameService
                         .ToListAsync(ct);
                 }
 
+                if (words.Count == 0)
+                {
+                    throw new KeyNotFoundException("Chưa có dữ liệu từ vựng cho trò chơi ghép từ.");
+                }
+
                 var items = words.Select(w => new
                 {
                     id = w.Id,
@@ -151,6 +156,11 @@ public class GameService : IGameService
                     .Take(10)
                     .ToListAsync(ct);
 
+                if (words.Count == 0)
+                {
+                    throw new KeyNotFoundException("Chưa có dữ liệu từ vựng cho trò chơi gõ nhanh.");
+                }
+
                 var clientWords = words.Select(w => new
                 {
                     id = w.Id,
@@ -190,6 +200,11 @@ public class GameService : IGameService
                         .Where(q => q.GameType == "fill_blitz")
                         .Take(12)
                         .ToListAsync(ct);
+                }
+
+                if (questions.Count == 0)
+                {
+                    throw new KeyNotFoundException("Chưa có dữ liệu câu hỏi cho game điền từ.");
                 }
 
                 var clientQuestions = questions.Select(q =>
@@ -232,6 +247,11 @@ public class GameService : IGameService
                     .OrderBy(w => EF.Functions.Random())
                     .Take(32)
                     .ToListAsync(ct);
+
+                if (pool.Count == 0)
+                {
+                    throw new KeyNotFoundException("Chưa có dữ liệu từ vựng cho trò chơi phản xạ âm thanh.");
+                }
 
                 var targets = pool.Take(8).ToList();
                 var distractors = pool.Skip(8).ToList();
@@ -317,7 +337,8 @@ public class GameService : IGameService
                 serverTruthJson = JsonSerializer.Serialize(new
                 {
                     id = wordleQuestion.Id,
-                    secretWord = wordleQuestion.Answer.Trim().ToUpperInvariant()
+                    secretWord = wordleQuestion.Answer.Trim().ToUpperInvariant(),
+                    guesses = new List<string>()
                 });
                 break;
             }
@@ -369,13 +390,22 @@ public class GameService : IGameService
             throw new InvalidOperationException("Thời gian làm bài quá nhanh (nghi vấn gian lận).");
         }
 
+        var gameType = attempt.GameType.ToLowerInvariant();
+        bool hasTimer = gameType != "lingo_wordle";
+
+        // Reject submit if duration exceeds 60s budget + 15s network grace
+        if (hasTimer && durationSeconds > 75)
+        {
+            throw new InvalidOperationException("Hết giờ làm bài.");
+        }
+
+        int serverRemainingSeconds = hasTimer ? Math.Max(0, 60 - durationSeconds) : 0;
+
         int correctCount = 0;
         int totalQuestions = 0;
         int mistakes = 0;
         int maxConsecutive = 0;
         int curConsecutive = 0;
-
-        var gameType = attempt.GameType.ToLowerInvariant();
 
         switch (gameType)
         {
@@ -561,12 +591,11 @@ public class GameService : IGameService
                 throw new ArgumentException("Không xác định được loại trò chơi.");
         }
 
-        // Calculate score
-        bool hasTimer = gameType != "lingo_wordle";
+        // Calculate score (F3: Use serverRemainingSeconds instead of client-supplied TimeRemainingSeconds)
         var scoreInput = new GameScoreInput(
             CorrectCount: correctCount,
             TotalQuestions: totalQuestions,
-            TimeRemainingSeconds: request.TimeRemainingSeconds,
+            TimeRemainingSeconds: serverRemainingSeconds,
             ConsecutiveCorrect: maxConsecutive,
             Mistakes: mistakes,
             HasTimer: hasTimer);
@@ -590,6 +619,23 @@ public class GameService : IGameService
             }
         }
 
+        // Stamps (N2: Compute stamps before creating session to persist in MetadataJson)
+        var stamps = new List<string>();
+        if (Math.Abs(scoreOutput.Accuracy - 1.0) < 0.001 && totalQuestions > 0)
+        {
+            stamps.Add("PERFECT_SCORE");
+        }
+
+        try
+        {
+            var streak = await _gamificationService.GetUserStreakAsync(userId, ct);
+            if (streak != null && streak.CurrentDays == 7)
+            {
+                stamps.Add("STREAK_7_DAYS");
+            }
+        }
+        catch { }
+
         // Save session
         var session = new GameSession(
             attempt.AttemptId,
@@ -605,7 +651,8 @@ public class GameService : IGameService
                 correctCount,
                 totalQuestions,
                 mistakes,
-                timeRemaining = request.TimeRemainingSeconds
+                timeRemaining = serverRemainingSeconds,
+                stamps
             }));
 
         _dbContext.GameSessions.Add(session);
@@ -656,23 +703,6 @@ public class GameService : IGameService
             }
         }
 
-        // Stamps
-        var stamps = new List<string>();
-        if (Math.Abs(scoreOutput.Accuracy - 1.0) < 0.001 && totalQuestions > 0)
-        {
-            stamps.Add("PERFECT_SCORE");
-        }
-
-        try
-        {
-            var streak = await _gamificationService.GetUserStreakAsync(userId, ct);
-            if (streak != null && streak.CurrentDays == 7)
-            {
-                stamps.Add("STREAK_7_DAYS");
-            }
-        }
-        catch { }
-
         return new GameSubmitResultDto(
             Success: true,
             Score: finalScore,
@@ -687,6 +717,139 @@ public class GameService : IGameService
             HighScore: stat.HighScore,
             IsNewHighScore: isNewHighScore,
             StampsAwarded: stamps
+        );
+    }
+
+    public async Task<WordleGuessResponseDto> EvaluateWordleGuessAsync(
+        WordleGuessRequestDto request,
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.AttemptId))
+        {
+            throw new ArgumentException("AttemptId không được để trống.");
+        }
+
+        var attempt = await _dbContext.ActiveGameAttempts
+            .FirstOrDefaultAsync(a => a.AttemptId == request.AttemptId, ct);
+
+        if (attempt == null)
+        {
+            throw new InvalidOperationException("Phiên chơi không tồn tại hoặc đã kết thúc.");
+        }
+
+        if (attempt.UserId != userId)
+        {
+            throw new InvalidOperationException("Phiên chơi không thuộc về người dùng này.");
+        }
+
+        if (!string.Equals(attempt.GameType, "lingo_wordle", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Phiên chơi không phải trò chơi Wordle.");
+        }
+
+        var cleanGuess = (request.Guess ?? "").Trim().ToUpperInvariant();
+        if (cleanGuess.Length != 5 || !cleanGuess.All(char.IsLetter))
+        {
+            throw new ArgumentException("Từ đoán phải gồm đúng 5 chữ cái.");
+        }
+
+        // Parse server truth
+        string secretWord = "";
+        var existingGuesses = new List<string>();
+
+        using (var doc = JsonDocument.Parse(attempt.QuestionsPayloadJson))
+        {
+            var root = doc.RootElement;
+            if (root.TryGetProperty("secretWord", out var swProp))
+            {
+                secretWord = swProp.GetString()?.Trim().ToUpperInvariant() ?? "";
+            }
+
+            if (root.TryGetProperty("guesses", out var gProp) && gProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var g in gProp.EnumerateArray())
+                {
+                    var gStr = g.GetString();
+                    if (!string.IsNullOrWhiteSpace(gStr)) existingGuesses.Add(gStr.Trim().ToUpperInvariant());
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(secretWord) || secretWord.Length != 5)
+        {
+            throw new InvalidOperationException("Dữ liệu từ bí mật của phiên chơi không hợp lệ.");
+        }
+
+        // Check if already reached max attempts (6)
+        if (existingGuesses.Count >= 6)
+        {
+            throw new InvalidOperationException("Đã vượt quá số lượt đoán tối đa (6 lượt).");
+        }
+
+        // Check if already won in previous guess
+        if (existingGuesses.Any(g => string.Equals(g, secretWord, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Bạn đã đoán đúng từ bí mật trước đó.");
+        }
+
+        // Wordle duplicate letter algorithm
+        var letterCounts = new Dictionary<char, int>();
+        foreach (var c in secretWord)
+        {
+            letterCounts[c] = letterCounts.GetValueOrDefault(c, 0) + 1;
+        }
+
+        var evaluations = new string[5];
+
+        // Pass 1: exact matches (correct)
+        for (int i = 0; i < 5; i++)
+        {
+            if (cleanGuess[i] == secretWord[i])
+            {
+                evaluations[i] = "correct";
+                letterCounts[cleanGuess[i]]--;
+            }
+        }
+
+        // Pass 2: present or absent
+        for (int i = 0; i < 5; i++)
+        {
+            if (evaluations[i] != null) continue;
+
+            char c = cleanGuess[i];
+            if (letterCounts.GetValueOrDefault(c, 0) > 0)
+            {
+                evaluations[i] = "present";
+                letterCounts[c]--;
+            }
+            else
+            {
+                evaluations[i] = "absent";
+            }
+        }
+
+        existingGuesses.Add(cleanGuess);
+        int remainingAttempts = 6 - existingGuesses.Count;
+        bool isWon = evaluations.All(e => e == "correct");
+        bool isGameOver = isWon || remainingAttempts <= 0;
+
+        // Update active attempt JSON
+        attempt.QuestionsPayloadJson = JsonSerializer.Serialize(new
+        {
+            secretWord,
+            guesses = existingGuesses
+        });
+
+        _dbContext.ActiveGameAttempts.Update(attempt);
+        await _dbContext.SaveChangesAsync(ct);
+
+        return new WordleGuessResponseDto(
+            Success: true,
+            Evaluations: evaluations.ToList(),
+            RemainingAttempts: remainingAttempts,
+            IsWon: isWon,
+            IsGameOver: isGameOver
         );
     }
 

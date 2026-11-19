@@ -24,6 +24,9 @@ public static class Extension
         services.AddScoped<IGamificationService, GamificationService>();
         services.AddScoped<IGameService, GameService>();
 
+        // Game Data Seeder Hosted Service
+        services.AddHostedService<GameDataSeedHostedService>();
+
         return builder;
     }
 

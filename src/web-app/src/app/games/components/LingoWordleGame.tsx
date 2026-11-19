@@ -8,6 +8,7 @@ interface LingoWordleGameProps {
   category: string;
   meaningVi: string;
   guesses: string[];
+  evaluations?: string[][];
   currentGuess: string;
   keyColors: Record<string, string>;
   gameOver: boolean;
@@ -25,6 +26,7 @@ export const LingoWordleGame: React.FC<LingoWordleGameProps> = ({
   category,
   meaningVi,
   guesses,
+  evaluations = [],
   currentGuess,
   keyColors,
   gameOver,
@@ -70,12 +72,15 @@ export const LingoWordleGame: React.FC<LingoWordleGameProps> = ({
               const char = row.word[cIdx] || "";
               const displayChar = char.trim();
 
+              const tileEval = row.isCommitted && evaluations[rIdx]?.[cIdx] ? evaluations[rIdx][cIdx] : "";
+              const evalClass = tileEval ? (tileEval.startsWith("is-") ? tileEval : `is-${tileEval}`) : "";
+
               return (
                 <div
                   key={cIdx}
-                  className={`wordle-cell ${displayChar ? "has-letter" : ""} ${
+                  className={`wordle-tile ${evalClass} ${displayChar ? "has-letter" : ""} ${
                     row.isCommitted ? "cell-committed" : ""
-                  }`}
+                  }`.trim()}
                 >
                   {displayChar}
                 </div>
@@ -87,17 +92,18 @@ export const LingoWordleGame: React.FC<LingoWordleGameProps> = ({
 
       <div className="wordle-keyboard">
         {KEYBOARD_ROWS.map((row, rIdx) => (
-          <div key={rIdx} className="keyboard-row">
+          <div key={rIdx} className="wordle-key-row keyboard-row">
             {row.map((key) => {
               const isSpecial = key === "ENTER" || key === "BACKSPACE";
-              const keyStatus = keyColors[key] || "";
+              const rawStatus = keyColors[key] || "";
+              const keyStatus = rawStatus ? (rawStatus.startsWith("is-") ? rawStatus : `is-${rawStatus}`) : "";
 
               return (
                 <button
                   key={key}
                   disabled={gameOver}
                   onClick={() => onKeyPress(key)}
-                  className={`key-btn ${isSpecial ? "special-key" : ""} ${keyStatus}`}
+                  className={`wordle-key key-btn ${isSpecial ? "special-key" : ""} ${keyStatus}`.trim()}
                 >
                   {key === "BACKSPACE" ? (
                     <Delete size={18} />
