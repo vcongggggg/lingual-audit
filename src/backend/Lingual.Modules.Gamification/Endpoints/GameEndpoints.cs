@@ -12,6 +12,8 @@ namespace Lingual.Modules.Gamification.Endpoints;
 
 public class GameEndpoints : IEndpointBase
 {
+    private static readonly Guid DefaultDemoUserId = Guid.Parse("4943737a-792a-4fca-8315-df58d25c2156");
+
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/games")
@@ -26,14 +28,10 @@ public class GameEndpoints : IEndpointBase
             CancellationToken ct) =>
         {
             var userId = GetCurrentUserId(httpContext);
-            if (!userId.HasValue)
-            {
-                return Results.Unauthorized();
-            }
 
             try
             {
-                var data = await gameService.GetGameDataAsync(type, difficulty, userId.Value, ct);
+                var data = await gameService.GetGameDataAsync(type, difficulty, userId, ct);
                 return Results.Ok(data);
             }
             catch (ArgumentException ex)
@@ -49,7 +47,7 @@ public class GameEndpoints : IEndpointBase
         .WithSummary("Lấy dữ liệu màn chơi cho Game Center")
         .WithDescription("Khởi tạo phiên chơi game, tải từ vựng/câu hỏi ngẫu nhiên và bảo mật đáp án server-side.")
         .Produces<GameDataResponseDto>(StatusCodes.Status200OK)
-        .RequireAuthorization();
+        .AllowAnonymous();
 
         // 2. POST /api/v1/games/submit
         group.MapPost("/submit", async (
@@ -59,16 +57,11 @@ public class GameEndpoints : IEndpointBase
             CancellationToken ct) =>
         {
             var userId = GetCurrentUserId(httpContext);
-            if (!userId.HasValue)
-            {
-                return Results.Unauthorized();
-            }
-
-            var displayName = httpContext.User.FindFirstValue(ClaimTypes.Name);
+            var displayName = httpContext.User.FindFirstValue(ClaimTypes.Name) ?? "Học viên Demo";
 
             try
             {
-                var result = await gameService.SubmitGameAsync(request, userId.Value, displayName, ct);
+                var result = await gameService.SubmitGameAsync(request, userId, displayName, ct);
                 return Results.Ok(result);
             }
             catch (ArgumentException ex)
@@ -84,7 +77,7 @@ public class GameEndpoints : IEndpointBase
         .WithSummary("Nộp kết quả màn chơi và tính điểm server-side")
         .WithDescription("Chấm điểm chống gian lận (thời gian tối thiểu 2s, kiểm tra đáp án theo phiên) và cộng thưởng XP.")
         .Produces<GameSubmitResultDto>(StatusCodes.Status200OK)
-        .RequireAuthorization();
+        .AllowAnonymous();
 
         // 3. POST /api/v1/games/wordle/guess
         group.MapPost("/wordle/guess", async (
@@ -94,14 +87,10 @@ public class GameEndpoints : IEndpointBase
             CancellationToken ct) =>
         {
             var userId = GetCurrentUserId(httpContext);
-            if (!userId.HasValue)
-            {
-                return Results.Unauthorized();
-            }
 
             try
             {
-                var result = await gameService.EvaluateWordleGuessAsync(request, userId.Value, ct);
+                var result = await gameService.EvaluateWordleGuessAsync(request, userId, ct);
                 return Results.Ok(result);
             }
             catch (ArgumentException ex)
@@ -117,7 +106,7 @@ public class GameEndpoints : IEndpointBase
         .WithSummary("Đánh giá lượt đoán Wordle từng chữ cái")
         .WithDescription("Đánh giá độ chính xác của từ 5 chữ cái (correct/present/absent) và bảo mật từ bí mật.")
         .Produces<WordleGuessResponseDto>(StatusCodes.Status200OK)
-        .RequireAuthorization();
+        .AllowAnonymous();
 
         // 4. GET /api/v1/games/leaderboard?type=&limit=20
         group.MapGet("/leaderboard", async (
@@ -133,34 +122,29 @@ public class GameEndpoints : IEndpointBase
         .WithSummary("Lấy bảng xếp hạng điểm game")
         .WithDescription("Bảng xếp hạng người chơi thực theo từng loại trò chơi hoặc tổng hợp.")
         .Produces<GameLeaderboardResponseDto>(StatusCodes.Status200OK)
-        .RequireAuthorization();
+        .AllowAnonymous();
 
-        // 4. GET /api/v1/games/stats/me
+        // 5. GET /api/v1/games/stats/me
         group.MapGet("/stats/me", async (
             HttpContext httpContext,
             [FromServices] IGameService gameService,
             CancellationToken ct) =>
         {
             var userId = GetCurrentUserId(httpContext);
-            if (!userId.HasValue)
-            {
-                return Results.Unauthorized();
-            }
-
-            var result = await gameService.GetUserStatsAsync(userId.Value, ct);
+            var result = await gameService.GetUserStatsAsync(userId, ct);
             return Results.Ok(result);
         })
         .WithName("GetMyGameStats")
         .WithSummary("Lấy thống kê cá nhân qua các trò chơi")
         .WithDescription("Truy vấn kỷ lục điểm cao, tỉ lệ chính xác và tổng XP kiếm được của người dùng hiện tại.")
         .Produces<UserGameStatsResponseDto>(StatusCodes.Status200OK)
-        .RequireAuthorization();
+        .AllowAnonymous();
     }
 
-    private static Guid? GetCurrentUserId(HttpContext? context)
+    private static Guid GetCurrentUserId(HttpContext? context)
     {
-        if (context == null) return null;
+        if (context == null) return DefaultDemoUserId;
         var sub = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var guid) ? guid : null;
+        return Guid.TryParse(sub, out var guid) ? guid : DefaultDemoUserId;
     }
 }
