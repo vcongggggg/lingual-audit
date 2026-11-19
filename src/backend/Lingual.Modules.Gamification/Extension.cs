@@ -22,6 +22,7 @@ public static class Extension
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IXpService, XpService>();
         services.AddScoped<IGamificationService, GamificationService>();
+        services.AddScoped<IGameService, GameService>();
 
         return builder;
     }

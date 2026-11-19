@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, Brain, Flame, Headphones, NotebookTabs, RotateCcw, Sparkles, Trophy, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, Brain, Flame, Gamepad2, Headphones, NotebookTabs, RotateCcw, Sparkles, Trophy, Users, Zap } from "lucide-react";
 import { useAuth } from "@/components/auth/useAuth";
 import { readQuizProgress, type QuizProgressRecord } from "@/lib/quiz-progress";
 import LinguaMascot from "@/components/LinguaMascot";
@@ -85,6 +85,7 @@ export default function HomePage() {
           <Link href="/words" className="dashboard-activity-card activity-vocab"><span className="activity-icon"><BookOpen/></span><span className="activity-copy"><strong>Học từ mới</strong><small>Khám phá từ vựng với thẻ học và ví dụ.</small></span><span className="activity-meta">{vocabularyCount === null ? "Mở thư viện" : `${vocabularyCount}${vocabularyCount === 500 ? "+" : ""} từ đã tải`}<ArrowRight size={15}/></span></Link>
           <Link href="/learn" className="dashboard-activity-card activity-review"><span className="activity-icon"><RotateCcw/></span><span className="activity-copy"><strong>Ôn flashcard</strong><small>Gợi nhớ chủ động với nhịp lặp lại ngắt quãng.</small></span><span className="activity-meta">Bắt đầu phiên ôn <ArrowRight size={15}/></span></Link>
           <Link href="/quiz" className="dashboard-activity-card activity-quiz"><span className="activity-icon"><Brain/></span><span className="activity-copy"><strong>Quiz nhanh</strong><small>Kiểm tra vốn từ và nhận phản hồi ngay.</small></span><span className="activity-meta">10 câu · khoảng 5 phút <ArrowRight size={15}/></span></Link>
+          <Link href="/games" className="dashboard-activity-card activity-games"><span className="activity-icon"><Gamepad2/></span><span className="activity-copy"><strong>Game Center</strong><small>6 mini-game phản xạ từ vựng và xếp câu.</small></span><span className="activity-meta">Chơi ngay <ArrowRight size={15}/></span></Link>
           <div className="dashboard-activity-card activity-planned" aria-label="Listening practice, tính năng dự kiến"><span className="activity-icon"><Headphones/></span><span className="activity-copy"><strong>Luyện nghe</strong><small>Rèn khả năng nhận biết từ trong hội thoại.</small></span><span className="activity-meta">Tính năng dự kiến</span></div>
         </div>
       </section>

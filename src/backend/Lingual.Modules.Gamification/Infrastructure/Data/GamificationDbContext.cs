@@ -11,6 +11,11 @@ public class GamificationDbContext(DbContextOptions<GamificationDbContext> optio
     public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
     public DbSet<DuelMatch> DuelMatches => Set<DuelMatch>();
     public DbSet<WeeklyLeaderboard> WeeklyLeaderboards => Set<WeeklyLeaderboard>();
+    public DbSet<GameSession> GameSessions => Set<GameSession>();
+    public DbSet<UserGameStat> UserGameStats => Set<UserGameStat>();
+    public DbSet<GameWordPool> GameWordPools => Set<GameWordPool>();
+    public DbSet<GameQuestion> GameQuestions => Set<GameQuestion>();
+    public DbSet<ActiveGameAttempt> ActiveGameAttempts => Set<ActiveGameAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

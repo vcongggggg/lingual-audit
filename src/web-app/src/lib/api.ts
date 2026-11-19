@@ -205,3 +205,114 @@ export async function getCurrentUser(explicitToken?: string): Promise<unknown> {
     explicitToken,
   });
 }
+
+export interface GameDataResponse<T = unknown> {
+  success: boolean;
+  data: {
+    attemptId: string;
+    gameType: string;
+    items?: T[];
+    questions?: T[];
+    words?: T[];
+    id?: string;
+    prompt?: string;
+    category?: string;
+    meaningVi?: string;
+    wordLength?: number;
+    maxAttempts?: number;
+  };
+}
+
+export interface GameSubmitRequest {
+  attemptId: string;
+  gameType: string;
+  timeRemainingSeconds: number;
+  answers: { questionId: string; answer: string }[];
+}
+
+export interface GameSubmitResult {
+  success: boolean;
+  score: number;
+  xpEarned: number;
+  accuracy: number;
+  comboMultiplier: number;
+  timeBonus: number;
+  streakBonus: number;
+  durationSeconds: number;
+  correctCount: number;
+  totalQuestions: number;
+  highScore: number;
+  isNewHighScore: boolean;
+  stampsAwarded?: string[];
+}
+
+export interface GameLeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  gameType: string;
+  highScore: number;
+  totalWins: number;
+  totalXpEarned: number;
+  lastPlayedAt: string;
+}
+
+export interface MyGameStatsDto {
+  success: boolean;
+  userId: string;
+  totalGamesPlayed: number;
+  totalWins: number;
+  totalXpEarned: number;
+  byGame: Record<string, {
+    highScore: number;
+    totalGames: number;
+    totalWins: number;
+    avgAccuracy: number;
+    lastPlayedAt: string;
+  }>;
+}
+
+export interface GameDataPayload {
+  attemptId?: string;
+  gameType?: string;
+  items?: { id: string; targetText: string; translation: string; phonetic?: string; cefrLevel?: string }[];
+  questions?: { id: string; prompt: string; tokens?: string[]; choices?: string[]; level?: string; audioText?: string }[];
+  words?: { id: string; targetText: string; phonetic?: string; translation: string; cefrLevel?: string }[];
+  id?: string;
+  prompt?: string;
+  category?: string;
+  meaningVi?: string;
+  wordLength?: number;
+  maxAttempts?: number;
+  [key: string]: unknown;
+}
+
+export async function getGameData(type: string, difficulty?: string): Promise<{ success: boolean; data: GameDataPayload }> {
+  const query = difficulty ? `?type=${encodeURIComponent(type)}&difficulty=${encodeURIComponent(difficulty)}` : `?type=${encodeURIComponent(type)}`;
+  const raw = await fetchApi<Record<string, unknown>>(`/games/data${query}`);
+  if (raw && raw.data && typeof raw.data === "object") {
+    return { success: true, data: raw.data as GameDataPayload };
+  }
+  return { success: true, data: (raw || {}) as GameDataPayload };
+}
+
+export async function submitGameResult(payload: GameSubmitRequest, explicitToken?: string): Promise<GameSubmitResult> {
+  return fetchApi<GameSubmitResult>("/games/submit", {
+    method: "POST",
+    explicitToken,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getGameLeaderboard(type?: string, limit: number = 20): Promise<{ success: boolean; entries: GameLeaderboardEntry[] }> {
+  const query = type ? `?type=${encodeURIComponent(type)}&limit=${limit}` : `?limit=${limit}`;
+  return fetchApi<{ success: boolean; entries: GameLeaderboardEntry[] }>(`/games/leaderboard${query}`);
+}
+
+export async function getMyGameStats(explicitToken?: string): Promise<MyGameStatsDto> {
+  return fetchApi<MyGameStatsDto>("/games/stats/me", {
+    method: "GET",
+    explicitToken,
+  });
+}
