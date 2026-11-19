@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Gamepad2,
@@ -23,7 +23,6 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/useAuth';
-import { MOCK_LEADERBOARD } from '@/lib/mock-data';
 import {
   getGameData,
   submitGameResult,
@@ -35,42 +34,7 @@ import {
 } from '@/lib/api';
 
 // ==========================================
-// 1. FALLBACK DATASETS (100% CLEAN UTF-8)
-// ==========================================
-
-interface VocabCard {
-  id: string;
-  en: string;
-  vi: string;
-  ipa: string;
-  level: string;
-}
-
-const FALLBACK_VOCAB: VocabCard[] = [
-  { id: 'v1', en: 'breakfast', vi: 'bữa sáng', ipa: '/ˈbrekfəst/', level: 'A1' },
-  { id: 'v2', en: 'elephant', vi: 'con voi', ipa: '/ˈelɪfənt/', level: 'A1' },
-  { id: 'v3', en: 'journey', vi: 'hành trình', ipa: '/ˈdʒɜːrni/', level: 'A2' },
-  { id: 'v4', en: 'improve', vi: 'cải thiện', ipa: '/ɪmˈpruːv/', level: 'A2' },
-  { id: 'v5', en: 'achieve', vi: 'đạt được', ipa: '/əˈtʃiːv/', level: 'A2' },
-  { id: 'v6', en: 'knowledge', vi: 'kiến thức', ipa: '/ˈnɒlɪdʒ/', level: 'B1' },
-  { id: 'v7', en: 'creative', vi: 'sáng tạo', ipa: '/kriˈeɪtɪv/', level: 'B1' },
-  { id: 'v8', en: 'efficient', vi: 'hiệu quả', ipa: '/ɪˈfɪʃnt/', level: 'B2' },
-];
-
-const FALLBACK_SCRAMBLES = [
-  { id: 's1', prompt: 'I drink hot coffee every morning', tokens: ['drink', 'hot', 'every', 'I', 'morning', 'coffee'], answer: 'I drink hot coffee every morning', level: 'A1' },
-  { id: 's2', prompt: 'Nice to meet you in Vietnam', tokens: ['to', 'Nice', 'Vietnam', 'in', 'you', 'meet'], answer: 'Nice to meet you in Vietnam', level: 'A1' },
-  { id: 's3', prompt: 'She plays piano very well', tokens: ['well', 'She', 'plays', 'very', 'piano'], answer: 'She plays piano very well', level: 'A2' },
-];
-
-const FALLBACK_CLOZE = [
-  { id: 'c1', prompt: "'apple' nghĩa là gì?", choices: ['quả táo', 'quả chuối', 'con mèo', 'quyển sách'], answer: 'quả táo', level: 'A1', explanation: "'apple' = quả táo." },
-  { id: 'c2', prompt: "'quả chuối' trong tiếng Anh là gì?", choices: ['banana', 'orange', 'table', 'school'], answer: 'banana', level: 'A1', explanation: "'quả chuối' = 'banana'." },
-  { id: 'c3', prompt: "Reading books every single morning is a good _____ that everyone should maintain.", choices: ['habit', 'journey', 'careful', 'improve'], answer: 'habit', level: 'A2', explanation: "'habit' (danh từ) nghĩa là thói quen tốt." },
-];
-
-// ==========================================
-// 2. GAME CATALOG METADATA
+// 1. GAME CATALOG METADATA
 // ==========================================
 
 interface GameCatalogItem {
@@ -155,7 +119,7 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
 ];
 
 // ==========================================
-// 3. MAIN COMPONENT
+// 2. MAIN COMPONENT
 // ==========================================
 
 export default function GameCenterPage() {
@@ -164,48 +128,36 @@ export default function GameCenterPage() {
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [activeGame, setActiveGame] = useState<GameCatalogItem | null>(null);
 
-  // Player Stats (Loaded from backend / localStorage fallback)
+  // Player Stats (Real stats only, initialized to 0)
   const [stats, setStats] = useState({
-    gamesPlayed: 6,
-    gamesWon: 6,
-    totalXp: 348,
-    rankTitle: 'Cao thủ',
+    gamesPlayed: 0,
+    gamesWon: 0,
+    totalXp: 0,
+    rankTitle: 'Tập sự',
   });
 
   useEffect(() => {
-    // Try fetching real user game stats from database
     getMyGameStats()
       .then((res) => {
-        if (res && res.success && res.totalGamesPlayed > 0) {
+        if (res && res.success) {
           setStats({
             gamesPlayed: res.totalGamesPlayed,
             gamesWon: res.totalWins,
             totalXp: res.totalXpEarned,
-            rankTitle: res.totalGamesPlayed > 10 ? 'Đại cao thủ' : 'Cao thủ',
+            rankTitle: res.totalGamesPlayed > 10 ? 'Đại cao thủ' : res.totalGamesPlayed > 3 ? 'Cao thủ' : 'Tập sự',
           });
         }
       })
-      .catch(() => {
-        try {
-          const saved = localStorage.getItem('mezon_games_stats');
-          if (saved) setStats(JSON.parse(saved));
-        } catch {}
-      });
+      .catch(() => {});
   }, []);
 
   const recordGameCompletion = useCallback((won: boolean, xpEarned: number) => {
-    setStats((prev) => {
-      const next = {
-        ...prev,
-        gamesPlayed: prev.gamesPlayed + 1,
-        gamesWon: prev.gamesWon + (won ? 1 : 0),
-        totalXp: prev.totalXp + xpEarned,
-      };
-      try {
-        localStorage.setItem('mezon_games_stats', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+    setStats((prev) => ({
+      ...prev,
+      gamesPlayed: prev.gamesPlayed + 1,
+      gamesWon: prev.gamesWon + (won ? 1 : 0),
+      totalXp: prev.totalXp + xpEarned,
+    }));
   }, []);
 
   // Filter games by CEFR level
@@ -385,7 +337,7 @@ export default function GameCenterPage() {
 }
 
 // ==========================================
-// 4. ACTIVE GAME ARENA CONTAINER (DB SYNCED)
+// 3. ACTIVE GAME ARENA CONTAINER (DB SYNCED)
 // ==========================================
 
 function ActiveGameArena({
@@ -400,6 +352,7 @@ function ActiveGameArena({
   onFinish: (won: boolean, xp: number) => void;
 }) {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dbData, setDbData] = useState<GameDataPayload | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
@@ -410,16 +363,32 @@ function ActiveGameArena({
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setLoadError(null);
 
     getGameData(game.apiKey, level === 'all' ? undefined : level)
       .then((res) => {
         if (!isMounted) return;
-        if (res && res.data) {
-          setDbData(res.data);
+        const d = res?.data;
+        const hasData =
+          Boolean(d) &&
+          Boolean(d?.attemptId) &&
+          (Boolean(d?.items?.length) ||
+            Boolean(d?.questions?.length) ||
+            Boolean(d?.words?.length) ||
+            Boolean(d?.prompt));
+
+        if (hasData && d) {
+          setDbData(d);
+          setLoadError(null);
+        } else {
+          setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
         }
       })
       .catch((err) => {
-        console.warn('Could not fetch DB game data, using verified fallback:', err);
+        if (isMounted) {
+          console.warn('Could not fetch DB game data:', err);
+          setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
+        }
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -430,7 +399,14 @@ function ActiveGameArena({
     };
   }, [game.apiKey, level]);
 
-  const handleGameEnd = (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[]) => {
+  const handleGameEnd = (
+    score: number,
+    accuracy: number,
+    xp: number,
+    answersPayload?: { questionId: string; answer: string }[]
+  ) => {
+    if (!dbData?.attemptId) return;
+
     setFinalScore(score);
     setFinalAccuracy(accuracy);
     setEarnedXp(xp);
@@ -438,13 +414,21 @@ function ActiveGameArena({
     onFinish(score > 0, xp);
 
     // Call backend submit with attemptId
-    const attemptId = dbData?.attemptId || `client-${Date.now()}`;
     submitGameResult({
-      attemptId,
+      attemptId: dbData.attemptId,
       gameType: game.apiKey,
       timeRemainingSeconds: 0,
       answers: answersPayload || [{ questionId: 'summary', answer: String(score) }],
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res) {
+          if (res.xpEarned !== undefined) setEarnedXp(res.xpEarned);
+          if (res.score !== undefined) setFinalScore(res.score);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to submit game result:', err);
+      });
   };
 
   if (loading) {
@@ -452,6 +436,21 @@ function ActiveGameArena({
       <div className="game-stage-box text-center py-16">
         <div className="quiz-spinner mx-auto mb-4" />
         <p className="text-sm font-semibold text-[#55574f]">Đang kết nối Database và tải câu hỏi...</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="game-stage-box text-center py-14">
+        <X size={36} className="text-[#bd684d] mx-auto mb-3" />
+        <h3 className="text-base font-bold text-[#252820] mb-2">{loadError}</h3>
+        <p className="text-xs text-[#77786f] mb-6">
+          Hệ thống không tìm thấy gói câu hỏi phù hợp từ máy chủ hoặc bạn cần đăng nhập.
+        </p>
+        <button className="quiz-secondary inline-flex items-center gap-2" onClick={onExit}>
+          <ArrowLeft size={15} /> Quay lại kho trò chơi
+        </button>
       </div>
     );
   }
@@ -519,7 +518,7 @@ function ActiveGameArena({
 }
 
 // ==========================================
-// 5. ENGINE 1: WORD MATCH (DB POWERED)
+// 4. ENGINE 1: WORD MATCH (DB POWERED)
 // ==========================================
 
 function WordMatchEngine({
@@ -540,13 +539,13 @@ function WordMatchEngine({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mismatchIds, setMismatchIds] = useState<string[]>([]);
 
-  // Init cards from DB items (or fallback)
+  // Init cards from DB items
   useEffect(() => {
     const rawItems = dbData?.items || [];
-    const source = rawItems.length >= 4 ? rawItems : FALLBACK_VOCAB.map(v => ({ id: v.id, targetText: v.en, translation: v.vi }));
-    const generated: { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[] = [];
+    if (rawItems.length === 0) return;
 
-    source.slice(0, 8).forEach((item) => {
+    const generated: { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[] = [];
+    rawItems.slice(0, 8).forEach((item) => {
       generated.push({ id: `en-${item.id}`, text: item.targetText, pairId: item.id, type: 'en', isMatched: false });
       generated.push({ id: `vi-${item.id}`, text: item.translation, pairId: item.id, type: 'vi', isMatched: false });
     });
@@ -656,7 +655,7 @@ function WordMatchEngine({
 }
 
 // ==========================================
-// 6. ENGINE 2: SENTENCE SCRAMBLE (DB POWERED)
+// 5. ENGINE 2: SENTENCE SCRAMBLE (DB POWERED)
 // ==========================================
 
 function ScrambleEngine({
@@ -677,18 +676,15 @@ function ScrambleEngine({
 
   const sentences = useMemo(() => {
     const fromDb = dbData?.questions || [];
-    if (fromDb.length > 0) {
-      return fromDb.map(q => ({
-        id: q.id,
-        prompt: q.prompt,
-        tokens: q.tokens || q.prompt.split(' '),
-        answer: q.prompt,
-      }));
-    }
-    return FALLBACK_SCRAMBLES;
+    return fromDb.map((q) => ({
+      id: q.id,
+      prompt: q.prompt,
+      tokens: q.tokens || q.prompt.split(' '),
+      answer: q.prompt,
+    }));
   }, [dbData]);
 
-  const currentSentence = sentences[currentIndex % sentences.length];
+  const currentSentence = sentences[currentIndex % (sentences.length || 1)];
 
   // Load sentence tokens
   useEffect(() => {
@@ -722,6 +718,7 @@ function ScrambleEngine({
   };
 
   const handleVerify = () => {
+    if (!currentSentence) return;
     const userAns = slottedTokens.join(' ').trim().toLowerCase();
     const correctAns = currentSentence.answer.trim().toLowerCase();
     const isCorrect = userAns === correctAns;
@@ -741,6 +738,8 @@ function ScrambleEngine({
       setTimeout(() => setFeedback(null), 1000);
     }
   };
+
+  if (!currentSentence) return null;
 
   return (
     <div>
@@ -818,7 +817,7 @@ function ScrambleEngine({
 }
 
 // ==========================================
-// 7. ENGINE 3: TYPING RACE (DB POWERED)
+// 6. ENGINE 3: TYPING RACE (DB POWERED)
 // ==========================================
 
 function TypingRaceEngine({
@@ -838,17 +837,14 @@ function TypingRaceEngine({
 
   const wordList = useMemo(() => {
     const raw = dbData?.items || dbData?.words || [];
-    if (raw.length > 0) {
-      return raw.map(w => ({
-        en: w.targetText,
-        ipa: w.phonetic || '',
-        vi: w.translation,
-      }));
-    }
-    return FALLBACK_VOCAB;
+    return raw.map((w) => ({
+      en: w.targetText,
+      ipa: w.phonetic || '',
+      vi: w.translation,
+    }));
   }, [dbData]);
 
-  const currentWord = wordList[currentIndex % wordList.length];
+  const currentWord = wordList[currentIndex % (wordList.length || 1)];
 
   // Timer countdown
   useEffect(() => {
@@ -861,6 +857,7 @@ function TypingRaceEngine({
   }, [timeLeft, score, onEnd]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentWord) return;
     const val = e.target.value;
     setInputVal(val);
 
@@ -871,6 +868,8 @@ function TypingRaceEngine({
       setCurrentIndex((i) => i + 1);
     }
   };
+
+  if (!currentWord) return null;
 
   return (
     <div>
@@ -915,7 +914,7 @@ function TypingRaceEngine({
 }
 
 // ==========================================
-// 8. ENGINE 4: CONTEXT CLOZE (DB POWERED)
+// 7. ENGINE 4: CONTEXT CLOZE (DB POWERED)
 // ==========================================
 
 function ContextClozeEngine({
@@ -935,46 +934,36 @@ function ContextClozeEngine({
 
   const questions = useMemo(() => {
     const raw = dbData?.questions || [];
-    if (raw.length > 0) {
-      return raw.map(q => {
-        let choicesArr: string[] = [];
-        const rawChoices = (q as any).choices;
-        if (Array.isArray(rawChoices)) {
-          choicesArr = rawChoices.map((c: any) =>
-            typeof c === 'string' ? c : c.targetText || c.translation || String(c)
-          );
-        } else if (typeof rawChoices === 'string') {
-          try {
-            const parsed = JSON.parse(rawChoices);
-            choicesArr = Array.isArray(parsed) ? parsed : rawChoices.trim().split(/\s+/);
-          } catch {
-            choicesArr = rawChoices.trim().split(/\s+/);
-          }
-        } else {
-          choicesArr = ['A', 'B', 'C', 'D'];
+    return raw.map((q) => {
+      let choicesArr: string[] = [];
+      const rawChoices = (q as any).choices;
+      if (Array.isArray(rawChoices)) {
+        choicesArr = rawChoices.map((c: any) =>
+          typeof c === 'string' ? c : c.targetText || c.translation || String(c)
+        );
+      } else if (typeof rawChoices === 'string') {
+        try {
+          const parsed = JSON.parse(rawChoices);
+          choicesArr = Array.isArray(parsed) ? parsed : rawChoices.trim().split(/\s+/);
+        } catch {
+          choicesArr = rawChoices.trim().split(/\s+/);
         }
+      } else {
+        choicesArr = ['A', 'B', 'C', 'D'];
+      }
 
-        return {
-          id: q.id,
-          prompt: q.prompt,
-          choices: choicesArr,
-          correctIndex: 0,
-          level: q.level || 'A2',
-          explanation: 'Đáp án được kiểm tra trực tiếp qua Database câu hỏi.',
-        };
-      });
-    }
-    return FALLBACK_CLOZE.map((c, i) => ({
-      id: c.id,
-      prompt: c.prompt,
-      choices: c.choices,
-      correctIndex: c.choices.indexOf(c.answer) >= 0 ? c.choices.indexOf(c.answer) : 0,
-      level: c.level,
-      explanation: c.explanation,
-    }));
+      return {
+        id: q.id,
+        prompt: q.prompt,
+        choices: choicesArr,
+        correctIndex: 0,
+        level: q.level || 'A2',
+        explanation: 'Đáp án được kiểm tra trực tiếp qua máy chủ.',
+      };
+    });
   }, [dbData]);
 
-  const currentQ = questions[currentIndex % questions.length];
+  const currentQ = questions[currentIndex % (questions.length || 1)];
 
   // Timer countdown
   useEffect(() => {
@@ -1002,6 +991,8 @@ function ContextClozeEngine({
       setShowExplanation(false);
     }
   };
+
+  if (!currentQ) return null;
 
   return (
     <div>
@@ -1070,7 +1061,7 @@ function ContextClozeEngine({
 }
 
 // ==========================================
-// 9. ENGINE 5: AUDIO REFLEX (DB POWERED)
+// 8. ENGINE 5: AUDIO REFLEX (DB POWERED)
 // ==========================================
 
 function AudioReflexEngine({
@@ -1089,46 +1080,40 @@ function AudioReflexEngine({
 
   const questions = useMemo(() => {
     const raw = dbData?.questions || [];
-    if (raw.length > 0) {
-      return raw.map((q: any) => {
-        let rawChoices = q.choices || [];
-        if (typeof rawChoices === 'string') {
-          try {
-            rawChoices = JSON.parse(rawChoices);
-          } catch {
-            rawChoices = rawChoices.split(',');
-          }
+    return raw.map((q: any) => {
+      let rawChoices = q.choices || [];
+      if (typeof rawChoices === 'string') {
+        try {
+          rawChoices = JSON.parse(rawChoices);
+        } catch {
+          rawChoices = rawChoices.split(',');
         }
-        const choicesList = Array.isArray(rawChoices)
-          ? rawChoices.map((c: any) => (typeof c === 'object' && c !== null ? c.translation || c.targetText : String(c)))
-          : ['Lựa chọn 1', 'Lựa chọn 2', 'Lựa chọn 3', 'Lựa chọn 4'];
+      }
+      const choicesList = Array.isArray(rawChoices)
+        ? rawChoices.map((c: any) =>
+            typeof c === 'object' && c !== null ? c.translation || c.targetText : String(c)
+          )
+        : [];
 
-        const correctObj = Array.isArray(rawChoices)
-          ? rawChoices.find((c: any) => typeof c === 'object' && c !== null && c.targetText === q.audioText)
-          : null;
-        const correctChoice = correctObj?.translation || choicesList[0] || 'đúng';
+      const correctObj = Array.isArray(rawChoices)
+        ? rawChoices.find((c: any) => typeof c === 'object' && c !== null && c.targetText === q.audioText)
+        : null;
+      const correctChoice = correctObj?.translation || choicesList[0] || 'đúng';
 
-        return {
-          id: q.id,
-          audioText: q.audioText || 'hello',
-          choices: choicesList,
-          correctChoice,
-        };
-      });
-    }
-    return FALLBACK_VOCAB.map(v => ({
-      id: v.id,
-      audioText: v.en,
-      choices: [v.vi, 'con mèo', 'trường học', 'gia đình'].sort(() => 0.5 - Math.random()),
-      correctChoice: v.vi,
-    }));
+      return {
+        id: q.id,
+        audioText: q.audioText || '',
+        choices: choicesList,
+        correctChoice,
+      };
+    });
   }, [dbData]);
 
-  const currentQ = questions[currentIndex % questions.length];
+  const currentQ = questions[currentIndex % (questions.length || 1)];
 
   // Speech function using Web Speech API
   const playAudio = useCallback((text: string) => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && text) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
@@ -1138,7 +1123,7 @@ function AudioReflexEngine({
   }, []);
 
   useEffect(() => {
-    if (!currentQ) return;
+    if (!currentQ || !currentQ.audioText) return;
     setSelectedIdx(null);
     playAudio(currentQ.audioText);
   }, [currentIndex, currentQ, playAudio]);
@@ -1154,7 +1139,7 @@ function AudioReflexEngine({
   }, [timeLeft, score, onEnd]);
 
   const handleChoose = (idx: number) => {
-    if (selectedIdx !== null) return;
+    if (selectedIdx !== null || !currentQ) return;
     setSelectedIdx(idx);
 
     const isMatch = currentQ.choices[idx] === currentQ.correctChoice;
@@ -1168,6 +1153,8 @@ function AudioReflexEngine({
       }
     }, 700);
   };
+
+  if (!currentQ) return null;
 
   return (
     <div>
@@ -1226,7 +1213,7 @@ function AudioReflexEngine({
 }
 
 // ==========================================
-// 10. ENGINE 6: WORDLE (DB POWERED)
+// 9. ENGINE 6: WORDLE (SERVER EVALUATED)
 // ==========================================
 
 function WordleEngine({
@@ -1235,38 +1222,26 @@ function WordleEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[]) => void;
   onExit: () => void;
 }) {
-  const challenge = useMemo(() => {
-    if (dbData && dbData.prompt) {
-      // Derive target word from dbData id or fallback
-      const wordFromId = (dbData.id || '').replace(/^w_/, '').toUpperCase();
-      return {
-        word: wordFromId.length === 5 ? wordFromId : 'CLOUD',
-        category: dbData.category || 'Công nghệ',
-        hint: dbData.prompt,
-        meaning: dbData.meaningVi || 'Thuật ngữ dữ liệu',
-      };
-    }
-    return {
-      word: 'WATER',
-      category: 'Cuộc sống',
-      hint: 'Chất lỏng trong suốt chiếm hơn 70% cơ thể người',
-      meaning: 'Nước uống, nguồn sống',
-    };
-  }, [dbData]);
-
   const [guesses, setGuesses] = useState<string[]>([]);
+  const [evaluations, setEvaluations] = useState<('correct' | 'present' | 'absent')[][]>([]);
   const [currentGuess, setCurrentGuess] = useState('');
   const [isGameOver, setIsGameOver] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [keyColors, setKeyColors] = useState<Record<string, 'correct' | 'present' | 'absent'>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const answersBuffer = useRef<{ questionId: string; answer: string }[]>([]);
 
-  const target = challenge.word;
+  const attemptId = dbData?.attemptId || '';
+  const hint = dbData?.prompt || '';
+  const category = dbData?.category || 'Từ vựng';
+  const meaning = dbData?.meaningVi || '';
 
   const handleKey = useCallback(
-    (key: string) => {
-      if (isGameOver) return;
+    async (key: string) => {
+      if (isGameOver || isSubmitting) return;
 
       if (key === 'ENTER') {
         if (currentGuess.length < 5) {
@@ -1275,18 +1250,67 @@ function WordleEngine({
           return;
         }
 
-        const nextGuesses = [...guesses, currentGuess];
-        setGuesses(nextGuesses);
-        setCurrentGuess('');
+        if (!attemptId) {
+          setStatusMsg('Thiếu mã phiên chơi từ máy chủ');
+          return;
+        }
 
-        if (currentGuess === target) {
-          setIsGameOver(true);
-          setStatusMsg('Chúc mừng bạn đã đoán chính xác!');
-          setTimeout(() => onEnd(100, 100, 50), 1200);
-        } else if (nextGuesses.length >= 6) {
-          setIsGameOver(true);
-          setStatusMsg(`Rất tiếc! Từ chính xác là ${target}`);
-          setTimeout(() => onEnd(30, 50, 20), 1800);
+        const guessWord = currentGuess.toUpperCase();
+        setIsSubmitting(true);
+
+        try {
+          const res = await submitWordleGuess(attemptId, guessWord);
+          if (!res.success) {
+            setStatusMsg(res.message || 'Lỗi kiểm tra từ');
+            setTimeout(() => setStatusMsg(''), 2000);
+            setIsSubmitting(false);
+            return;
+          }
+
+          answersBuffer.current.push({
+            questionId: attemptId,
+            answer: guessWord,
+          });
+
+          const nextGuesses = [...guesses, guessWord];
+          const nextEvals = [...evaluations, res.evaluations];
+          setGuesses(nextGuesses);
+          setEvaluations(nextEvals);
+          setCurrentGuess('');
+
+          // Update keyboard key colors by priority: correct (3) > present (2) > absent (1)
+          setKeyColors((prev) => {
+            const updated = { ...prev };
+            const priority: Record<string, number> = { correct: 3, present: 2, absent: 1 };
+            for (let i = 0; i < 5; i++) {
+              const letter = guessWord[i];
+              const ev = res.evaluations[i];
+              const cur = updated[letter];
+              if (!cur || priority[ev] > priority[cur]) {
+                updated[letter] = ev;
+              }
+            }
+            return updated;
+          });
+
+          if (res.isWon) {
+            setIsGameOver(true);
+            setStatusMsg('Chúc mừng bạn đã đoán chính xác!');
+            setTimeout(() => {
+              onEnd(100, 100, 50, answersBuffer.current);
+            }, 1200);
+          } else if (res.isGameOver || nextGuesses.length >= 6) {
+            setIsGameOver(true);
+            setStatusMsg('Hết lượt đoán! Trò chơi kết thúc.');
+            setTimeout(() => {
+              onEnd(20, 40, 15, answersBuffer.current);
+            }, 1500);
+          }
+        } catch (err: any) {
+          setStatusMsg(err.message || 'Không thể kết nối máy chủ');
+          setTimeout(() => setStatusMsg(''), 2000);
+        } finally {
+          setIsSubmitting(false);
         }
       } else if (key === 'BACK' || key === '⌫') {
         setCurrentGuess((prev) => prev.slice(0, -1));
@@ -1294,7 +1318,7 @@ function WordleEngine({
         setCurrentGuess((prev) => prev + key);
       }
     },
-    [currentGuess, guesses, isGameOver, onEnd, target]
+    [attemptId, currentGuess, evaluations, guesses, isGameOver, isSubmitting, onEnd]
   );
 
   useEffect(() => {
@@ -1306,13 +1330,6 @@ function WordleEngine({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleKey]);
-
-  const getCellClass = (word: string, letterIndex: number) => {
-    const char = word[letterIndex];
-    if (target[letterIndex] === char) return 'correct';
-    if (target.includes(char)) return 'present';
-    return 'absent';
-  };
 
   const KB_ROWS = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -1331,15 +1348,15 @@ function WordleEngine({
         </div>
         <div className="game-arena-metrics">
           <span className="game-arena-metric-pill">
-            <HelpCircle size={14} /> Chủ đề: {challenge.category}
+            <HelpCircle size={14} /> Chủ đề: {category}
           </span>
         </div>
       </div>
 
       <div className="game-stage-box">
         <div className="text-center mb-4">
-          <p className="text-xs text-[#77786f]">Gợi ý: {challenge.hint}</p>
-          <p className="text-xs font-semibold text-[#69734f] mt-1">Nghĩa: {challenge.meaning}</p>
+          {hint && <p className="text-xs text-[#77786f]">Gợi ý: {hint}</p>}
+          {meaning && <p className="text-xs font-semibold text-[#69734f] mt-1">Nghĩa: {meaning}</p>}
           {statusMsg && (
             <p className="text-xs font-bold text-[#bd684d] mt-2 animate-bounce">{statusMsg}</p>
           )}
@@ -1348,16 +1365,19 @@ function WordleEngine({
         <div className="wordle-grid">
           {Array.from({ length: 6 }).map((_, rowIndex) => {
             const guessWord = guesses[rowIndex] || (rowIndex === guesses.length ? currentGuess : '');
+            const rowEval = evaluations[rowIndex];
+            const isSubmitted = rowIndex < guesses.length;
+
             return (
               <div key={rowIndex} className="wordle-row">
                 {Array.from({ length: 5 }).map((_, colIndex) => {
                   const letter = guessWord[colIndex] || '';
-                  const isSubmitted = rowIndex < guesses.length;
-                  const statusClass = isSubmitted ? getCellClass(guessWord, colIndex) : '';
+                  const cellStatus = isSubmitted && rowEval?.[colIndex] ? rowEval[colIndex] : '';
+
                   return (
                     <div
                       key={colIndex}
-                      className={`wordle-cell ${letter ? 'filled' : ''} ${statusClass}`}
+                      className={`wordle-cell ${letter ? 'filled' : ''} ${cellStatus}`}
                     >
                       {letter}
                     </div>
@@ -1371,11 +1391,19 @@ function WordleEngine({
         <div className="wordle-keyboard mt-6">
           {KB_ROWS.map((row, rIdx) => (
             <div key={rIdx} className="wordle-kb-row">
-              {row.map((k) => (
-                <button key={k} className="wordle-key-btn" onClick={() => handleKey(k)}>
-                  {k}
-                </button>
-              ))}
+              {row.map((k) => {
+                const status = keyColors[k] || '';
+                return (
+                  <button
+                    key={k}
+                    disabled={isGameOver || isSubmitting}
+                    className={`wordle-key-btn ${status}`}
+                    onClick={() => handleKey(k)}
+                  >
+                    {k}
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -1385,7 +1413,7 @@ function WordleEngine({
 }
 
 // ==========================================
-// 11. LEADERBOARD TAB (DB CONNECTED)
+// 10. LEADERBOARD TAB (DB CONNECTED, NO MOCK)
 // ==========================================
 
 function GamesLeaderboardTab() {
@@ -1395,43 +1423,41 @@ function GamesLeaderboardTab() {
   useEffect(() => {
     getGameLeaderboard(undefined, 20)
       .then((res) => {
-        if (res && res.entries && res.entries.length > 0) {
+        if (res && res.entries && Array.isArray(res.entries)) {
           setEntries(res.entries);
         } else {
-          // Fallback to mock
-          setEntries(
-            MOCK_LEADERBOARD.map(m => ({
-              rank: m.rank,
-              userId: m.user_id,
-              displayName: m.name,
-              highScore: m.xp,
-              totalWins: Math.round(m.xp / 100),
-              totalXpEarned: m.xp,
-              gameType: 'all',
-              lastPlayedAt: new Date().toISOString(),
-            }))
-          );
+          setEntries([]);
         }
       })
       .catch(() => {
-        setEntries(
-          MOCK_LEADERBOARD.map(m => ({
-            rank: m.rank,
-            userId: m.user_id,
-            displayName: m.name,
-            highScore: m.xp,
-            totalWins: Math.round(m.xp / 100),
-            totalXpEarned: m.xp,
-            gameType: 'all',
-            lastPlayedAt: new Date().toISOString(),
-          }))
-        );
+        setEntries([]);
       })
       .finally(() => setLoading(false));
   }, []);
 
   const topThree = entries.slice(0, 3);
   const remaining = entries.slice(3);
+
+  if (loading) {
+    return (
+      <div className="game-stage-box text-center py-12">
+        <div className="quiz-spinner mx-auto mb-3" />
+        <p className="text-xs font-semibold text-[#55574f]">Đang tải bảng xếp hạng...</p>
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="leaderboard-panel text-center py-12">
+        <Trophy size={42} className="text-[#aeb89a] mx-auto mb-3" />
+        <h3 className="text-base font-bold text-[#252820] mb-1">Chưa có người chơi</h3>
+        <p className="text-xs text-[#77786f]">
+          Chưa có dữ liệu bảng xếp hạng. Hãy là người đầu tiên tham gia mini-game để ghi danh!
+        </p>
+      </div>
+    );
+  }
 
   return (
     <section>
