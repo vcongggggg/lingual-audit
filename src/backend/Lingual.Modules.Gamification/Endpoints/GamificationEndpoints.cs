@@ -12,8 +12,6 @@ namespace Lingual.Modules.Gamification.Endpoints;
 
 public class GamificationEndpoints : IEndpointBase
 {
-    private const string DemoUserKey = "lingual-local-demo-user";
-
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/gamification")
@@ -35,8 +33,8 @@ public class GamificationEndpoints : IEndpointBase
         .Produces<AwardXpResult>(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
 
-        // 2. Content Leaderboard Alias (Tương thích 100% Postman Sprint 1 & Web App)
-        app.MapGet("/api/v1/content/leaderboard", async (
+        // 2. Leaderboard API
+        group.MapGet("/leaderboard", async (
             [FromQuery] int limit = 20,
             [FromQuery] string type = "all-time",
             [FromQuery] string scope = "personal",
@@ -49,63 +47,38 @@ public class GamificationEndpoints : IEndpointBase
             if (scope.Equals("clan", StringComparison.OrdinalIgnoreCase))
             {
                 var clanResult = await gamificationService.GetClanLeaderboardAsync(limit, type, userId, ct);
-                return Results.Ok(new
-                {
-                    updated_at = clanResult.UpdatedAt,
-                    entries = clanResult.Entries.Select(e => new
-                    {
-                        rank = e.Rank,
-                        id = e.Id,
-                        user_id = e.Id,
-                        name = e.Name,
-                        xp = e.Xp,
-                        tag = e.Tag,
-                        avatar = e.Avatar,
-                        level = e.Level,
-                        words_learned = e.WordsLearned,
-                        member_count = e.MemberCount,
-                        is_current_user = e.IsCurrentUser
-                    })
-                });
+                return Results.Ok(clanResult);
             }
 
             var result = await gamificationService.GetLeaderboardAsync(limit, type, userId, ct);
-            return Results.Ok(new
-            {
-                updated_at = result.UpdatedAt,
-                entries = result.Entries
-                    .Where(e => !LeaderboardService.IsExcludedUser(e.UserId))
-                    .Select(e => new
-                    {
-                        rank = e.Rank,
-                        user_id = e.UserId,
-                        name = e.Name,
-                        xp = e.Xp,
-                        avatar = e.AvatarUrl ?? "",
-                        level = e.Level,
-                        words_learned = e.WordsLearned,
-                        streak_days = e.StreakDays,
-                        is_current_user = userId.HasValue && string.Equals(e.UserId, userId.Value.ToString(), StringComparison.OrdinalIgnoreCase)
-                    }),
-                my_rank = (userId.HasValue && !LeaderboardService.IsExcludedUser(userId.Value.ToString()) && result.MyRank != null) ? new
-                {
-                    rank = result.MyRank.Rank,
-                    user_id = result.MyRank.UserId,
-                    name = result.MyRank.Name,
-                    xp = result.MyRank.Xp,
-                    avatar = result.MyRank.AvatarUrl ?? "",
-                    level = result.MyRank.Level,
-                    words_learned = result.MyRank.WordsLearned,
-                    streak_days = result.MyRank.StreakDays,
-                    is_current_user = true
-                } : null
-            });
+            return Results.Ok(result);
         })
-        .WithName("GetContentLeaderboardAlias")
-        .WithTags("Gamification")
-        .WithSummary("Bảng xếp hạng (Alias tương thích Postman & WebApp)")
-        .Produces(StatusCodes.Status200OK)
+        .WithName("GetGamificationLeaderboard")
+        .WithSummary("Lấy bảng xếp hạng điểm XP (Redis)")
+        .WithDescription("Truy vấn Top học viên theo tuần hoặc mọi thời đại từ Redis Sorted Sets.")
+        .Produces<LeaderboardResponseDto>(StatusCodes.Status200OK)
         .AllowAnonymous();
+
+        // 3. Streak Info API - Yêu cầu xác thực token, lấy userId từ claims
+        group.MapGet("/streak/me", async (
+            HttpContext httpContext,
+            [FromServices] IGamificationService gamificationService,
+            CancellationToken ct) =>
+        {
+            var currentUserId = GetCurrentUserId(httpContext);
+            if (!currentUserId.HasValue)
+            {
+                return Results.Unauthorized();
+            }
+
+            var streak = await gamificationService.GetUserStreakAsync(currentUserId.Value, ct);
+            return Results.Ok(streak);
+        })
+        .WithName("GetMyStreak")
+        .WithSummary("Lấy thông tin chuỗi ngày học Streak")
+        .WithDescription("Trả về số ngày Streak hiện tại, kỷ lục, trạng thái Active hôm nay và số khiên Streak Freeze.")
+        .Produces<UserStreakDto>(StatusCodes.Status200OK)
+        .RequireAuthorization();
     }
 
     private static Guid? GetCurrentUserId(HttpContext? context)
@@ -115,4 +88,3 @@ public class GamificationEndpoints : IEndpointBase
         return Guid.TryParse(sub, out var guid) ? guid : null;
     }
 }
-

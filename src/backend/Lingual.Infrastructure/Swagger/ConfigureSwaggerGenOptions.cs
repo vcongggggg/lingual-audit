@@ -14,57 +14,77 @@ public sealed class ConfigureSwaggerGenOptions(IApiVersionDescriptionProvider pr
     {
         if (!provider.ApiVersionDescriptions.Any())
         {
-            options.SwaggerDoc("v1",
-                new()
-                {
-                    Title = "Lingual API v1",
-                    Description = "Modular Monolith Backend API for Lingual Social Language Learning Platform",
-                    Version = "v1",
-                    Contact = new() { Name = "Minh Nguyen", Email = "minhcong19082005@gmail.com" },
-                    License = new() { Name = "MIT", Url = new("https://opensource.org/licenses/MIT") }
-                });
-        }
-        else
-        {
-            foreach (var description in provider.ApiVersionDescriptions)
+            if (!options.SwaggerGeneratorOptions.SwaggerDocs.ContainsKey("v1"))
             {
-                options.SwaggerDoc(description.GroupName,
+                options.SwaggerDoc("v1",
                     new()
                     {
-                        Title = $"Lingual API {description.ApiVersion}",
+                        Title = "Lingual API v1",
                         Description = "Modular Monolith Backend API for Lingual Social Language Learning Platform",
-                        Version = description.ApiVersion.ToString(),
+                        Version = "v1",
                         Contact = new() { Name = "Minh Nguyen", Email = "minhcong19082005@gmail.com" },
                         License = new() { Name = "MIT", Url = new("https://opensource.org/licenses/MIT") }
                     });
             }
         }
-
-        options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme,
-            new()
-            {
-                Name = "Authorization",
-                Description = "Enter the Bearer Authorization string as following: `Generated-JWT-Token`",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.Http,
-                Scheme = JwtBearerDefaults.AuthenticationScheme
-            });
-
-        options.AddSecurityRequirement(new()
+        else
         {
+            foreach (var description in provider.ApiVersionDescriptions)
             {
+                if (!options.SwaggerGeneratorOptions.SwaggerDocs.ContainsKey(description.GroupName))
+                {
+                    options.SwaggerDoc(description.GroupName,
+                        new()
+                        {
+                            Title = $"Lingual API {description.ApiVersion}",
+                            Description = "Modular Monolith Backend API for Lingual Social Language Learning Platform",
+                            Version = description.ApiVersion.ToString(),
+                            Contact = new() { Name = "Minh Nguyen", Email = "minhcong19082005@gmail.com" },
+                            License = new() { Name = "MIT", Url = new("https://opensource.org/licenses/MIT") }
+                        });
+                }
+            }
+        }
+
+        try
+        {
+            options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme,
                 new()
                 {
-                    Name = JwtBearerDefaults.AuthenticationScheme,
+                    Name = "Authorization",
+                    Description = "Enter the Bearer Authorization string as following: `Generated-JWT-Token`",
                     In = ParameterLocation.Header,
-                    Reference = new()
+                    Type = SecuritySchemeType.Http,
+                    Scheme = JwtBearerDefaults.AuthenticationScheme
+                });
+        }
+        catch
+        {
+            // Ignore if security definition already registered
+        }
+
+        try
+        {
+            options.AddSecurityRequirement(new()
+            {
+                {
+                    new()
                     {
-                        Id = JwtBearerDefaults.AuthenticationScheme,
-                        Type = ReferenceType.SecurityScheme
-                    }
-                },
-                new List<string>()
-            }
-        });
+                        Name = JwtBearerDefaults.AuthenticationScheme,
+                        In = ParameterLocation.Header,
+                        Reference = new()
+                        {
+                            Id = JwtBearerDefaults.AuthenticationScheme,
+                            Type = ReferenceType.SecurityScheme
+                        }
+                    },
+                    new List<string>()
+                }
+            });
+        }
+        catch
+        {
+            // Ignore if already added
+        }
     }
 }

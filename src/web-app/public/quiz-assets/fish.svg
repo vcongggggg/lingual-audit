@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <rect width="640" height="360" rx="28" fill="#e5f1f1"/>
+  <path d="M180 190q100-110 250 0-150 110-250 0Z" fill="#8bbec2"/>
+  <path d="m430 190 90-70v140Z" fill="#6b9fa6"/>
+  <circle cx="255" cy="175" r="10" fill="#252820"/>
+  <text x="320" y="320" text-anchor="middle" fill="#44767d" font-family="Arial" font-size="28" font-weight="700">FISH</text>
+</svg>

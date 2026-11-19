@@ -43,8 +43,8 @@ public class MezonUserResolver : IMezonUserResolver
 
                     await using var cmd = conn.CreateCommand();
                     cmd.CommandText = @"
-                        INSERT INTO users (id, mezon_user_id, display_name, status, role, preferred_locale, timezone, total_xp, current_streak, best_streak, freeze_credits, created_at, updated_at)
-                        VALUES (gen_random_uuid(), @mezonUserId, @displayName, 'active', 'learner', 'vi-VN', 'Asia/Ho_Chi_Minh', 0, 0, 0, 1, now(), now())
+                        INSERT INTO users (id, mezon_user_id, display_name, status, role, preferred_locale, timezone, created_at, updated_at)
+                        VALUES (gen_random_uuid(), @mezonUserId, @displayName, 'active', 'learner', 'vi-VN', 'Asia/Ho_Chi_Minh', now(), now())
                         ON CONFLICT (mezon_user_id) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
                         RETURNING id;";
 

@@ -18,6 +18,11 @@ public class GamificationService(
         return streakService.GetStreakAsync(userId, cancellationToken);
     }
 
+    public Task<DailyCheckinResultDto> CheckInAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return streakService.CheckInAsync(userId, cancellationToken);
+    }
+
     public Task<LeaderboardResponseDto> GetLeaderboardAsync(
         int limit = 20,
         string type = "all-time",
@@ -36,4 +41,3 @@ public class GamificationService(
         return leaderboardService.GetClanLeaderboardAsync(limit, type, currentUserId, cancellationToken);
     }
 }
-

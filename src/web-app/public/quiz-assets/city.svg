@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <rect width="640" height="360" rx="28" fill="#e9eef2"/>
+  <rect x="90" y="115" width="100" height="150" fill="#8fa3b1"/><rect x="220" y="75" width="120" height="190" fill="#6f8798"/><rect x="370" y="130" width="160" height="135" fill="#a5b6bf"/>
+  <g fill="#f7e7a9"><path d="M115 140h22v22h-22zm43 0h22v22h-22zm-43 42h22v22h-22zm43 0h22v22h-22z"/><path d="M250 100h22v22h-22zm45 0h22v22h-22zm-45 44h22v22h-22zm45 0h22v22h-22zm-45 44h22v22h-22zm45 0h22v22h-22z"/><path d="M405 155h24v24h-24zm48 0h24v24h-24zm-48 45h24v24h-24zm48 0h24v24h-24z"/></g>
+  <path d="M40 285h560" stroke="#566a78" stroke-width="14"/><circle cx="150" cy="285" r="22" fill="#bd684d"/><circle cx="260" cy="285" r="22" fill="#69734f"/><circle cx="390" cy="285" r="22" fill="#c9ad73"/><circle cx="500" cy="285" r="22" fill="#8ba8b5"/>
+  <text x="320" y="330" text-anchor="middle" fill="#526573" font-family="Arial" font-size="26" font-weight="700">CITY STREET</text>
+</svg>

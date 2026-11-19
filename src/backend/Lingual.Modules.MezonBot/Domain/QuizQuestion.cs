@@ -18,6 +18,7 @@ public class QuizQuestion : EntityBase
     public short SortOrder { get; set; } = 1;
     public string Status { get; set; } = "published";
     public Guid? CreatedBy { get; set; }
+    public DateTime? LastAskedAt { get; set; }
 
     public Quiz? Quiz { get; set; }
     public ICollection<ClanQuizSession> ClanQuizSessions { get; set; } = new List<ClanQuizSession>();
