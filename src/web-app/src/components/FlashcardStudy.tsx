@@ -197,14 +197,19 @@ export default function FlashcardStudy({
         const data = await clientApi.get<{ words?: VocabularyItem[] }>("/api/vocabulary?limit=50", {
           signal: controller.signal,
         });
-        if (!Array.isArray(data.words) || data.words.length === 0) throw new Error("No vocabulary rows found in database");
-        setDatabaseVocabulary(data.words);
-        setIsDemoVocabulary(false);
-        setVocabularyLoadError(null);
-        setCurrentIndex(0);
+        if (Array.isArray(data?.words) && data.words.length > 0) {
+          setDatabaseVocabulary(data.words);
+          setIsDemoVocabulary(false);
+          setVocabularyLoadError(null);
+          setCurrentIndex(0);
+        } else {
+          setDatabaseVocabulary(DEMO_VOCABULARY);
+          setIsDemoVocabulary(true);
+          setVocabularyLoadError(null);
+        }
       } catch (error) {
         if (controller.signal.aborted) return;
-        console.error("Could not load vocabulary from database.", error);
+        console.warn("Could not load vocabulary from database, falling back to demo cards:", error);
         setDatabaseVocabulary(DEMO_VOCABULARY);
         setIsDemoVocabulary(true);
         setVocabularyLoadError(null);
