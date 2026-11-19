@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyBackend } from "@/app/api/api";
 
 export async function GET(request: NextRequest) {
   const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";

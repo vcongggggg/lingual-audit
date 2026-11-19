@@ -11,6 +11,8 @@ public class GamificationDbContext(DbContextOptions<GamificationDbContext> optio
     public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
     public DbSet<DuelMatch> DuelMatches => Set<DuelMatch>();
     public DbSet<WeeklyLeaderboard> WeeklyLeaderboards => Set<WeeklyLeaderboard>();
+    public DbSet<Badge> Badges => Set<Badge>();
+    public DbSet<UserBadge> UserBadges => Set<UserBadge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

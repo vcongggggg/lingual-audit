@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import { MOCK_LEADERBOARD } from "@/lib/mock-data";
 import { useLanguage } from "@/lib/language-context";
 
 type VocabularyResponse = { words?: { id: string }[] };
+const VI_WEEKDAYS = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
 type LeaderboardEntry = { rank: number; user_id: string; name: string; xp: number; level?: string; words_learned?: number };
 const readLeaderboard = (payload: unknown): LeaderboardEntry[] => {
   const value = payload && typeof payload === "object" && "entries" in payload ? (payload as { entries: unknown }).entries : payload;
@@ -92,7 +93,7 @@ export default function HomePage() {
       </section>
       <aside className="dashboard-side-column">
         <section className="dashboard-panel dashboard-weekly"><div className="dashboard-section-heading"><div><p className="dashboard-eyebrow">TỪ VỰNG ĐÃ HỌC</p><h2>{activityRange} ngày gần đây</h2></div><div className="activity-range-control" role="group" aria-label="Khoảng thời gian hoạt động"><button onClick={() => setActivityRange(7)} aria-pressed={activityRange === 7}>7 ngày</button><button onClick={() => setActivityRange(30)} aria-pressed={activityRange === 30}>30 ngày</button></div><span className="weekly-xp"><Zap size={14}/>{rangeXp} XP</span></div><div className={`weekly-chart ${activityRange === 30 ? "is-monthly" : ""}`} role="img" aria-label={`Từ vựng đã học trong ${activityRange} ngày`}>
-          {dailyVocabulary.map(({ label, count, date }) => <div className="weekly-day" key={date.toISOString()}><span className="weekly-bar-wrap"><span className={count ? "weekly-bar is-active" : "weekly-bar"} style={{ height: `${count ? Math.min(100, 18 + count * 9) : 8}%` }} title={`${count} từ đã học`}/></span><small>{label}</small></div>)}
+          {dailyVocabulary.map(({ label, count, date }) => <div className="weekly-day" key={date.toISOString()}><span className="weekly-bar-wrap"><span className={count ? "weekly-bar is-active" : "weekly-bar"} style={{ height: `${count ? Math.min(100, 18 + count * 9) : 8}%` }} title={`${count} từ đã học`}/></span><small suppressHydrationWarning>{label}</small></div>)}
         </div><p className="dashboard-footnote">Dựa trên quiz đã lưu trên thiết bị này.</p></section>
         <section className="dashboard-panel dashboard-achievements"><div className="dashboard-section-heading"><div><p className="dashboard-eyebrow">CỘT MỐC</p><h2>Huy hiệu danh dự</h2></div><Trophy size={18}/></div><div className="achievement-summary"><span className="achievement-mark"><Trophy size={17}/></span><div><strong>{unlockedCount} huy hiệu đã mở</strong><small>Cột mốc được tính từ quiz đã hoàn thành</small></div></div><div className="achievement-badges"><span className={learnedQuizzes > 0 ? "is-unlocked" : ""}>🌱 Bắt đầu</span><span className={sessions.some((item) => item.totalQuestions > 0 && item.correctAnswers === item.totalQuestions) ? "is-unlocked" : ""}>🏆 Hoàn hảo</span><span className={learnedQuizzes >= 5 ? "is-unlocked" : ""}>🔥 Bền bỉ</span><span className={vocabularyCount !== null && vocabularyCount >= 100 ? "is-unlocked" : ""}>📚 Nhà sưu tầm</span></div></section>
       </aside>

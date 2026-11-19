@@ -25,11 +25,18 @@ export default function AppNavigation() {
         <span className="app-brand-mark" aria-hidden="true"><BookOpen /></span>
         <span>Lingua<span className="app-brand-accent">Mezon</span></span>
       </Link>
+
+      {/* Main Navigation Links */}
       <div className="app-nav-items">
         {NAV_ITEMS.map(({ href, labels, icon: Icon }) => {
           const active = pathname === href;
           return (
-            <Link key={href} href={href} className={`app-nav-link ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined}>
+            <Link
+              key={href}
+              href={href}
+              className={`app-nav-link ${active ? "is-active" : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
               <Icon aria-hidden="true" />
               <span>{labels[language]}</span>
             </Link>
@@ -50,6 +57,56 @@ export default function AppNavigation() {
           <span className={language === "en" ? "is-selected" : ""}>EN</span>
         </button>
         <span className="app-nav-note">{dictionary.navigationNote}</span>
+
+      {/* Auth Status & User Profile Pill */}
+      <div className="app-nav-auth flex items-center gap-2">
+        {!loading && (
+          isAuthenticated && user ? (
+            <div className="flex items-center gap-2 bg-[#eff1e8] border border-[#d7ddca] pl-1.5 pr-2 py-1 rounded-xl shadow-xs">
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 hover:opacity-85 transition-opacity"
+                title="Xem hồ sơ cá nhân"
+              >
+                {user.avatarUrl && user.avatarUrl.trim() !== "" ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.displayName}
+                    className="w-6 h-6 rounded-lg object-cover border border-[#d7ddca]"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-lg bg-[var(--olive,#69734f)] text-white flex items-center justify-center font-bold text-[11px]">
+                    {user.displayName?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                )}
+                <div className="hidden sm:flex flex-col text-left">
+                  <span className="text-xs font-semibold text-[var(--ink,#252820)] max-w-[120px] truncate leading-tight">
+                    {user.displayName}
+                  </span>
+                  <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
+                    {user.role === "admin" ? "Quản trị" : "Học viên"}
+                  </span>
+                </div>
+              </Link>
+              <button
+                onClick={logout}
+                title="Đăng xuất"
+                className="p-1 hover:bg-[#e0e4d5] rounded-md text-[var(--muted,#77786f)] hover:text-red-600 transition-colors cursor-pointer ml-1"
+                aria-label="Đăng xuất"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/auth"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[var(--olive,#69734f)] hover:opacity-90 text-white transition-all shadow-xs"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Đăng nhập</span>
+            </Link>
+          )
+        )}
       </div>
     </nav>
   );

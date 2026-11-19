@@ -25,6 +25,7 @@ COPY Lingual.Modules.MezonBot/*.csproj ./Lingual.Modules.MezonBot/
 COPY Lingual.Modules.AITutor.Contracts/*.csproj ./Lingual.Modules.AITutor.Contracts/
 COPY Lingual.Modules.AITutor/*.csproj ./Lingual.Modules.AITutor/
 
+# Restore các dependency cho dự án API
 RUN dotnet restore Lingual.Api/Lingual.Api.csproj
 
 # Mở cổng API
