@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Lingual.Api;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Domain;
 using Lingual.Modules.Gamification.Infrastructure.Data;
@@ -405,6 +406,50 @@ public class ContentController : ControllerBase
         });
     }
 
+    /// <summary>Returns the signed-in learner's studied words and cards due for review.</summary>
+    [Authorize]
+    [HttpGet("reviews")]
+    public async Task<IActionResult> GetReviewProgress(CancellationToken cancellationToken = default)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (!Guid.TryParse(userIdStr, out var userId))
+            return Unauthorized(new { error = "Sign in to view your vocabulary progress." });
+
+        var now = DateTime.UtcNow;
+        var cards = await _learningDbContext.SrsCards.AsNoTracking()
+            .Where(card => card.UserId == userId && card.SuspendedAt == null)
+            .Include(card => card.VocabularyItem)
+            .Where(card => card.VocabularyItem != null && card.VocabularyItem.Status == "published")
+            .OrderBy(card => card.NextDueAt)
+            .ToListAsync(cancellationToken);
+
+        var words = cards.Select(card => new
+        {
+            id = card.VocabularyItem!.Id.ToString(),
+            term = card.VocabularyItem.Term,
+            normalized_term = card.VocabularyItem.NormalizedTerm,
+            source_language = card.VocabularyItem.SourceLanguage,
+            target_language = card.VocabularyItem.TargetLanguage,
+            ipa = card.VocabularyItem.Ipa,
+            cefr_level = card.VocabularyItem.CefrLevel,
+            meaning = card.VocabularyItem.Meaning,
+            part_of_speech = card.VocabularyItem.PartOfSpeech ?? "noun",
+            image_url = card.VocabularyItem.ImageUrl,
+            pronunciation_audio_url = card.VocabularyItem.PronunciationAudioUrl,
+            examples = ParseExamples(card.VocabularyItem.Examples),
+            repetitions = card.Repetitions,
+            next_due_at = card.NextDueAt
+        }).ToList();
+
+        return Ok(new
+        {
+            totalLearned = words.Count,
+            totalDue = cards.Count(card => card.NextDueAt <= now),
+            learnedWords = words,
+            dueWords = words.Where((_, index) => cards[index].NextDueAt <= now).ToList()
+        });
+    }
+
     /// <summary>
     /// GET /api/v1/content/leaderboard
     /// Sử dụng LeaderboardService của Gamification module (Redis / SQL fallback), không dùng raw SQL và không có user mẫu giả.
@@ -442,60 +487,136 @@ public class ContentController : ControllerBase
     /// <summary>
     /// GET /api/v1/content/vocabulary?limit=50
     /// </summary>
-    [HttpGet("vocabulary")]
-    public async Task<IActionResult> GetVocabulary(
-        [FromQuery] int limit = 50,
-        CancellationToken cancellationToken = default)
+    [HttpGet("vocabulary/groups")]
+    public async Task<IActionResult> GetVocabularyGroups(CancellationToken cancellationToken = default)
     {
-        limit = Math.Clamp(limit, 1, 500);
-
+        object[] groups = VocabularySeed.Groups;
         try
         {
             if (_learningDbContext.Database.IsRelational())
             {
-                var items = await _learningDbContext.VocabularyItems
+                var vocabulary = await _learningDbContext.VocabularyItems.AsNoTracking()
                     .Where(v => v.Status == "published")
-                    .AsNoTracking()
-                    .Take(limit)
                     .ToListAsync(cancellationToken);
-
-                if (items.Count > 0)
+                if (vocabulary.Count > 0)
                 {
-                    return Ok(new
+                    var counts = vocabulary.GroupBy(word => word.CefrLevel).ToDictionary(group => group.Key, group => group.Count());
+                    var chapterCounts = vocabulary.GroupBy(word => word.CefrLevel)
+                        .ToDictionary(group => group.Key, group => group.Select(VocabularyTopics.Classify).Select(topic => topic.Id).Distinct().Count());
+                    groups = VocabularySeed.Groups.Select(group => (object)new
                     {
-                        total = items.Count,
-                        data = items.Select(v => new
-                        {
-                            id = v.Id.ToString(),
-                            term = v.Term,
-                            ipa = v.Ipa ?? string.Empty,
-                            meaning = v.Meaning,
-                            part_of_speech = v.PartOfSpeech ?? "noun",
-                            image_url = v.ImageUrl,
-                            audio_url = v.PronunciationAudioUrl
-                        })
-                    });
+                        group.level,
+                        group.title,
+                        group.description,
+                        group.target_words,
+                        word_count = CountOrSeed(counts, group.level, group.word_count),
+                        chapters = chapterCounts.TryGetValue(group.level, out var chapterCount) ? chapterCount : 0
+                    }).ToArray();
                 }
             }
         }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not count vocabulary groups."); }
+        return Ok(new { groups });
+    }
+
+    [HttpGet("vocabulary/chapters")]
+    public async Task<IActionResult> GetVocabularyChapters([FromQuery] string level, CancellationToken cancellationToken = default)
+    {
+        var normalizedLevel = level?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(normalizedLevel)) return BadRequest(new { error = "A CEFR level is required." });
+
+        List<Lingual.Modules.Learning.Domain.VocabularyItem> items;
+        try
+        {
+            items = _learningDbContext.Database.IsRelational()
+                ? await _learningDbContext.VocabularyItems.AsNoTracking()
+                    .Where(word => word.Status == "published" && word.CefrLevel == normalizedLevel)
+                    .ToListAsync(cancellationToken)
+                : VocabularySeed.Words.Where(word => word.CefrLevel == normalizedLevel).ToList();
+        }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "⚠️ [ContentApi] Lỗi khi lấy danh sách từ vựng từ DB");
+            _logger.LogWarning(ex, "Could not load vocabulary chapters for {Level}.", normalizedLevel);
+            items = VocabularySeed.Words.Where(word => word.CefrLevel == normalizedLevel).ToList();
         }
+        if (items.Count == 0) items = VocabularySeed.Words.Where(word => word.CefrLevel == normalizedLevel).ToList();
 
-        var defaultVocab = new List<object>
-        {
-            new { id = "vocab-1", term = "breakfast", ipa = "/ˈbrek.fəst/", meaning = "Bữa sáng", part_of_speech = "noun" },
-            new { id = "vocab-2", term = "airport", ipa = "/ˈer.pɔːt/", meaning = "Sân bay", part_of_speech = "noun" },
-            new { id = "vocab-3", term = "coffee", ipa = "/ˈkɒf.i/", meaning = "Cà phê", part_of_speech = "noun" }
-        };
+        var chapters = items.GroupBy(VocabularyTopics.Classify)
+            .Select(group => new
+            {
+                id = group.Key.Id,
+                title = group.Key.Title,
+                description = group.Key.Description,
+                word_count = group.Count()
+            })
+            .OrderBy(chapter => chapter.id == "general" ? 1 : 0)
+            .ThenBy(chapter => chapter.title)
+            .ToList();
 
-        return Ok(new
-        {
-            total = defaultVocab.Count,
-            data = defaultVocab
-        });
+        return Ok(new { level = normalizedLevel, chapters });
     }
+
+    [HttpGet("vocabulary")]
+    public async Task<IActionResult> GetVocabulary([FromQuery] int limit = 50, [FromQuery] string? level = null, [FromQuery] string? q = null, [FromQuery] string? topic = null, CancellationToken cancellationToken = default)
+    {
+        limit = Math.Clamp(limit, 1, 6000);
+        var search = q?.Trim();
+        try
+        {
+            if (_learningDbContext.Database.IsRelational())
+            {
+                var query = _learningDbContext.VocabularyItems.Where(v => v.Status == "published");
+                if (!string.IsNullOrWhiteSpace(level)) query = query.Where(v => v.CefrLevel == level.ToUpperInvariant());
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var normalizedSearch = search.ToLowerInvariant();
+                    query = query.Where(v => v.Term.ToLower().Contains(normalizedSearch)
+                        || v.Meaning.ToLower().Contains(normalizedSearch)
+                        || (v.Ipa != null && v.Ipa.ToLower().Contains(normalizedSearch))
+                        || v.CefrLevel.ToLower().Contains(normalizedSearch));
+                    query = query.OrderByDescending(v => v.Term.ToLower() == normalizedSearch)
+                        .ThenByDescending(v => v.Term.ToLower().StartsWith(normalizedSearch))
+                        .ThenBy(v => v.Term);
+                }
+                else if (!string.IsNullOrWhiteSpace(topic))
+                {
+                    query = query.OrderBy(v => v.Term);
+                }
+                var items = await query.AsNoTracking().Take(string.IsNullOrWhiteSpace(topic) ? limit : 6000).ToListAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(topic)) items = items.Where(word => VocabularyTopics.Classify(word).Id == topic).Take(limit).ToList();
+                if (items.Count > 0)
+                {
+                    var words = items.Select(ToVocabularyDto).ToList();
+                    return Ok(new { total = words.Count, words, data = words });
+                }
+            }
+        }
+        catch (Exception ex) { _logger.LogWarning(ex, "Vocabulary database unavailable; using bundled starter data."); }
+        var seedWords = VocabularySeed.Words.Where(w => (string.IsNullOrWhiteSpace(level) || w.CefrLevel == level.ToUpperInvariant())
+            && (string.IsNullOrWhiteSpace(search) || w.Term.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || w.Meaning.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (w.Ipa?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+                || w.CefrLevel.Contains(search, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(topic) || VocabularyTopics.Classify(w).Id == topic))
+            .Take(limit).Select(ToVocabularyDto).ToList();
+        return Ok(new { total = seedWords.Count, words = seedWords, data = seedWords });
+    }
+
+    private static object ToVocabularyDto(Lingual.Modules.Learning.Domain.VocabularyItem v)
+    {
+        var examples = ParseExamples(v.Examples);
+        var topic = VocabularyTopics.Classify(v);
+        return new { id = v.Id.ToString(), term = v.Term, normalized_term = v.NormalizedTerm, source_language = v.SourceLanguage, target_language = v.TargetLanguage, ipa = v.Ipa, cefr_level = v.CefrLevel, topic_id = topic.Id, topic = topic.Title, meaning = v.Meaning, part_of_speech = v.PartOfSpeech ?? "noun", image_url = v.ImageUrl, pronunciation_audio_url = v.PronunciationAudioUrl, examples };
+    }
+
+    private static object[] ParseExamples(string json)
+    {
+        try { return JsonSerializer.Deserialize<object[]>(json) ?? Array.Empty<object>(); }
+        catch { return Array.Empty<object>(); }
+    }
+
+    private static int CountOrSeed(IReadOnlyDictionary<string, int> counts, string level, int seedCount) =>
+        counts.TryGetValue(level, out var count) && count > 0 ? count : seedCount;
 
     // ==========================================
     // HELPERS & RESOLVERS

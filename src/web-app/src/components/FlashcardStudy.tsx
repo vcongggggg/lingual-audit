@@ -31,7 +31,7 @@ export interface VocabularyItem {
   source_language: string;
   target_language: string;
   ipa?: string;
-  cefr_level?: "A1" | "A2";
+  cefr_level?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   part_of_speech?: string; // noun, verb, adjective, adverb...
   meaning: string;
   pronunciation_audio_url?: string;
