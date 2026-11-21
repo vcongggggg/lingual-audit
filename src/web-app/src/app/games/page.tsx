@@ -371,15 +371,17 @@ function ActiveGameArena({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dbData, setDbData] = useState<GameDataPayload | null>(null);
   const [gameOver, setGameOver] = useState(false);
+  const [replayKey, setReplayKey] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [finalAccuracy, setFinalAccuracy] = useState(100);
   const [earnedXp, setEarnedXp] = useState(25);
 
-  // Fetch live game data from Database on start
+  // Fetch live game data from Database on start / replay
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
     setLoadError(null);
+    setDbData(null);
 
     getGameData(game.apiKey, level === 'all' ? undefined : level)
       .then((res) => {
@@ -417,13 +419,14 @@ function ActiveGameArena({
     return () => {
       isMounted = false;
     };
-  }, [game.apiKey, level]);
+  }, [game.apiKey, level, replayKey]);
 
   const handleGameEnd = (
     score: number,
     accuracy: number,
     xp: number,
-    answersPayload?: { questionId: string; answer: string }[]
+    answersPayload?: { questionId: string; answer: string }[],
+    timeRemainingSeconds: number = 0
   ) => {
     if (!dbData?.attemptId) return;
 
@@ -431,23 +434,32 @@ function ActiveGameArena({
     setFinalAccuracy(accuracy);
     setEarnedXp(xp);
     setGameOver(true);
-    onFinish(score > 0, xp);
 
-    // Call backend submit with attemptId
+    // Call backend submit with attemptId and real player answers
     submitGameResult({
       attemptId: dbData.attemptId,
       gameType: game.apiKey,
-      timeRemainingSeconds: 0,
-      answers: answersPayload || [{ questionId: 'summary', answer: String(score) }],
+      timeRemainingSeconds: Math.max(0, Math.round(timeRemainingSeconds)),
+      answers: answersPayload && answersPayload.length > 0 ? answersPayload : [],
     })
       .then((res) => {
         if (res) {
+          const srvXp = res.xpEarned ?? xp;
+          const srvScore = res.score ?? score;
           if (res.xpEarned !== undefined) setEarnedXp(res.xpEarned);
           if (res.score !== undefined) setFinalScore(res.score);
+          if (res.accuracy !== undefined) {
+            const pct = res.accuracy <= 1 ? res.accuracy * 100 : res.accuracy;
+            setFinalAccuracy(Math.round(pct));
+          }
+          onFinish(srvScore > 0, srvXp);
+        } else {
+          onFinish(score > 0, xp);
         }
       })
       .catch((err) => {
         console.error('Failed to submit game result:', err);
+        onFinish(score > 0, xp);
       });
   };
 
@@ -502,7 +514,13 @@ function ActiveGameArena({
         </div>
 
         <div className="quiz-result-actions">
-          <button className="quiz-primary" onClick={() => setGameOver(false)}>
+          <button
+            className="quiz-primary"
+            onClick={() => {
+              setGameOver(false);
+              setReplayKey((k) => k + 1);
+            }}
+          >
             <RotateCcw size={15} /> Chơi lại lần nữa
           </button>
           <button className="quiz-secondary" onClick={onExit}>
@@ -547,7 +565,7 @@ function WordMatchEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[], timeRemainingSeconds?: number) => void;
   onExit: () => void;
 }) {
   const [timeLeft, setTimeLeft] = useState(60);
@@ -558,12 +576,16 @@ function WordMatchEngine({
   >([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mismatchIds, setMismatchIds] = useState<string[]>([]);
+  const matchedAnswersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const endedRef = useRef(false);
 
   // Init cards from DB items
   useEffect(() => {
     const rawItems = dbData?.items || [];
     if (rawItems.length === 0) return;
 
+    matchedAnswersRef.current = [];
+    endedRef.current = false;
     const generated: { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[] = [];
     rawItems.slice(0, 8).forEach((item) => {
       generated.push({ id: `en-${item.id}`, text: item.targetText, pairId: item.id, type: 'en', isMatched: false });
@@ -575,12 +597,15 @@ function WordMatchEngine({
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      onEnd(score, Math.min(100, Math.round((score / 200) * 100)), 25);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        onEnd(score, Math.min(100, Math.round((matchedAnswersRef.current.length / Math.max(cards.length / 2, 1)) * 100)), 25, matchedAnswersRef.current, 0);
+      }
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, onEnd]);
+  }, [timeLeft, score, cards.length, onEnd]);
 
   // Click card handler
   const handleCardClick = (cardId: string) => {
@@ -605,18 +630,24 @@ function WordMatchEngine({
 
     // Check if match
     if (prevCard.pairId === card.pairId && prevCard.type !== card.type) {
+      const viCard = prevCard.type === 'vi' ? prevCard : card;
+      if (!matchedAnswersRef.current.some((a) => a.questionId === card.pairId)) {
+        matchedAnswersRef.current = [...matchedAnswersRef.current, { questionId: card.pairId, answer: viCard.text }];
+      }
       setCards((all) =>
         all.map((c) => (c.pairId === card.pairId ? { ...c, isMatched: true } : c))
       );
       const newCombo = combo + 1;
+      const nextScore = score + 25 * Math.min(newCombo, 3);
       setCombo(newCombo);
-      setScore((s) => s + 25 * Math.min(newCombo, 3));
+      setScore(nextScore);
       setSelectedId(null);
 
       // Check if all matched
       const remaining = cards.filter((c) => !c.isMatched && c.pairId !== card.pairId);
-      if (remaining.length === 0) {
-        setTimeout(() => onEnd(score + 100, 100, 35), 400);
+      if (remaining.length === 0 && !endedRef.current) {
+        endedRef.current = true;
+        setTimeout(() => onEnd(nextScore, 100, 35, matchedAnswersRef.current, timeLeft), 400);
       }
     } else {
       setMismatchIds([selectedId, cardId]);
@@ -684,7 +715,7 @@ function ScrambleEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[], timeRemainingSeconds?: number) => void;
   onExit: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -693,14 +724,16 @@ function ScrambleEngine({
   const [slottedTokens, setSlottedTokens] = useState<string[]>([]);
   const [availableTokens, setAvailableTokens] = useState<{ id: string; text: string }[]>([]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const endedRef = useRef(false);
 
   const sentences = useMemo(() => {
     const fromDb = dbData?.questions || [];
     return fromDb.map((q) => ({
       id: q.id,
       prompt: q.prompt,
-      tokens: q.tokens || q.prompt.split(' '),
-      answer: q.prompt,
+      tokens: q.tokens || (q.answer || q.prompt).split(' '),
+      answer: q.answer || q.prompt,
     }));
   }, [dbData]);
 
@@ -720,12 +753,15 @@ function ScrambleEngine({
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      onEnd(score, 90, 30);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        onEnd(score, Math.round((answersRef.current.length / Math.max(sentences.length, 1)) * 100), 30, answersRef.current, 0);
+      }
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, onEnd]);
+  }, [timeLeft, score, sentences.length, onEnd]);
 
   const handleSlotToken = (item: { id: string; text: string }) => {
     setSlottedTokens((prev) => [...prev, item.text]);
@@ -739,16 +775,22 @@ function ScrambleEngine({
 
   const handleVerify = () => {
     if (!currentSentence) return;
-    const userAns = slottedTokens.join(' ').trim().toLowerCase();
+    const rawUserAns = slottedTokens.join(' ').trim();
+    const userAns = rawUserAns.toLowerCase();
     const correctAns = currentSentence.answer.trim().toLowerCase();
     const isCorrect = userAns === correctAns;
 
     if (isCorrect) {
       setFeedback('correct');
-      setScore((s) => s + 30);
+      const nextScore = score + 30;
+      setScore(nextScore);
+      answersRef.current = [...answersRef.current.filter((a) => a.questionId !== currentSentence.id), { questionId: currentSentence.id, answer: rawUserAns }];
       setTimeout(() => {
         if (currentIndex + 1 >= sentences.length) {
-          onEnd(score + 30, 100, 35);
+          if (!endedRef.current) {
+            endedRef.current = true;
+            onEnd(nextScore, 100, 35, answersRef.current, timeLeft);
+          }
         } else {
           setCurrentIndex((i) => i + 1);
         }
@@ -782,8 +824,8 @@ function ScrambleEngine({
 
       <div className="game-stage-box">
         <div className="sentence-prompt-text">
-          <p>Sắp xếp các từ thành câu đúng</p>
-          <h3>"{currentSentence.prompt}"</h3>
+          <p>Gợi ý nghĩa tiếng Việt — Sắp xếp thành câu tiếng Anh đúng</p>
+          <h3>“{currentSentence.prompt}”</h3>
         </div>
 
         <div
@@ -846,7 +888,7 @@ function TypingRaceEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[], timeRemainingSeconds?: number) => void;
   onExit: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -854,10 +896,13 @@ function TypingRaceEngine({
   const [score, setScore] = useState(0);
   const [inputVal, setInputVal] = useState('');
   const [wordsDone, setWordsDone] = useState(0);
+  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const endedRef = useRef(false);
 
   const wordList = useMemo(() => {
     const raw = dbData?.items || dbData?.words || [];
     return raw.map((w) => ({
+      id: w.id,
       en: w.targetText,
       ipa: w.phonetic || '',
       vi: w.translation,
@@ -869,12 +914,15 @@ function TypingRaceEngine({
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      onEnd(score, 100, 40);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        onEnd(score, Math.round((answersRef.current.length / Math.max(wordList.length, 1)) * 100), 40, answersRef.current, 0);
+      }
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, onEnd]);
+  }, [timeLeft, score, wordList.length, onEnd]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!currentWord) return;
@@ -882,10 +930,19 @@ function TypingRaceEngine({
     setInputVal(val);
 
     if (val.trim().toLowerCase() === currentWord.en.toLowerCase()) {
-      setScore((s) => s + 40);
+      const nextScore = score + 40;
+      setScore(nextScore);
       setWordsDone((w) => w + 1);
       setInputVal('');
-      setCurrentIndex((i) => i + 1);
+      answersRef.current = [...answersRef.current.filter((a) => a.questionId !== currentWord.id), { questionId: currentWord.id, answer: val.trim() }];
+      if (currentIndex + 1 >= wordList.length) {
+        if (!endedRef.current) {
+          endedRef.current = true;
+          onEnd(nextScore, 100, 40, answersRef.current, timeLeft);
+        }
+      } else {
+        setCurrentIndex((i) => i + 1);
+      }
     }
   };
 
@@ -943,7 +1000,7 @@ function ContextClozeEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[], timeRemainingSeconds?: number) => void;
   onExit: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -951,6 +1008,9 @@ function ContextClozeEngine({
   const [score, setScore] = useState(0);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const correctCountRef = useRef(0);
+  const endedRef = useRef(false);
 
   const questions = useMemo(() => {
     const raw = dbData?.questions || [];
@@ -976,9 +1036,8 @@ function ContextClozeEngine({
         id: q.id,
         prompt: q.prompt,
         choices: choicesArr,
-        correctIndex: 0,
+        correctAnswer: q.answer || '',
         level: q.level || 'A2',
-        explanation: 'Đáp án được kiểm tra trực tiếp qua máy chủ.',
       };
     });
   }, [dbData]);
@@ -988,7 +1047,11 @@ function ContextClozeEngine({
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      onEnd(score, 90, 20);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        const acc = Math.round((correctCountRef.current / Math.max(answersRef.current.length, 1)) * 100);
+        onEnd(score, acc, 20, answersRef.current, 0);
+      }
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
@@ -996,15 +1059,25 @@ function ContextClozeEngine({
   }, [timeLeft, score, onEnd]);
 
   const handleSelect = (idx: number) => {
-    if (selectedChoice !== null) return;
+    if (selectedChoice !== null || !currentQ) return;
     setSelectedChoice(idx);
     setShowExplanation(true);
-    setScore((s) => s + 20);
+    const chosenText = currentQ.choices[idx] || '';
+    answersRef.current = [...answersRef.current.filter((a) => a.questionId !== currentQ.id), { questionId: currentQ.id, answer: chosenText }];
+    const isRight = !currentQ.correctAnswer || chosenText.trim().toLowerCase() === currentQ.correctAnswer.trim().toLowerCase();
+    if (isRight) {
+      correctCountRef.current += 1;
+      setScore((s) => s + 20);
+    }
   };
 
   const handleNext = () => {
     if (currentIndex + 1 >= questions.length) {
-      onEnd(score, 95, 25);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        const acc = Math.round((correctCountRef.current / Math.max(questions.length, 1)) * 100);
+        onEnd(score, acc, 25, answersRef.current, timeLeft);
+      }
     } else {
       setCurrentIndex((i) => i + 1);
       setSelectedChoice(null);
@@ -1044,18 +1117,22 @@ function ContextClozeEngine({
         <div className="quiz-options">
           {currentQ.choices.map((choice, idx) => {
             const isChosen = selectedChoice === idx;
+            const isRightChoice = Boolean(currentQ.correctAnswer) && choice.trim().toLowerCase() === currentQ.correctAnswer.trim().toLowerCase();
+            const showRight = selectedChoice !== null && (currentQ.correctAnswer ? isRightChoice : isChosen);
+            const showWrong = isChosen && Boolean(currentQ.correctAnswer) && !isRightChoice;
             return (
               <button
                 key={idx}
                 disabled={selectedChoice !== null}
-                className={isChosen ? 'is-right' : ''}
+                className={`${showRight ? 'is-right' : ''} ${showWrong ? 'is-chosen' : ''}`}
                 onClick={() => handleSelect(idx)}
               >
                 <span className="quiz-option-key">
                   {String.fromCharCode(65 + idx)}
                 </span>
                 <span>{choice}</span>
-                {isChosen && <Check size={16} className="text-[#315d1d]" />}
+                {showRight && <Check size={16} className="text-[#315d1d]" />}
+                {showWrong && <X size={16} className="text-[#b4422e]" />}
               </button>
             );
           })}
@@ -1063,8 +1140,8 @@ function ContextClozeEngine({
 
         {showExplanation && (
           <div className="quiz-explanation">
-            <strong>Thông tin câu hỏi:</strong>
-            <p>{currentQ.explanation}</p>
+            <strong>{currentQ.correctAnswer ? `Đáp án đúng: ${currentQ.correctAnswer}` : 'Đã ghi nhận đáp án:'}</strong>
+            <p>Điểm số và XP cuối cùng sẽ được máy chủ xác thực khi kết thúc lượt chơi.</p>
           </div>
         )}
 
@@ -1090,13 +1167,16 @@ function AudioReflexEngine({
   onExit,
 }: {
   dbData: GameDataPayload | null;
-  onEnd: (score: number, accuracy: number, xp: number) => void;
+  onEnd: (score: number, accuracy: number, xp: number, answersPayload?: { questionId: string; answer: string }[], timeRemainingSeconds?: number) => void;
   onExit: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const correctCountRef = useRef(0);
+  const endedRef = useRef(false);
 
   const questions = useMemo(() => {
     const raw = dbData?.questions || [];
@@ -1109,16 +1189,16 @@ function AudioReflexEngine({
           rawChoices = rawChoices.split(',');
         }
       }
-      const choicesList = Array.isArray(rawChoices)
+      const choicesList: { label: string; targetText: string }[] = Array.isArray(rawChoices)
         ? rawChoices.map((c: any) =>
-            typeof c === 'object' && c !== null ? c.translation || c.targetText : String(c)
+            typeof c === 'object' && c !== null
+              ? { label: c.translation || c.targetText || '', targetText: c.targetText || c.translation || '' }
+              : { label: String(c), targetText: String(c) }
           )
         : [];
 
-      const correctObj = Array.isArray(rawChoices)
-        ? rawChoices.find((c: any) => typeof c === 'object' && c !== null && c.targetText === q.audioText)
-        : null;
-      const correctChoice = correctObj?.translation || choicesList[0] || 'đúng';
+      const correctObj = choicesList.find((c) => c.targetText === q.audioText);
+      const correctChoice = correctObj?.label || choicesList[0]?.label || 'đúng';
 
       return {
         id: q.id,
@@ -1151,7 +1231,11 @@ function AudioReflexEngine({
   // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) {
-      onEnd(score, 90, 35);
+      if (!endedRef.current) {
+        endedRef.current = true;
+        const acc = Math.round((correctCountRef.current / Math.max(answersRef.current.length, 1)) * 100);
+        onEnd(score, acc, 35, answersRef.current, 0);
+      }
       return;
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
@@ -1162,12 +1246,24 @@ function AudioReflexEngine({
     if (selectedIdx !== null || !currentQ) return;
     setSelectedIdx(idx);
 
-    const isMatch = currentQ.choices[idx] === currentQ.correctChoice;
-    if (isMatch) setScore((s) => s + 35);
+    const chosen = currentQ.choices[idx];
+    if (chosen) {
+      answersRef.current = [...answersRef.current.filter((a) => a.questionId !== currentQ.id), { questionId: currentQ.id, answer: chosen.targetText }];
+    }
+    const isMatch = chosen?.label === currentQ.correctChoice;
+    const nextScore = isMatch ? score + 35 : score;
+    if (isMatch) {
+      correctCountRef.current += 1;
+      setScore(nextScore);
+    }
 
     setTimeout(() => {
       if (currentIndex + 1 >= questions.length) {
-        onEnd(score + 35, 100, 35);
+        if (!endedRef.current) {
+          endedRef.current = true;
+          const acc = Math.round((correctCountRef.current / Math.max(questions.length, 1)) * 100);
+          onEnd(nextScore, acc, 35, answersRef.current, timeLeft);
+        }
       } else {
         setCurrentIndex((i) => i + 1);
       }
@@ -1211,9 +1307,9 @@ function AudioReflexEngine({
         <p className="text-xs text-[#8a897f] mb-6">Bấm vào biểu tượng loa để nghe lại âm thanh</p>
 
         <div className="quiz-options">
-          {currentQ.choices.map((opt: string, idx: number) => {
-            const isRight = selectedIdx !== null && opt === currentQ.correctChoice;
-            const isWrong = selectedIdx === idx && opt !== currentQ.correctChoice;
+          {currentQ.choices.map((opt, idx: number) => {
+            const isRight = selectedIdx !== null && opt.label === currentQ.correctChoice;
+            const isWrong = selectedIdx === idx && opt.label !== currentQ.correctChoice;
             return (
               <button
                 key={idx}
@@ -1222,7 +1318,7 @@ function AudioReflexEngine({
                 onClick={() => handleChoose(idx)}
               >
                 <span className="quiz-option-key">{idx + 1}</span>
-                <span>{opt}</span>
+                <span>{opt.label}</span>
               </button>
             );
           })}

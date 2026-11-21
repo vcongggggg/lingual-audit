@@ -278,7 +278,7 @@ export interface GameDataPayload {
   attemptId?: string;
   gameType?: string;
   items?: { id: string; targetText: string; translation: string; phonetic?: string; cefrLevel?: string }[];
-  questions?: { id: string; prompt: string; tokens?: string[]; choices?: string[]; level?: string; audioText?: string }[];
+  questions?: { id: string; prompt: string; answer?: string; tokens?: string[]; choices?: string[]; level?: string; audioText?: string }[];
   words?: { id: string; targetText: string; phonetic?: string; translation: string; cefrLevel?: string }[];
   id?: string;
   prompt?: string;

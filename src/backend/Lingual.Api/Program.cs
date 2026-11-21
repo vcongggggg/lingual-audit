@@ -109,14 +109,26 @@ if (args.Contains("--migrate"))
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE TABLE IF NOT EXISTS user_badges (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id UUID NOT NULL,
                 badge_id VARCHAR(64) NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
                 is_unlocked BOOLEAN NOT NULL DEFAULT FALSE,
                 current_progress INTEGER NOT NULL DEFAULT 0,
                 unlocked_at TIMESTAMPTZ,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (user_id, badge_id)
-            );");
+                CONSTRAINT uq_user_badge UNIQUE (user_id, badge_id)
+            );
+            ALTER TABLE IF EXISTS user_badges ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+            UPDATE user_badges SET id = gen_random_uuid() WHERE id IS NULL;
+            INSERT INTO badges (id, name, category, rarity, icon, description, max_progress, xp_reward, lore)
+            VALUES
+                ('b-1', 'Kỷ Lục Gia Streak', 'streak', 'legendary', '🔥', 'Duy trì chuỗi học liên tục trong 14 ngày không đứt quãng.', 14, 500, 'Ngọn lửa kiên trì rực cháy thắp sáng con đường làm chủ ngoại ngữ.'),
+                ('b-2', 'Kho Báu Từ Vựng', 'vocabulary', 'epic', '📚', 'Thành thạo vượt mốc 200 từ vựng A1-A2 theo thuật toán SRS SM-2.', 200, 350, 'Một trí tuệ sắc bén lưu giữ hàng trăm từ ngữ sống động.'),
+                ('b-3', 'Bất Khả Chiến Bại', 'speed', 'rare', '⚡', 'Hoàn thành xuất sắc 5 bài kiểm tra hoặc mini-game.', 5, 250, 'Tốc độ và sự chuẩn xác kết hợp tạo nên phản xạ phi thường.'),
+                ('b-4', 'Chiến Hữu Mezon', 'social', 'common', '🛡️', 'Tích lũy 1,000 XP cùng cộng đồng học tập Mezon.', 1000, 150, 'Sức mạnh tập thể nâng bước từng cá nhân vươn lên đỉnh vinh quang.'),
+                ('b-5', 'Đại Sứ Học Thuật', 'vocabulary', 'epic', '🎯', 'Hoàn thành toàn bộ gói từ vựng 500 từ cốt lõi.', 500, 750, 'Mục tiêu tối thượng của bất kỳ học giả ngôn ngữ nào trên Mezon.'),
+                ('b-6', 'Đấu Vương Game Center', 'speed', 'legendary', '👑', 'Chiến thắng 20 lượt chơi trong Game Center.', 20, 1000, 'Huyền thoại đấu trường trí tuệ được tôn kính trong toàn server Mezon.')
+            ON CONFLICT (id) DO NOTHING;");
     }
 
     Console.WriteLine("\n==========================================================");

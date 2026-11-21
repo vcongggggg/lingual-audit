@@ -133,6 +133,7 @@ public class GameService : IGameService
                     {
                         id = q.Id,
                         prompt = q.Prompt,
+                        answer = q.Answer,
                         tokens,
                         level = q.Level
                     };
@@ -225,6 +226,7 @@ public class GameService : IGameService
                     {
                         id = q.Id,
                         prompt = q.Prompt,
+                        answer = q.Answer,
                         choices,
                         level = q.Level
                     };

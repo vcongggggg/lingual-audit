@@ -204,7 +204,7 @@ export default function ArenaPage() {
             <button className="arena-primary-button" onClick={startMatch} disabled={isSearching}>
               {isSearching ? <><LoaderCircle className="spin" size={17} /> {t("Đang tìm đối thủ…", "Finding opponent…")}</> : <><Zap size={17} /> {t("Tìm đối thủ", "Find opponent")}</>}
             </button>
-            <div className="arena-lobby-stats"><span><UsersIcon /> 128 người đang online</span><span><Gauge size={14} /> Ping trung bình 32ms</span></div>
+            <div className="arena-lobby-stats"><span><UsersIcon /> {t("Chế độ luyện tập với Bot", "Bot practice mode")}</span><span><Gauge size={14} /> {t("Phản hồi LingLing AI tức thì", "Instant LingLing AI feedback")}</span></div>
           </div>
           <aside className="arena-rules">
             <p className="arena-eyebrow">{t("LUẬT ARENA", "ARENA RULES")}</p>

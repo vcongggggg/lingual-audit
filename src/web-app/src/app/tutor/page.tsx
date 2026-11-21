@@ -108,6 +108,7 @@ export default function TutorPage() {
   const [loading, setLoading] = useState(false);
   const [mascotMood, setMascotMood] = useState<MascotMood>("idle");
   const [activeTab, setActiveTab] = useState<"roleplay" | "grammar">("roleplay");
+  const chatStreamRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load scenarios on mount
@@ -155,9 +156,14 @@ export default function TutorPage() {
     }
   }, [selectedScenario, activeTab]);
 
-  // Auto scroll to bottom
+  // Auto scroll inside the chat stream only after user interaction (never yank the page on initial mount)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 1 || loading) {
+      const container = chatStreamRef.current;
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      }
+    }
   }, [messages, loading]);
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -384,7 +390,7 @@ export default function TutorPage() {
         </div>
 
         {/* Message Stream */}
-        <div className="chat-messages-stream">
+        <div className="chat-messages-stream" ref={chatStreamRef}>
           {messages.map((msg) => (
             <div key={msg.id} className={`chat-bubble-row ${msg.sender === "user" ? "is-user" : "is-bot"}`}>
               {msg.sender === "bot" && (

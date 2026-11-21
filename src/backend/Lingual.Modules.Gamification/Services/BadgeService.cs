@@ -35,6 +35,40 @@ public class BadgeService(
         int currentStreak = streak?.CurrentDays ?? 0;
         int bestStreak = Math.Max(currentStreak, streak?.BestDays ?? 0);
 
+        int quizzesCompleted = await dbContext.XpLedgers.AsNoTracking()
+            .CountAsync(x => x.UserId == userId &&
+                (x.SourceType == "quiz" ||
+                 x.SourceType == "quiz_attempt" ||
+                 x.SourceType == "clan_quiz" ||
+                 x.SourceType.StartsWith("game_")), cancellationToken);
+
+        int gameWins = await dbContext.GameSessions.AsNoTracking()
+            .CountAsync(g => g.UserId == userId && g.Score > 0, cancellationToken);
+
+        int wordsLearned = 0;
+        if (dbContext.Database.IsRelational())
+        {
+            try
+            {
+                var conn = dbContext.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    await conn.OpenAsync(cancellationToken);
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM srs_cards WHERE user_id = @userId AND suspended_at IS NULL";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@userId";
+                p.Value = userId;
+                cmd.Parameters.Add(p);
+                var scalar = await cmd.ExecuteScalarAsync(cancellationToken);
+                if (scalar != null && scalar != DBNull.Value)
+                    wordsLearned = Convert.ToInt32(scalar);
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Could not count srs_cards for badge evaluation of user {UserId}", userId);
+            }
+        }
+
         var resultList = new List<BadgeDto>();
         bool hasChanges = false;
 
@@ -50,49 +84,33 @@ public class BadgeService(
             {
                 case "b-1": // Kỷ Lục Gia Streak
                     progress = Math.Max(progress, bestStreak);
-                    if (progress >= badge.MaxProgress)
-                    {
-                        isUnlocked = true;
-                        unlockedDate ??= "Hôm qua";
-                    }
                     break;
 
                 case "b-2": // Kho Báu Từ Vựng (A1-A2)
-                    progress = Math.Max(progress, 205);
-                    if (progress >= badge.MaxProgress)
-                    {
-                        isUnlocked = true;
-                        unlockedDate ??= "13/10/2026";
-                    }
+                    progress = Math.Max(progress, wordsLearned);
                     break;
 
                 case "b-3": // Bất Khả Chiến Bại
-                    progress = Math.Max(progress, 5);
-                    if (progress >= badge.MaxProgress)
-                    {
-                        isUnlocked = true;
-                        unlockedDate ??= "11/10/2026";
-                    }
+                    progress = Math.Max(progress, quizzesCompleted);
                     break;
 
-                case "b-4": // Chiến Hữu Mezon (XP tuần)
-                    progress = Math.Max(progress, totalXp > 0 ? totalXp : 5000);
-                    if (progress >= badge.MaxProgress)
-                    {
-                        isUnlocked = true;
-                        unlockedDate ??= "08/10/2026";
-                    }
+                case "b-4": // Chiến Hữu Mezon (XP tích lũy)
+                    progress = Math.Max(progress, totalXp);
                     break;
 
                 case "b-5": // Đại Sứ Học Thuật
-                    progress = Math.Max(progress, 205);
-                    isUnlocked = progress >= badge.MaxProgress;
+                    progress = Math.Max(progress, wordsLearned);
                     break;
 
-                case "b-6": // Đấu Vương Thời Gian Thực
-                    progress = Math.Max(progress, 13);
-                    isUnlocked = progress >= badge.MaxProgress;
+                case "b-6": // Đấu Vương Game Center / Thời Gian Thực
+                    progress = Math.Max(progress, gameWins);
                     break;
+            }
+
+            if (progress >= badge.MaxProgress && badge.MaxProgress > 0)
+            {
+                isUnlocked = true;
+                unlockedDate ??= DateTime.UtcNow.ToString("dd/MM/yyyy");
             }
 
             // Đồng bộ trạng thái vào DB nếu có cập nhật mới
