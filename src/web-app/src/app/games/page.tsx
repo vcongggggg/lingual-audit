@@ -724,6 +724,7 @@ function ScrambleEngine({
   const [slottedTokens, setSlottedTokens] = useState<string[]>([]);
   const [availableTokens, setAvailableTokens] = useState<{ id: string; text: string }[]>([]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
   const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
   const endedRef = useRef(false);
 
@@ -748,6 +749,7 @@ function ScrambleEngine({
     setAvailableTokens(shuffled);
     setSlottedTokens([]);
     setFeedback(null);
+    setWrongAttempts(0);
   }, [currentIndex, currentSentence]);
 
   // Timer countdown
@@ -764,13 +766,35 @@ function ScrambleEngine({
   }, [timeLeft, score, sentences.length, onEnd]);
 
   const handleSlotToken = (item: { id: string; text: string }) => {
+    setFeedback(null);
     setSlottedTokens((prev) => [...prev, item.text]);
     setAvailableTokens((prev) => prev.filter((t) => t.id !== item.id));
   };
 
   const handleUnslotToken = (text: string, index: number) => {
+    setFeedback(null);
     setSlottedTokens((prev) => prev.filter((_, i) => i !== index));
     setAvailableTokens((prev) => [...prev, { id: `${Date.now()}-${text}`, text }]);
+  };
+
+  const handleResetSentence = () => {
+    if (!currentSentence) return;
+    setAvailableTokens(
+      [...currentSentence.tokens].map((t, idx) => ({ id: `${Date.now()}-${idx}-${t}`, text: t })).sort(() => 0.5 - Math.random())
+    );
+    setSlottedTokens([]);
+    setFeedback(null);
+  };
+
+  const handleSkipSentence = () => {
+    if (currentIndex + 1 >= sentences.length) {
+      if (!endedRef.current) {
+        endedRef.current = true;
+        onEnd(score, Math.round((answersRef.current.length / Math.max(sentences.length, 1)) * 100), 30, answersRef.current, timeLeft);
+      }
+    } else {
+      setCurrentIndex((i) => i + 1);
+    }
   };
 
   const handleVerify = () => {
@@ -794,14 +818,18 @@ function ScrambleEngine({
         } else {
           setCurrentIndex((i) => i + 1);
         }
-      }, 800);
+      }, 750);
     } else {
+      setWrongAttempts((n) => n + 1);
       setFeedback('wrong');
-      setTimeout(() => setFeedback(null), 1000);
     }
   };
 
   if (!currentSentence) return null;
+
+  const answerWords = currentSentence.answer.trim().split(/\s+/);
+  const firstWord = answerWords[0] || '';
+  const lastWord = answerWords[answerWords.length - 1] || '';
 
   return (
     <div>
@@ -831,9 +859,9 @@ function ScrambleEngine({
         <div
           className={`sentence-drop-area ${
             feedback === 'correct'
-              ? 'border-[#70a83b] bg-[#f5ffe9]'
+              ? 'is-correct'
               : feedback === 'wrong'
-              ? 'border-[#d5684f] bg-[#fff4ef]'
+              ? 'is-wrong'
               : ''
           }`}
         >
@@ -852,6 +880,21 @@ function ScrambleEngine({
           )}
         </div>
 
+        {feedback === 'correct' && (
+          <div className="sentence-feedback-msg is-correct">
+            Chính xác! +30 điểm — Đang chuyển sang câu tiếp theo...
+          </div>
+        )}
+        {feedback === 'wrong' && (
+          <div className="sentence-feedback-msg is-wrong">
+            {availableTokens.length > 0
+              ? `Bạn chưa xếp hết các từ (còn ${availableTokens.length} từ bên dưới).`
+              : wrongAttempts >= 2
+              ? `Thứ tự chưa khớp đáp án chuẩn — Gợi ý: câu bắt đầu bằng "${firstWord}" và kết thúc bằng "${lastWord}".`
+              : 'Thứ tự từ chưa đúng đáp án chuẩn. Bấm vào từ ở khung trên để gỡ ra và xếp lại!'}
+          </div>
+        )}
+
         <div className="sentence-token-pool">
           {availableTokens.map((item) => (
             <button
@@ -864,13 +907,30 @@ function ScrambleEngine({
           ))}
         </div>
 
-        <div className="flex justify-center mt-6">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
           <button
+            type="button"
+            className="quiz-secondary"
+            disabled={slottedTokens.length === 0}
+            onClick={handleResetSentence}
+          >
+            <RotateCcw size={15} /> Xếp lại
+          </button>
+          <button
+            type="button"
             className="quiz-primary"
+            style={{ marginLeft: 0 }}
             disabled={slottedTokens.length === 0}
             onClick={handleVerify}
           >
             <Check size={16} /> Kiểm tra câu
+          </button>
+          <button
+            type="button"
+            className="quiz-secondary"
+            onClick={handleSkipSentence}
+          >
+            Bỏ qua <ArrowRight size={15} />
           </button>
         </div>
       </div>

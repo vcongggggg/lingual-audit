@@ -557,7 +557,50 @@
   border: 2px dashed #d7ddca;
   border-radius: 14px;
   background: #fffefa;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.sentence-drop-area.is-correct {
+  border-style: solid;
+  border-color: #70a83b;
+  background: #f5ffe9;
+}
+
+.sentence-drop-area.is-wrong {
+  border-style: solid;
+  border-color: #d5684f;
+  background: #fff4ef;
+  animation: scramble-shake 320ms ease;
+}
+
+@keyframes scramble-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-4px); }
+}
+
+.sentence-feedback-msg {
+  margin: 0 auto 18px;
+  padding: 10px 14px;
+  max-width: 620px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.sentence-feedback-msg.is-correct {
+  background: #eef8e2;
+  border: 1px solid #a9cf7c;
+  color: #315d1d;
+}
+
+.sentence-feedback-msg.is-wrong {
+  background: #fff1ec;
+  border: 1px solid #e5a08c;
+  color: #a83c28;
 }
 
 .sentence-token-pool {
