@@ -335,6 +335,7 @@ public class LeaderboardService(
                 }
 
                 var existing = await dbContext.WeeklyLeaderboards
+                    .AsTracking()
                     .FirstOrDefaultAsync(w => w.WeekStart == weekStart && w.UserId == userId, cancellationToken);
 
                 if (existing == null)
@@ -428,7 +429,14 @@ public class LeaderboardService(
             foreach (var item in seedData)
             {
                 result.Add((item.UserId, item.TotalXp));
-                await redisService.SortedSetAddAsync(key, item.UserId, item.TotalXp);
+                try
+                {
+                    await redisService.SortedSetAddAsync(key, item.UserId, item.TotalXp);
+                }
+                catch
+                {
+                    // Redis offline: still return hydrated PostgreSQL entries immediately
+                }
             }
 
             return result;

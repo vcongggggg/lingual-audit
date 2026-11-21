@@ -63,15 +63,16 @@ export default function ArenaPage() {
   const answeredCount = reviews.length;
   const accuracy = answeredCount === 0 ? 0 : Math.round((score / answeredCount) * 100);
 
-  const finishMatch = useCallback(() => {
+  const finishMatch = useCallback((finalPlayerScore?: number) => {
+    const resolvedScore = finalPlayerScore ?? score;
     setPhase("finished");
     setSelectedAnswer(null);
     setLingLingNote(
-      score >= opponentScore
+      resolvedScore >= opponentScore
         ? t("Bạn thắng nhờ giữ nhịp ổn định. Hãy xem lại các từ chưa chắc để tăng độ bền ghi nhớ.", "You won by keeping a steady rhythm. Review uncertain words to strengthen recall.")
         : t("Đối thủ nhanh hơn một nhịp. Mình đã đánh dấu các từ cần ôn lại ngay sau trận.", "Your opponent was one step faster. I marked the words to review after the match."),
     );
-  }, [opponentScore, score]);
+  }, [opponentScore, score, t]);
 
   useEffect(() => {
     if (phase !== "countdown") return;
@@ -142,8 +143,9 @@ export default function ArenaPage() {
   const chooseAnswer = (answer: string) => {
     if (phase !== "playing" || selectedAnswer) return;
     const correct = answer === question.answer;
+    const nextScore = score + (correct ? 1 : 0);
     setSelectedAnswer(answer);
-    setScore((value) => value + (correct ? 1 : 0));
+    setScore(nextScore);
     setReviews((items) => [...items, { questionId: question.id, selected: answer, correct }]);
     setLingLingNote(
       correct
@@ -151,7 +153,7 @@ export default function ArenaPage() {
         : t(`Mình ghi nhận lỗi "${question.prompt}". Đáp án đúng là "${question.answer}".`, `I noted a mistake with "${question.prompt}". The correct answer is "${question.answer}".`),
     );
     window.setTimeout(() => {
-      if (questionIndex >= QUESTIONS.length - 1) finishMatch();
+      if (questionIndex >= QUESTIONS.length - 1) finishMatch(nextScore);
       else {
         setQuestionIndex((index) => index + 1);
         setSelectedAnswer(null);
@@ -189,7 +191,7 @@ export default function ArenaPage() {
           <h1>{t("Đấu trường Arena", "Arena duel")}</h1>
           <p>{t("Đấu 1vs1 từ vựng thời gian thực, phản xạ nhanh hơn và học sâu hơn sau mỗi lượt.", "Compete in a real-time 1v1 vocabulary duel, react faster, and learn more deeply each round.")}</p>
         </div>
-        <div className="arena-live-badge"><Radio size={14} /> {t("Máy chủ ổn định", "Server stable")} <strong>24ms</strong></div>
+        <div className="arena-live-badge"><Radio size={14} /> {t("Bản mô phỏng Bot (SignalR PvP đang phát triển)", "Bot Simulation Preview (SignalR PvP in progress)")}</div>
       </header>
 
       {phase === "lobby" && (

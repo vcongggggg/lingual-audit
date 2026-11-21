@@ -439,9 +439,7 @@ public class GeminiAITutorService : IAITutorService
             // Kiểm tra quyền sở hữu cuộc trò chuyện nếu mezonUserId được cung cấp
             if (!string.IsNullOrWhiteSpace(mezonUserId))
             {
-                using var sha256 = SHA256.Create();
-                var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
-                var callerUserId = new Guid(hash.AsSpan(0, 16));
+                var callerUserId = await ResolveConversationUserIdAsync(dbContext, mezonUserId, cancellationToken);
                 var defaultGuestId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
                 if (conv.UserId != callerUserId && conv.UserId != defaultGuestId && conv.UserId != Guid.Empty)
@@ -489,17 +487,7 @@ public class GeminiAITutorService : IAITutorService
                 return;
             }
 
-            var userId = Guid.Empty;
-            if (!string.IsNullOrWhiteSpace(mezonUserId))
-            {
-                using var sha256 = SHA256.Create();
-                var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
-                userId = new Guid(hash.AsSpan(0, 16));
-            }
-            if (userId == Guid.Empty)
-            {
-                userId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            }
+            var userId = await ResolveConversationUserIdAsync(dbContext, mezonUserId, cancellationToken);
 
             var newTurns = new[]
             {
@@ -511,9 +499,11 @@ public class GeminiAITutorService : IAITutorService
             if (dbContext.Database.IsRelational())
             {
                 // Concurrency an toàn trên PostgreSQL: Sử dụng toán tử JSONB concatenation nguyên tử (||)
+                // Truyền mảng object[] tường minh để cancellationToken không bị đóng gói nhầm vào params object[]
                 var affected = await dbContext.Database.ExecuteSqlRawAsync(
                     "UPDATE ai_conversations SET messages = messages || {0}::jsonb, model_name = {1}, total_tokens = total_tokens + {2}, ended_at = now() WHERE id = {3}",
-                    newTurnsJson, modelName, totalTokens, conversationId, cancellationToken);
+                    new object[] { newTurnsJson, modelName, totalTokens, conversationId },
+                    cancellationToken);
 
                 if (affected == 0)
                 {
@@ -576,6 +566,63 @@ public class GeminiAITutorService : IAITutorService
         {
             _logger.LogWarning(ex, "⚠️ [GeminiAITutor] Không thể lưu lịch sử hội thoại roleplay vào database.");
         }
+    }
+
+    private static async Task<Guid> ResolveConversationUserIdAsync(
+        AITutorDbContext dbContext,
+        string? mezonUserId,
+        CancellationToken cancellationToken)
+    {
+        var defaultGuestId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        if (string.IsNullOrWhiteSpace(mezonUserId))
+        {
+            return defaultGuestId;
+        }
+
+        if (dbContext.Database.IsRelational())
+        {
+            try
+            {
+                var conn = dbContext.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                {
+                    await conn.OpenAsync(cancellationToken);
+                }
+
+                await using var cmd = conn.CreateCommand();
+                if (Guid.TryParse(mezonUserId, out var parsedGuid))
+                {
+                    cmd.CommandText = "SELECT id FROM users WHERE id = @uid OR mezon_user_id = @mid LIMIT 1";
+                    var pUid = cmd.CreateParameter();
+                    pUid.ParameterName = "@uid";
+                    pUid.Value = parsedGuid;
+                    cmd.Parameters.Add(pUid);
+                }
+                else
+                {
+                    cmd.CommandText = "SELECT id FROM users WHERE mezon_user_id = @mid LIMIT 1";
+                }
+
+                var pMid = cmd.CreateParameter();
+                pMid.ParameterName = "@mid";
+                pMid.Value = mezonUserId;
+                cmd.Parameters.Add(pMid);
+
+                var scalar = await cmd.ExecuteScalarAsync(cancellationToken);
+                if (scalar is Guid dbUserId)
+                {
+                    return dbUserId;
+                }
+            }
+            catch
+            {
+                // Fall back to deterministic hash if users table unavailable
+            }
+        }
+
+        using var sha256 = SHA256.Create();
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes($"mezon_user_{mezonUserId}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     private List<string> GetCandidateModels() =>

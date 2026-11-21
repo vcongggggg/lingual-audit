@@ -383,6 +383,11 @@ public class GameService : IGameService
             throw new InvalidOperationException("Phiên chơi không hợp lệ hoặc đã nộp điểm trước đó.");
         }
 
+        if (attempt.UserId != userId)
+        {
+            throw new InvalidOperationException("Phiên chơi không thuộc về người dùng này.");
+        }
+
         // Anti-cheat physical timing check: minimum 2 seconds
         var durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - attempt.StartedAt).TotalSeconds);
         if (durationSeconds < 2)
@@ -407,6 +412,26 @@ public class GameService : IGameService
         int maxConsecutive = 0;
         int curConsecutive = 0;
 
+        // Deduplicate submitted answers by QuestionId to prevent replay/inflation exploits
+        var submittedAnswers = new List<GameAnswerSubmissionDto>();
+        var seenQuestionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (request.Answers != null)
+        {
+            foreach (var ans in request.Answers)
+            {
+                if (gameType == "lingo_wordle")
+                {
+                    submittedAnswers.Add(ans);
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(ans.QuestionId) || !seenQuestionIds.Add(ans.QuestionId.Trim()))
+                {
+                    continue;
+                }
+                submittedAnswers.Add(ans);
+            }
+        }
+
         switch (gameType)
         {
             case "word_match":
@@ -421,7 +446,7 @@ public class GameService : IGameService
                     groundTruth[p.GetProperty("id").GetString() ?? ""] = p.GetProperty("translation").GetString() ?? "";
                 }
 
-                foreach (var ans in request.Answers)
+                foreach (var ans in submittedAnswers)
                 {
                     if (groundTruth.TryGetValue(ans.QuestionId, out var expected) &&
                         string.Equals(expected.Trim(), ans.Answer.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -450,7 +475,7 @@ public class GameService : IGameService
                     q => q.GetProperty("answer").GetString() ?? "",
                     StringComparer.OrdinalIgnoreCase);
 
-                foreach (var ans in request.Answers)
+                foreach (var ans in submittedAnswers)
                 {
                     if (groundTruth.TryGetValue(ans.QuestionId, out var expected))
                     {
@@ -489,7 +514,7 @@ public class GameService : IGameService
                     w => w.GetProperty("targetText").GetString() ?? "",
                     StringComparer.OrdinalIgnoreCase);
 
-                foreach (var ans in request.Answers)
+                foreach (var ans in submittedAnswers)
                 {
                     if (groundTruth.TryGetValue(ans.QuestionId, out var expected) &&
                         string.Equals(expected.Trim(), ans.Answer.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -518,7 +543,7 @@ public class GameService : IGameService
                     q => q.GetProperty("answer").GetString() ?? "",
                     StringComparer.OrdinalIgnoreCase);
 
-                foreach (var ans in request.Answers)
+                foreach (var ans in submittedAnswers)
                 {
                     if (groundTruth.TryGetValue(ans.QuestionId, out var expected) &&
                         string.Equals(expected.Trim(), ans.Answer.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -547,7 +572,7 @@ public class GameService : IGameService
                     q => q.GetProperty("answer").GetString() ?? "",
                     StringComparer.OrdinalIgnoreCase);
 
-                foreach (var ans in request.Answers)
+                foreach (var ans in submittedAnswers)
                 {
                     if (groundTruth.TryGetValue(ans.QuestionId, out var expected) &&
                         string.Equals(expected.Trim(), ans.Answer.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -571,7 +596,7 @@ public class GameService : IGameService
                 var secretWord = doc.RootElement.GetProperty("secretWord").GetString() ?? "";
                 totalQuestions = 1;
 
-                bool won = request.Answers.Any(a => string.Equals(a.Answer.Trim(), secretWord, StringComparison.OrdinalIgnoreCase));
+                bool won = submittedAnswers.Any(a => string.Equals(a.Answer.Trim(), secretWord, StringComparison.OrdinalIgnoreCase));
                 if (won)
                 {
                     correctCount = 1;

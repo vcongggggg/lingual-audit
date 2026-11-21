@@ -30,7 +30,7 @@ public class GamificationEndpoints : IEndpointBase
         .WithDescription("Cộng điểm thưởng idempotent, cập nhật Redis Leaderboard và chuỗi Streak.")
         .Produces<AwardXpResult>(StatusCodes.Status200OK)
         .Produces<AwardXpResult>(StatusCodes.Status400BadRequest)
-        .AllowAnonymous();
+        .RequireAuthorization();
         // 2. User Profile & Achievements Summary API
         group.MapGet("/profile/summary", async (
             [FromQuery] Guid? userId,

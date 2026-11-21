@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Lingual.Infrastructure;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Infrastructure.RateLimiter;
@@ -50,9 +51,6 @@ builder.Services.AddHealthChecks();
 // Mezon Bot Module (Mezon.Net.Sdk 1.7.0)
 builder.Services.AddMezonBotModule(builder.Configuration);
 
-// AI Tutor Module (Google Gemini API)
-builder.Services.AddAITutorModule(builder.Configuration);
-
 // CORS for Next.js Web App & Mezon Client
 builder.Services.AddCors(options =>
 {
@@ -87,6 +85,39 @@ if (args.Contains("--migrate"))
     await app.Services.MigrateDbContextAsync<GamificationDbContext>("GamificationDbContext");
     await app.Services.MigrateDbContextAsync<MezonBotDbContext>("MezonBotDbContext");
     await app.Services.MigrateDbContextAsync<AITutorDbContext>("AITutorDbContext");
+
+    // Đảm bảo xp_ledger.source_type tương thích toàn bộ loại nguồn XP và đảm bảo bảng badges/user_badges tồn tại
+    using (var scope = app.Services.CreateScope())
+    {
+        var gamificationDb = scope.ServiceProvider.GetRequiredService<GamificationDbContext>();
+        await gamificationDb.Database.ExecuteSqlRawAsync(@"
+            ALTER TABLE IF EXISTS xp_ledger DROP CONSTRAINT IF EXISTS xp_ledger_source_type_check;
+            ALTER TABLE IF EXISTS xp_ledger ALTER COLUMN source_type TYPE VARCHAR(32);
+            DROP INDEX IF EXISTS uq_xp_ledger_source;
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_xp_ledger_source
+                ON xp_ledger(user_id, source_type, source_id) WHERE source_id IS NOT NULL AND idempotency_key IS NULL;
+            CREATE TABLE IF NOT EXISTS badges (
+                id VARCHAR(64) PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                category VARCHAR(32) NOT NULL DEFAULT 'general',
+                rarity VARCHAR(32) NOT NULL DEFAULT 'common',
+                icon VARCHAR(64) NOT NULL DEFAULT 'award',
+                description TEXT NOT NULL DEFAULT '',
+                max_progress INTEGER NOT NULL DEFAULT 1,
+                xp_reward INTEGER NOT NULL DEFAULT 50,
+                lore TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS user_badges (
+                user_id UUID NOT NULL,
+                badge_id VARCHAR(64) NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+                is_unlocked BOOLEAN NOT NULL DEFAULT FALSE,
+                current_progress INTEGER NOT NULL DEFAULT 0,
+                unlocked_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (user_id, badge_id)
+            );");
+    }
 
     Console.WriteLine("\n==========================================================");
     Console.WriteLine("  All module migrations applied successfully!");

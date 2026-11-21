@@ -12,6 +12,8 @@ public sealed class ConfigureSwaggerGenOptions(IApiVersionDescriptionProvider pr
 {
     public void Configure(SwaggerGenOptions options)
     {
+        options.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
+
         if (!provider.ApiVersionDescriptions.Any())
         {
             if (!options.SwaggerGeneratorOptions.SwaggerDocs.ContainsKey("v1"))

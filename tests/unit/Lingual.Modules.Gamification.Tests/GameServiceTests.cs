@@ -491,4 +491,69 @@ public class GameServiceTests
         session!.MetadataJson.Should().Contain("PERFECT_SCORE");
         session.MetadataJson.Should().Contain("stamps");
     }
+
+    [Fact]
+    public async Task SubmitGameAsync_DifferentUser_ThrowsInvalidOperationException()
+    {
+        var db = CreateInMemoryDb();
+        var ownerId = Guid.NewGuid();
+        var attackerId = Guid.NewGuid();
+
+        db.ActiveGameAttempts.Add(new ActiveGameAttempt
+        {
+            AttemptId = "idor-attempt-001",
+            UserId = ownerId,
+            GameType = "word_match",
+            StartedAt = DateTime.UtcNow.AddSeconds(-10),
+            QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"}]"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new GameService(db, new Mock<IGamificationService>().Object, new Mock<ILogger<GameService>>().Object);
+
+        var act = async () => await service.SubmitGameAsync(new GameSubmitRequestDto
+        {
+            AttemptId = "idor-attempt-001",
+            GameType = "word_match",
+            TimeRemainingSeconds = 40,
+            Answers = new List<GameAnswerSubmissionDto> { new() { QuestionId = "w1", Answer = "Con mèo" } }
+        }, attackerId, "Attacker", CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*không thuộc về*");
+    }
+
+    [Fact]
+    public async Task SubmitGameAsync_DuplicateQuestionIds_CountedOnlyOnce()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        db.ActiveGameAttempts.Add(new ActiveGameAttempt
+        {
+            AttemptId = "dup-attempt-001",
+            UserId = userId,
+            GameType = "word_match",
+            StartedAt = DateTime.UtcNow.AddSeconds(-10),
+            QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"},{\"id\":\"w2\",\"targetText\":\"Dog\",\"translation\":\"Con chó\"}]"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new GameService(db, new Mock<IGamificationService>().Object, new Mock<ILogger<GameService>>().Object);
+
+        var result = await service.SubmitGameAsync(new GameSubmitRequestDto
+        {
+            AttemptId = "dup-attempt-001",
+            GameType = "word_match",
+            TimeRemainingSeconds = 50,
+            Answers = new List<GameAnswerSubmissionDto>
+            {
+                new() { QuestionId = "w1", Answer = "Con mèo" },
+                new() { QuestionId = "w1", Answer = "Con mèo" },
+                new() { QuestionId = "w1", Answer = "Con mèo" }
+            }
+        }, userId, "Tester", CancellationToken.None);
+
+        result.CorrectCount.Should().Be(1);
+        result.TotalQuestions.Should().Be(2);
+    }
 }

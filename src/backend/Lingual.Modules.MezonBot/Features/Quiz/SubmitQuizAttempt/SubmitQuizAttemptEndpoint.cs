@@ -13,30 +13,8 @@ public class SubmitQuizAttemptEndpoint : IEndpointBase
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        // 1. Submit Quiz Attempt (Postman Sprint 1 & FE /quiz)
-        app.MapPost("/api/v1/content/quiz-attempts", async (
-            [FromBody] QuizAttemptRequestDto request,
-            HttpContext httpContext,
-            [FromServices] ISender sender,
-            CancellationToken ct) =>
-        {
-            if (request.Answers == null || request.Answers.Count == 0)
-            {
-                return Results.BadRequest(new { error = "Invalid quiz attempt" });
-            }
-
-            var userId = GetCurrentUserId(httpContext);
-            var result = await sender.Send(new SubmitQuizAttemptCommand(request, userId), ct);
-            return Results.Ok(result);
-        })
-        .WithName("SubmitContentQuizAttempt")
-        .WithTags("Quiz")
-        .WithSummary("Ghi nhận lượt thi quiz và cộng XP (Postman Sprint 1)")
-        .Produces<QuizAttemptResultDto>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status400BadRequest)
-        .AllowAnonymous();
-
-        // 2. Alias: /api/v1/quizzes/attempts
+        // Route POST /api/v1/content/quiz-attempts được phục vụ bởi ContentController ([Authorize], server tự chấm đáp án).
+        // Endpoint này giữ route chuẩn /api/v1/quizzes/attempts.
         app.MapPost("/api/v1/quizzes/attempts", async (
             [FromBody] QuizAttemptRequestDto request,
             HttpContext httpContext,
@@ -54,10 +32,10 @@ public class SubmitQuizAttemptEndpoint : IEndpointBase
         })
         .WithName("SubmitQuizzesAttemptsAlias")
         .WithTags("Quiz")
-        .WithSummary("Alias ghi nhận lượt thi quiz")
+        .WithSummary("Ghi nhận lượt thi quiz")
         .Produces<QuizAttemptResultDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)
-        .AllowAnonymous();
+        .RequireAuthorization();
     }
 
     private static Guid? GetCurrentUserId(HttpContext? context)

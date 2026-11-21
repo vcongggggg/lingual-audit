@@ -36,6 +36,7 @@ public class SrsService(
         try
         {
             var srsCard = await dbContext.SrsCards
+                .AsTracking()
                 .FirstOrDefaultAsync(s => s.UserId == effectiveUserId && s.VocabularyId == vocabGuid, cancellationToken);
 
             if (srsCard == null)

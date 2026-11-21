@@ -18,6 +18,9 @@ import {
   ArrowRight
 } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/components/auth/useAuth";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Scenario {
   id: string;
@@ -96,6 +99,7 @@ const QUICK_PROMPTS: Record<string, string[]> = {
 
 export default function TutorPage() {
   const { translate: t } = useLanguage();
+  const { user, token } = useAuth();
   const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
   const [selectedScenario, setSelectedScenario] = useState<Scenario>(DEFAULT_SCENARIOS[0]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -174,15 +178,20 @@ export default function TutorPage() {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("accessToken") : null);
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
       if (activeTab === "roleplay") {
+        const validConversationId = conversationId && UUID_REGEX.test(conversationId) ? conversationId : null;
         const response = await fetch("/api/ai/roleplay", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             scenarioCode: selectedScenario.code,
             userMessage: text,
-            conversationId: conversationId,
-            mezonUserId: "web_user_demo",
+            conversationId: validConversationId,
+            mezonUserId: user?.mezonUserId || user?.id || "web_user_demo",
           }),
         });
 
@@ -196,7 +205,7 @@ export default function TutorPage() {
           explanation?: string | null;
         };
 
-        if (data.conversationId) {
+        if (data.conversationId && UUID_REGEX.test(data.conversationId)) {
           setConversationId(data.conversationId);
         }
 
@@ -216,7 +225,7 @@ export default function TutorPage() {
         // Grammar check mode
         const response = await fetch("/api/ai/grammar-check", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ text }),
         });
 

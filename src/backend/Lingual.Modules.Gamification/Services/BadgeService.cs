@@ -20,6 +20,7 @@ public class BadgeService(
 
         // 2. Truy vấn lịch sử mở khóa và tiến độ cá nhân từ bảng CSDL `user_badges`
         var userBadges = await dbContext.UserBadges
+            .AsTracking()
             .Where(ub => ub.UserId == userId)
             .ToListAsync(cancellationToken);
         var userBadgeMap = userBadges.ToDictionary(ub => ub.BadgeId);

@@ -46,11 +46,12 @@ public class MezonAuthService : IMezonAuthService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public Task<MezonCallbackResult> GetAuthorizeUrlAsync()
+    public Task<MezonCallbackResult> GetAuthorizeUrlAsync(string? requestedRedirectUri = null)
     {
         var clientId = _configuration["MezonOAuth2:ClientId"];
         var authorizeUrl = _configuration["MezonOAuth2:AuthorizeUrl"] ?? "https://oauth2.mezon.ai/oauth2/auth";
-        var redirectUri = _configuration["MezonOAuth2:RedirectUri"] ?? "http://localhost:3000/oauth/mezon/callback";
+        var defaultRedirectUri = _configuration["MezonOAuth2:RedirectUri"] ?? "http://localhost:3000/oauth/mezon/callback";
+        var redirectUri = ResolveAllowedRedirectUri(requestedRedirectUri, defaultRedirectUri);
         var scope = _configuration["MezonOAuth2:Scope"] ?? "openid offline";
 
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(redirectUri))
@@ -307,6 +308,7 @@ public class MezonAuthService : IMezonAuthService
         if (!string.IsNullOrWhiteSpace(mezonUserId))
         {
             user = await _dbContext.Users
+                .AsTracking()
                 .Include(u => u.Profile)
                 .FirstOrDefaultAsync(u => u.MezonUserId == mezonUserId);
         }
@@ -439,6 +441,31 @@ public class MezonAuthService : IMezonAuthService
             PermissionName = permissionNames,
             HasSystemRole = hasSystemRole
         });
+    }
+
+    private string ResolveAllowedRedirectUri(string? requestedRedirectUri, string defaultRedirectUri)
+    {
+        if (string.IsNullOrWhiteSpace(requestedRedirectUri) ||
+            !Uri.TryCreate(requestedRedirectUri, UriKind.Absolute, out var parsed) ||
+            (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        {
+            return defaultRedirectUri;
+        }
+
+        if (parsed.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            parsed.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+        {
+            return requestedRedirectUri;
+        }
+
+        var allowedOrigins = _configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        var origin = $"{parsed.Scheme}://{parsed.Authority}";
+        if (allowedOrigins.Any(o => string.Equals(o.TrimEnd('/'), origin, StringComparison.OrdinalIgnoreCase)))
+        {
+            return requestedRedirectUri;
+        }
+
+        return defaultRedirectUri;
     }
 
     private static string GetOAuthStateCacheKey(string state) => $"{OAuthStateCacheKeyPrefix}{state}";

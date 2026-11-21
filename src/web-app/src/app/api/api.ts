@@ -8,7 +8,7 @@ export function getBackendBaseUrl(): string {
   const envUrl =
     process.env.LINGUAL_API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:5112";
+    "http://localhost:5000";
   return envUrl.replace(/\/+$/, "");
 }
 

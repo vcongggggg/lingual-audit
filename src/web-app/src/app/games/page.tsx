@@ -123,7 +123,7 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
 // ==========================================
 
 export default function GameCenterPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'catalog' | 'leaderboard'>('catalog');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [activeGame, setActiveGame] = useState<GameCatalogItem | null>(null);
@@ -137,6 +137,7 @@ export default function GameCenterPage() {
   });
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     getMyGameStats()
       .then((res) => {
         if (res && res.success) {
@@ -149,7 +150,7 @@ export default function GameCenterPage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   const recordGameCompletion = useCallback((won: boolean, xpEarned: number) => {
     setStats((prev) => ({
@@ -200,6 +201,21 @@ export default function GameCenterPage() {
           </div>
         )}
       </header>
+
+      {/* Auth prompt banner for guest visitors */}
+      {!authLoading && !isAuthenticated && !activeGame && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm text-amber-900">
+          <span>
+            <strong>Yêu cầu đăng nhập:</strong> Vui lòng đăng nhập Mezon SSO để tải bộ câu hỏi từ Database, lưu kỷ lục và nhận thưởng XP trong Game Center.
+          </span>
+          <Link
+            href="/auth"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--olive,#69734f)] text-white font-semibold hover:opacity-90 transition-all"
+          >
+            Đăng nhập ngay <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
 
       {/* 2. Personal Stats Overview */}
       {!activeGame && (
@@ -384,10 +400,14 @@ function ActiveGameArena({
           setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
         }
       })
-      .catch((err) => {
+      .catch((err: Error & { status?: number }) => {
         if (isMounted) {
           console.warn('Could not fetch DB game data:', err);
-          setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
+          if (err?.status === 401) {
+            setLoadError('Bạn cần đăng nhập tài khoản Mezon để chơi và lưu điểm.');
+          } else {
+            setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
+          }
         }
       })
       .finally(() => {

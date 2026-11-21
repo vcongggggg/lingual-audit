@@ -97,7 +97,7 @@ public class GamificationService(
             logger.LogWarning(ex, "Failed to get badges for user {UserId}", targetUserId);
         }
 
-        if (badgesList.All(b => b.Id != "streak_3"))
+        if (isDemoUser && badgesList.All(b => b.Id != "streak_3"))
         {
             badgesList.Insert(0, new BadgeDto(
                 Id: "streak_3",
@@ -207,7 +207,13 @@ public class GamificationService(
             try
             {
                 quizzesCompleted = await dbContext.XpLedgers.AsNoTracking()
-                    .CountAsync(x => x.UserId == targetUserId && (x.SourceType == "quiz" || x.SourceType == "practice" || x.SourceType == "duel"), ct);
+                    .CountAsync(x => x.UserId == targetUserId &&
+                        (x.SourceType == "quiz" ||
+                         x.SourceType == "quiz_attempt" ||
+                         x.SourceType == "clan_quiz" ||
+                         x.SourceType == "practice" ||
+                         x.SourceType == "duel" ||
+                         x.SourceType.StartsWith("game_")), ct);
             }
             catch (Exception ex)
             {
