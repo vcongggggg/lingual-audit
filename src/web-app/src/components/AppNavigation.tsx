@@ -88,7 +88,9 @@ export default function AppNavigation() {
                     {user.displayName}
                   </span>
                   <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
-                    {user.role === "admin" ? "Quản trị" : "Học viên"}
+                    {user.role === "admin"
+                      ? (language === "vi" ? "Quản trị" : "Admin")
+                      : (language === "vi" ? "Học viên" : "Learner")}
                   </span>
                 </div>
               </Link>
