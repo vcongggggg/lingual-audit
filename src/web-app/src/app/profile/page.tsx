@@ -595,7 +595,12 @@ export default function ProfilePage() {
                     </span>
                     {badge.unlockedDate && (
                       <span className="text-[10px] text-[var(--muted,#77786f)]">
-                        {new Date(badge.unlockedDate).toLocaleDateString("vi-VN")}
+                        {(() => {
+                          const parsed = new Date(badge.unlockedDate);
+                          return Number.isNaN(parsed.getTime())
+                            ? badge.unlockedDate
+                            : parsed.toLocaleDateString("vi-VN");
+                        })()}
                       </span>
                     )}
                   </div>
