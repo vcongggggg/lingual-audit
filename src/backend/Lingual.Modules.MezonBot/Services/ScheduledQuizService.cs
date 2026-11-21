@@ -48,6 +48,7 @@ public class ScheduledQuizService : IScheduledQuizService
         if (channelId <= 0) return false;
 
         var existingRun = await _dbContext.ScheduledQuizRuns
+            .AsTracking()
             .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId, cancellationToken);
 
         if (existingRun != null && existingRun.WarnedAt != null)
@@ -86,6 +87,7 @@ public class ScheduledQuizService : IScheduledQuizService
         if (channelId <= 0) return null;
 
         var existingRun = await _dbContext.ScheduledQuizRuns
+            .AsTracking()
             .FirstOrDefaultAsync(r => r.SlotKey == slotKey && r.ChannelId == channelId, cancellationToken);
 
         if (existingRun != null && existingRun.PostedAt != null)

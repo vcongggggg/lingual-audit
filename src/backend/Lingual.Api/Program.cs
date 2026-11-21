@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Lingual.Infrastructure;
 using Lingual.Infrastructure.Endpoint;
 using Lingual.Infrastructure.RateLimiter;
@@ -50,9 +51,6 @@ builder.Services.AddHealthChecks();
 // Mezon Bot Module (Mezon.Net.Sdk 1.7.0)
 builder.Services.AddMezonBotModule(builder.Configuration);
 
-// AI Tutor Module (Google Gemini API)
-builder.Services.AddAITutorModule(builder.Configuration);
-
 // CORS for Next.js Web App & Mezon Client
 builder.Services.AddCors(options =>
 {
@@ -87,6 +85,51 @@ if (args.Contains("--migrate"))
     await app.Services.MigrateDbContextAsync<GamificationDbContext>("GamificationDbContext");
     await app.Services.MigrateDbContextAsync<MezonBotDbContext>("MezonBotDbContext");
     await app.Services.MigrateDbContextAsync<AITutorDbContext>("AITutorDbContext");
+
+    // Đảm bảo xp_ledger.source_type tương thích toàn bộ loại nguồn XP và đảm bảo bảng badges/user_badges tồn tại
+    using (var scope = app.Services.CreateScope())
+    {
+        var gamificationDb = scope.ServiceProvider.GetRequiredService<GamificationDbContext>();
+        await gamificationDb.Database.ExecuteSqlRawAsync(@"
+            ALTER TABLE IF EXISTS xp_ledger DROP CONSTRAINT IF EXISTS xp_ledger_source_type_check;
+            ALTER TABLE IF EXISTS xp_ledger ALTER COLUMN source_type TYPE VARCHAR(32);
+            DROP INDEX IF EXISTS uq_xp_ledger_source;
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_xp_ledger_source
+                ON xp_ledger(user_id, source_type, source_id) WHERE source_id IS NOT NULL AND idempotency_key IS NULL;
+            CREATE TABLE IF NOT EXISTS badges (
+                id VARCHAR(64) PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                category VARCHAR(32) NOT NULL DEFAULT 'general',
+                rarity VARCHAR(32) NOT NULL DEFAULT 'common',
+                icon VARCHAR(64) NOT NULL DEFAULT 'award',
+                description TEXT NOT NULL DEFAULT '',
+                max_progress INTEGER NOT NULL DEFAULT 1,
+                xp_reward INTEGER NOT NULL DEFAULT 50,
+                lore TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS user_badges (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                badge_id VARCHAR(64) NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+                is_unlocked BOOLEAN NOT NULL DEFAULT FALSE,
+                current_progress INTEGER NOT NULL DEFAULT 0,
+                unlocked_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT uq_user_badge UNIQUE (user_id, badge_id)
+            );
+            ALTER TABLE IF EXISTS user_badges ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+            UPDATE user_badges SET id = gen_random_uuid() WHERE id IS NULL;
+            INSERT INTO badges (id, name, category, rarity, icon, description, max_progress, xp_reward, lore)
+            VALUES
+                ('b-1', 'Kỷ Lục Gia Streak', 'streak', 'legendary', '🔥', 'Duy trì chuỗi học liên tục trong 14 ngày không đứt quãng.', 14, 500, 'Ngọn lửa kiên trì rực cháy thắp sáng con đường làm chủ ngoại ngữ.'),
+                ('b-2', 'Kho Báu Từ Vựng', 'vocabulary', 'epic', '📚', 'Thành thạo vượt mốc 200 từ vựng A1-A2 theo thuật toán SRS SM-2.', 200, 350, 'Một trí tuệ sắc bén lưu giữ hàng trăm từ ngữ sống động.'),
+                ('b-3', 'Bất Khả Chiến Bại', 'speed', 'rare', '⚡', 'Hoàn thành xuất sắc 5 bài kiểm tra hoặc mini-game.', 5, 250, 'Tốc độ và sự chuẩn xác kết hợp tạo nên phản xạ phi thường.'),
+                ('b-4', 'Chiến Hữu Mezon', 'social', 'common', '🛡️', 'Tích lũy 1,000 XP cùng cộng đồng học tập Mezon.', 1000, 150, 'Sức mạnh tập thể nâng bước từng cá nhân vươn lên đỉnh vinh quang.'),
+                ('b-5', 'Đại Sứ Học Thuật', 'vocabulary', 'epic', '🎯', 'Hoàn thành toàn bộ gói từ vựng 500 từ cốt lõi.', 500, 750, 'Mục tiêu tối thượng của bất kỳ học giả ngôn ngữ nào trên Mezon.'),
+                ('b-6', 'Đấu Vương Game Center', 'speed', 'legendary', '👑', 'Chiến thắng 20 lượt chơi trong Game Center.', 20, 1000, 'Huyền thoại đấu trường trí tuệ được tôn kính trong toàn server Mezon.')
+            ON CONFLICT (id) DO NOTHING;");
+    }
 
     Console.WriteLine("\n==========================================================");
     Console.WriteLine("  All module migrations applied successfully!");

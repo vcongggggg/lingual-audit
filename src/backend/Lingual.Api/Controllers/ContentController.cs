@@ -228,15 +228,17 @@ public class ContentController : ControllerBase
         var answers = request.Answers ?? new List<QuizSubmittedAnswer>();
         var totalCount = answers.Count;
 
-        // 2. Server tự chấm đáp án - Hoàn toàn không tin client
+        // 2. Server tự chấm đáp án - Hoàn toàn không tin client (lọc trùng QuestionId chống gian lận)
         int serverCorrectCount = 0;
+        var gradedQuestions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var ans in answers)
         {
-            if (string.IsNullOrWhiteSpace(ans.QuestionId)) continue;
+            if (string.IsNullOrWhiteSpace(ans.QuestionId) || !gradedQuestions.Add(ans.QuestionId.Trim())) continue;
+            var submittedValue = !string.IsNullOrWhiteSpace(ans.Answer) ? ans.Answer : ans.SelectedKey;
             var (correctAnswer, _) = await ResolveCorrectAnswerAsync(ans.QuestionId, cancellationToken);
             if (!string.IsNullOrWhiteSpace(correctAnswer) &&
-                !string.IsNullOrWhiteSpace(ans.Answer) &&
-                ans.Answer.Trim().Equals(correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase))
+                !string.IsNullOrWhiteSpace(submittedValue) &&
+                submittedValue.Trim().Equals(correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 serverCorrectCount++;
             }
@@ -397,11 +399,43 @@ public class ContentController : ControllerBase
             });
         }
 
+        int xpAwarded = 0;
+        try
+        {
+            var reviewXp = request.Rating?.ToLowerInvariant() switch
+            {
+                "easy" => 15,
+                "good" => 10,
+                "hard" => 5,
+                _ => 5
+            };
+            var baseReviewKey = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                ? $"{vocabId}_{DateTime.UtcNow:yyyyMMddHHmm}"
+                : request.IdempotencyKey;
+            var awardResult = await _xpService.AwardXpAsync(new AwardXpRequest(
+                UserId: userId,
+                SourceType: "srs_review",
+                XpDelta: reviewXp,
+                SourceId: vocabId,
+                IdempotencyKey: $"srs_review_{userId}_{baseReviewKey}",
+                Metadata: JsonSerializer.Serialize(new { rating = request.Rating, quality = request.Quality })
+            ), cancellationToken);
+            if (awardResult.IsSuccess && !awardResult.AlreadyAwarded)
+            {
+                xpAwarded = awardResult.AwardedXp;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ [ContentApi] Lưu thẻ SRS thành công nhưng không thể cộng XP cho User {UserId}", userId);
+        }
+
         return Ok(new
         {
             success = true,
             vocabularyId = vocabId,
             repetitions = request.Repetitions,
+            xpAwarded,
             message = "Đã lưu tiến độ ôn tập thẻ từ vựng vào cơ sở dữ liệu."
         });
     }
@@ -455,20 +489,24 @@ public class ContentController : ControllerBase
     /// Sử dụng LeaderboardService của Gamification module (Redis / SQL fallback), không dùng raw SQL và không có user mẫu giả.
     /// </summary>
     [HttpGet("leaderboard")]
-    public async Task<IActionResult> GetLeaderboard(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetLeaderboard(
+        [FromQuery] string type = "all-time",
+        [FromQuery] int limit = 50,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _leaderboardService.GetLeaderboardAsync(limit: 50, cancellationToken: cancellationToken);
+            var response = await _leaderboardService.GetLeaderboardAsync(limit: Math.Clamp(limit, 1, 100), type: type, cancellationToken: cancellationToken);
             var entries = response.Entries.Select(e => new
             {
                 rank = e.Rank,
                 user_id = e.UserId,
                 name = e.Name,
+                avatar = e.AvatarUrl,
                 xp = (int)e.Xp,
                 level = e.Xp > 500 ? "B1" : e.Xp > 200 ? "A2" : "A1",
-                words_learned = Math.Max(10, (int)e.Xp / 10),
-                streak = 1
+                words_learned = Math.Max(0, e.WordsLearned),
+                streak = e.StreakDays
             }).ToList();
 
             return Ok(new { data = entries });
@@ -756,7 +794,8 @@ public record QuizAttemptRequest(
 public record QuizSubmittedAnswer(
     string? QuestionId,
     string? Answer,
-    bool? IsCorrect = null
+    bool? IsCorrect = null,
+    string? SelectedKey = null
 );
 
 public record SrsReviewRequest(

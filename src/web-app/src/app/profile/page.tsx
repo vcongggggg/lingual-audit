@@ -156,11 +156,13 @@ export default function ProfilePage() {
   const xpPercent = Math.min(100, Math.max(0, Math.round((totalXp / nextLevelXp) * 100)));
   const xpToNext = Math.max(0, nextLevelXp - totalXp);
 
-  // Daily streak goal calculation
+  // Daily streak goal calculation (xpNeededForStreak from API is remaining XP needed)
   const streak = activeProfile.streak;
   const dailyXp = streak?.todayXp ?? 0;
-  const neededXp = Math.max(1, streak?.xpNeededForStreak ?? 30);
-  const dailyPercent = Math.min(100, Math.round((dailyXp / neededXp) * 100));
+  const remainingForStreak = Math.max(0, streak?.xpNeededForStreak ?? 0);
+  const dailyGoalXp = Math.max(20, dailyXp + remainingForStreak);
+  const dailyPercent = Math.min(100, Math.round((dailyXp / dailyGoalXp) * 100));
+  const todayMonBasedIdx = (new Date().getDay() + 6) % 7; // 0 = T2 ... 6 = CN
 
   const handleCopyId = () => {
     navigator.clipboard?.writeText(mezonId);
@@ -400,7 +402,7 @@ export default function ProfilePage() {
               <div className="flex justify-between items-center text-xs">
                 <span className="text-[var(--muted,#77786f)]">Mục tiêu duy trì hôm nay</span>
                 <span className="font-bold text-[var(--ink,#252820)]">
-                  {dailyXp} / {neededXp} XP ({dailyPercent}%)
+                  {dailyXp} / {dailyGoalXp} XP ({dailyPercent}%)
                 </span>
               </div>
               <div className="w-full h-2.5 bg-[#e4e8dc] rounded-full overflow-hidden">
@@ -412,7 +414,7 @@ export default function ProfilePage() {
               <p className="text-[11px] text-[var(--muted,#77786f)]">
                 {streak?.isActiveToday
                   ? "Bạn đã hoàn thành mục tiêu học tập và gia hạn chuỗi thành công!"
-                  : `Học thêm flashcard hoặc giải quiz để nhận đủ ${neededXp} XP hôm nay.`}
+                  : `Học thêm flashcard hoặc giải quiz để nhận thêm ${Math.max(1, remainingForStreak || dailyGoalXp - dailyXp)} XP hôm nay.`}
               </p>
             </div>
           </div>
@@ -420,16 +422,18 @@ export default function ProfilePage() {
           {/* Mini 7-day Streak Calendar Tracker */}
           <div className="mt-5 pt-4 border-t border-[#d7ddca]">
             <div className="flex items-center justify-between text-xs mb-2">
-              <span className="font-semibold text-[var(--muted,#77786f)]">7 ngày gần nhất</span>
+              <span className="font-semibold text-[var(--muted,#77786f)]">7 ngày trong tuần</span>
               <span className="text-[11px] text-[var(--olive,#69734f)]">
                 {streak?.currentDays ? `Chuỗi ${streak.currentDays} ngày` : "Bắt đầu ngay"}
               </span>
             </div>
             <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center">
               {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((day, idx) => {
-                // Approximate past active days based on currentDays & isActiveToday
-                const isToday = idx === 4; // demo Friday / current day slot
-                const isPastDone = idx < 4 || (isToday && streak?.isActiveToday);
+                const isToday = idx === todayMonBasedIdx;
+                const activeCount = streak?.currentDays ?? 0;
+                const endIdx = streak?.isActiveToday ? todayMonBasedIdx : todayMonBasedIdx - 1;
+                const startIdx = endIdx - activeCount + 1;
+                const isPastDone = activeCount > 0 && idx <= endIdx && idx >= startIdx;
                 return (
                   <div
                     key={day}
@@ -591,7 +595,12 @@ export default function ProfilePage() {
                     </span>
                     {badge.unlockedDate && (
                       <span className="text-[10px] text-[var(--muted,#77786f)]">
-                        {new Date(badge.unlockedDate).toLocaleDateString("vi-VN")}
+                        {(() => {
+                          const parsed = new Date(badge.unlockedDate);
+                          return Number.isNaN(parsed.getTime())
+                            ? badge.unlockedDate
+                            : parsed.toLocaleDateString("vi-VN");
+                        })()}
                       </span>
                     )}
                   </div>

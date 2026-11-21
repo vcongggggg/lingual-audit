@@ -97,7 +97,7 @@ public class GamificationService(
             logger.LogWarning(ex, "Failed to get badges for user {UserId}", targetUserId);
         }
 
-        if (badgesList.All(b => b.Id != "streak_3"))
+        if (isDemoUser && badgesList.All(b => b.Id != "streak_3"))
         {
             badgesList.Insert(0, new BadgeDto(
                 Id: "streak_3",
@@ -180,48 +180,111 @@ public class GamificationService(
         else
         {
             int wordsLearned = 0;
-            try
+            if (dbContext.Database.IsRelational())
             {
-                var streakRecord = await dbContext.UserStreaks.AsNoTracking()
-                    .FirstOrDefaultAsync(s => s.UserId == targetUserId, ct);
-                if (!string.IsNullOrWhiteSpace(streakRecord?.DailyActivity))
+                try
                 {
-                    var activities = JsonSerializer.Deserialize<Dictionary<string, DailyActivityEntry>>(streakRecord.DailyActivity);
-                    if (activities != null)
-                    {
-                        wordsLearned = activities.Values.Sum(a => a.WordsCount);
-                    }
+                    var conn = dbContext.Database.GetDbConnection();
+                    if (conn.State != System.Data.ConnectionState.Open)
+                        await conn.OpenAsync(ct);
+
+                    using var countCmd = conn.CreateCommand();
+                    countCmd.CommandText = "SELECT COUNT(*) FROM srs_cards WHERE user_id = @userId AND suspended_at IS NULL";
+                    var pUid = countCmd.CreateParameter();
+                    pUid.ParameterName = "@userId";
+                    pUid.Value = targetUserId;
+                    countCmd.Parameters.Add(pUid);
+                    var scalar = await countCmd.ExecuteScalarAsync(ct);
+                    if (scalar != null && scalar != DBNull.Value)
+                        wordsLearned = Convert.ToInt32(scalar);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Could not query srs_cards count for user {UserId}", targetUserId);
                 }
             }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to compute wordsLearned from DailyActivity for user {UserId}", targetUserId);
-            }
 
-            if (wordsLearned <= 0 && totalXp > 0)
+            if (wordsLearned == 0)
             {
-                wordsLearned = totalXp / 10;
+                try
+                {
+                    var streakRecord = await dbContext.UserStreaks.AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.UserId == targetUserId, ct);
+                    if (!string.IsNullOrWhiteSpace(streakRecord?.DailyActivity))
+                    {
+                        var activities = JsonSerializer.Deserialize<Dictionary<string, DailyActivityEntry>>(streakRecord.DailyActivity);
+                        if (activities != null)
+                        {
+                            wordsLearned = activities.Values.Sum(a => a.WordsCount);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to compute wordsLearned from DailyActivity for user {UserId}", targetUserId);
+                }
             }
 
             int quizzesCompleted = 0;
             try
             {
                 quizzesCompleted = await dbContext.XpLedgers.AsNoTracking()
-                    .CountAsync(x => x.UserId == targetUserId && (x.SourceType == "quiz" || x.SourceType == "practice" || x.SourceType == "duel"), ct);
+                    .CountAsync(x => x.UserId == targetUserId &&
+                        (x.SourceType == "quiz" ||
+                         x.SourceType == "quiz_attempt" ||
+                         x.SourceType == "clan_quiz" ||
+                         x.SourceType == "practice" ||
+                         x.SourceType == "duel" ||
+                         x.SourceType.StartsWith("game_")), ct);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to count quizzesCompleted for user {UserId}", targetUserId);
             }
 
-            if (quizzesCompleted <= 0 && totalXp > 0)
+            int accuracyRate = 0;
+            try
             {
-                quizzesCompleted = Math.Max(1, totalXp / 35);
+                var gameAccuracies = await dbContext.GameSessions.AsNoTracking()
+                    .Where(g => g.UserId == targetUserId)
+                    .Select(g => g.Accuracy)
+                    .ToListAsync(ct);
+                if (gameAccuracies.Count > 0)
+                {
+                    var avg = gameAccuracies.Average();
+                    accuracyRate = (int)Math.Round(avg <= 1.0 ? avg * 100.0 : avg);
+                }
+                else if (quizzesCompleted > 0)
+                {
+                    // Fallback to quiz_attempt score/total ratio from xp_ledger metadata when available
+                    var quizMetas = await dbContext.XpLedgers.AsNoTracking()
+                        .Where(x => x.UserId == targetUserId && x.SourceType == "quiz_attempt")
+                        .Select(x => x.Metadata)
+                        .ToListAsync(ct);
+                    int totalCorrect = 0, totalAsked = 0;
+                    foreach (var meta in quizMetas)
+                    {
+                        if (string.IsNullOrWhiteSpace(meta)) continue;
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(meta);
+                            if (doc.RootElement.TryGetProperty("score", out var sEl) &&
+                                doc.RootElement.TryGetProperty("total", out var tEl))
+                            {
+                                totalCorrect += sEl.GetInt32();
+                                totalAsked += tEl.GetInt32();
+                            }
+                        }
+                        catch { }
+                    }
+                    if (totalAsked > 0)
+                        accuracyRate = (int)Math.Round((double)totalCorrect * 100.0 / totalAsked);
+                }
             }
-
-            int accuracyRate = totalXp > 0 || streakSummary.CurrentDays > 0
-                ? Math.Clamp(85 + (totalXp % 13), 80, 98)
-                : 0;
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to compute real accuracyRate for user {UserId}", targetUserId);
+            }
 
             stats = new UserPerformanceStatsDto(
                 WordsLearned: wordsLearned,

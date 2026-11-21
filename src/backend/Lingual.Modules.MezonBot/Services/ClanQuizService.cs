@@ -255,6 +255,7 @@ public class ClanQuizService : IClanQuizService
             // 1 user CHỈ được nhận XP quiz theo lịch TỐI ĐA 1 LẦN cho mỗi (ngày + khung giờ) TRÊN TOÀN BỘ CÁC CLAN.
             // Nếu trả lời sai ở Clan A (0 XP), học viên vẫn có cơ hội nhận XP khi trả lời đúng ở Clan B.
             var existingParticipation = await _dbContext.ScheduledQuizParticipations
+                .AsTracking()
                 .FirstOrDefaultAsync(p => p.SlotKey == session.SlotKey && (p.UserId == resolvedUserId || p.MezonUserId == mezonUserId));
 
             if (existingParticipation != null && existingParticipation.XpAwarded > 0)

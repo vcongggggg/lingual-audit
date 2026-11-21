@@ -3,7 +3,7 @@
  */
 
 const getApiBaseUrl = (): string => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5112";
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
   return envUrl.endsWith("/api/v1")
     ? envUrl
     : `${envUrl.replace(/\/+$/, "")}/api/v1`;
@@ -278,7 +278,7 @@ export interface GameDataPayload {
   attemptId?: string;
   gameType?: string;
   items?: { id: string; targetText: string; translation: string; phonetic?: string; cefrLevel?: string }[];
-  questions?: { id: string; prompt: string; tokens?: string[]; choices?: string[]; level?: string; audioText?: string }[];
+  questions?: { id: string; prompt: string; answer?: string; tokens?: string[]; choices?: string[]; level?: string; audioText?: string }[];
   words?: { id: string; targetText: string; phonetic?: string; translation: string; cefrLevel?: string }[];
   id?: string;
   prompt?: string;

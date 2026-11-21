@@ -23,7 +23,17 @@ public sealed class RedisService(IConnectionMultiplexer connectionMultiplexer, I
 
     private readonly RedisSettings _redisCacheSetting = options.Value;
 
-    private IDatabase Database => connectionMultiplexer.GetDatabase();
+    private IDatabase Database
+    {
+        get
+        {
+            if (!connectionMultiplexer.IsConnected)
+            {
+                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis server is currently unavailable (fail-fast).");
+            }
+            return connectionMultiplexer.GetDatabase();
+        }
+    }
 
     public T GetOrSet<T>(string key, Func<T> valueFactory)
         => GetOrSet(key, valueFactory,

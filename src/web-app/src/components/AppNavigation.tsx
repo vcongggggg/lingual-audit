@@ -63,13 +63,13 @@ export default function AppNavigation() {
       </div>
 
       {/* Auth Status & User Profile Pill */}
-      <div className="app-nav-auth flex items-center gap-2">
+      <div className="app-nav-auth flex items-center gap-2 shrink-0">
         {!loading && (
           isAuthenticated && user ? (
-            <div className="flex items-center gap-2 bg-[#eff1e8] border border-[#d7ddca] pl-1.5 pr-2 py-1 rounded-xl shadow-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-[#eff1e8] border border-[#d7ddca] pl-1.5 pr-1.5 sm:pr-2 py-1 rounded-xl shadow-xs shrink-0">
               <Link
                 href="/profile"
-                className="flex items-center gap-2 hover:opacity-85 transition-opacity"
+                className="flex items-center gap-2 hover:opacity-85 transition-opacity shrink-0"
                 title="Xem hồ sơ cá nhân"
               >
                 {user.avatarUrl && user.avatarUrl.trim() !== "" ? (
@@ -79,23 +79,25 @@ export default function AppNavigation() {
                     className="w-6 h-6 rounded-lg object-cover border border-[#d7ddca]"
                   />
                 ) : (
-                  <div className="w-6 h-6 rounded-lg bg-[var(--olive,#69734f)] text-white flex items-center justify-center font-bold text-[11px]">
+                  <div className="w-6 h-6 rounded-lg bg-[var(--olive,#69734f)] text-white flex items-center justify-center font-bold text-[11px] shrink-0">
                     {user.displayName?.charAt(0).toUpperCase() || "U"}
                   </div>
                 )}
-                <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-xs font-semibold text-[var(--ink,#252820)] max-w-[120px] truncate leading-tight">
+                <div className="hidden lg:flex flex-col text-left">
+                  <span className="text-xs font-semibold text-[var(--ink,#252820)] max-w-[116px] truncate leading-tight">
                     {user.displayName}
                   </span>
                   <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
-                    {user.role === "admin" ? "Quản trị" : "Học viên"}
+                    {user.role === "admin"
+                      ? (language === "vi" ? "Quản trị" : "Admin")
+                      : (language === "vi" ? "Học viên" : "Learner")}
                   </span>
                 </div>
               </Link>
               <button
                 onClick={logout}
                 title="Đăng xuất"
-                className="p-1 hover:bg-[#e0e4d5] rounded-md text-[var(--muted,#77786f)] hover:text-red-600 transition-colors cursor-pointer ml-1"
+                className="p-1 hover:bg-[#e0e4d5] rounded-md text-[var(--muted,#77786f)] hover:text-red-600 transition-colors cursor-pointer shrink-0"
                 aria-label="Đăng xuất"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -104,10 +106,10 @@ export default function AppNavigation() {
           ) : (
             <Link
               href="/auth"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[var(--olive,#69734f)] hover:opacity-90 text-white transition-all shadow-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[var(--olive,#69734f)] hover:opacity-90 text-white transition-all shadow-xs whitespace-nowrap shrink-0"
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Đăng nhập</span>
+              <LogIn className="w-3.5 h-3.5 shrink-0" />
+              <span>{language === "vi" ? "Đăng nhập" : "Sign in"}</span>
             </Link>
           )
         )}

@@ -17,7 +17,7 @@ public class StreakService(
 
     public async Task<UserStreakDto> GetStreakAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var streak = await dbContext.UserStreaks.AsTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
         var today = TimeZoneHelper.GetCurrentVietnamDate();
 
         if (streak == null)
@@ -89,19 +89,7 @@ public class StreakService(
             {
                 words = act.WordsCount > 0 ? act.WordsCount : act.Xp / 5;
                 xpEarned = act.Xp;
-                accuracy = Math.Min(100, Math.Max(80, 85 + (act.Xp % 15)));
-            }
-            else if (date < today)
-            {
-                words = 20 + (i * 4);
-                xpEarned = words * 12;
-                accuracy = 90 + (i % 6);
-            }
-            else if (date == today)
-            {
-                words = 15;
-                xpEarned = 180;
-                accuracy = 94;
+                accuracy = act.Xp > 0 ? Math.Min(100, Math.Max(80, 85 + (act.Xp % 15))) : 0;
             }
             else
             {
@@ -131,7 +119,7 @@ public class StreakService(
         int wordsCount = 0,
         CancellationToken cancellationToken = default)
     {
-        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var streak = await dbContext.UserStreaks.AsTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
         var today = TimeZoneHelper.GetCurrentVietnamDate();
 
         if (streak == null)
@@ -201,7 +189,7 @@ public class StreakService(
         {
             logger.LogWarning("Phát hiện xung đột đồng thời pk_user_streaks cho UserId {UserId}. Đang tải lại bản ghi...", userId);
             dbContext.ChangeTracker.Clear();
-            var reloadedStreak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+            var reloadedStreak = await dbContext.UserStreaks.AsTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
             if (reloadedStreak != null)
             {
                 var reloadedActivities = DeserializeDailyActivity(reloadedStreak.DailyActivity);
@@ -267,7 +255,7 @@ public class StreakService(
         var todayKey = today.ToString("yyyy-MM-dd");
         var idempotencyKey = $"daily_checkin_{userId}_{today:yyyyMMdd}";
 
-        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var streak = await dbContext.UserStreaks.AsTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
         if (streak != null)
         {
             EvaluateStreakIntegrity(streak, today);
@@ -345,7 +333,7 @@ public class StreakService(
         var today = TimeZoneHelper.GetCurrentVietnamDate();
         var todayKey = today.ToString("yyyy-MM-dd");
 
-        var streak = await dbContext.UserStreaks.FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
+        var streak = await dbContext.UserStreaks.AsTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
         if (streak == null)
         {
             streak = new UserStreak

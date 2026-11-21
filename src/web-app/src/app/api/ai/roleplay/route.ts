@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
+  const apiBase = process.env.LINGUAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
   try {
+    const authHeader = request.headers.get("authorization");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (authHeader) headers["authorization"] = authHeader;
+
     const payload = await request.json();
     const response = await fetch(`${apiBase}/api/v1/ai/roleplay`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify(payload),
       cache: "no-store",
       signal: AbortSignal.timeout(15000),

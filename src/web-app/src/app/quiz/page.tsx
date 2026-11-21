@@ -61,7 +61,7 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [demo, setDemo] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
@@ -177,7 +177,13 @@ export default function QuizPage() {
       const headers: Record<string, string> = { "content-type": "application/json" };
       if (token) headers["authorization"] = `Bearer ${token}`;
 
-      void fetch("/api/quiz-attempts", { method: "POST", headers, body: JSON.stringify({ idempotencyKey: sessionId.current, answers }), signal: AbortSignal.timeout(10000) }).then(async (response) => {
+      const normalizedAnswers = answers.map((a) => ({
+        questionId: a.questionId,
+        answer: a.selectedKey ?? "",
+        selectedKey: a.selectedKey,
+        isCorrect: a.isCorrect,
+      }));
+      void fetch("/api/quiz-attempts", { method: "POST", headers, body: JSON.stringify({ idempotencyKey: sessionId.current, mode, answers: normalizedAnswers }), signal: AbortSignal.timeout(10000) }).then(async (response) => {
         if (!response.ok) throw new Error("save failed");
         const result = await response.json() as { xpAwarded?: number; xp?: number };
         const savedXp = Number.isFinite(result.xpAwarded) ? result.xpAwarded! : Number.isFinite(result.xp) ? result.xp! : null;

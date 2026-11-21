@@ -10,8 +10,8 @@ import { useLanguage } from "@/lib/language-context";
 type Entry = { rank: number; user_id: string; name: string; xp: number; avatar?: string; previous_rank?: number; level?: string; words_learned?: number };
 function readEntries(payload: unknown): Entry[] | null {
   let value = payload;
-  if (value && typeof value === "object" && "data" in value) value = (value as { data: unknown }).data;
-  if (value && typeof value === "object" && "entries" in value) value = (value as { entries: unknown }).entries;
+  if (!Array.isArray(value) && value && typeof value === "object" && "data" in value) value = (value as { data: unknown }).data;
+  if (!Array.isArray(value) && value && typeof value === "object" && "entries" in value) value = (value as { entries: unknown }).entries;
   if (!Array.isArray(value)) return null;
   const unique = new Map<string, Entry>();
   for (const raw of value) {

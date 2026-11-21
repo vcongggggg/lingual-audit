@@ -284,6 +284,55 @@ public static class GameDataSeeder
                 await db.SaveChangesAsync(cancellationToken);
             }
         }
+
+        // 3. Ensure existing sentence_scramble rows use Vietnamese hints rather than leaking the English answer
+        if (hasScramble && seedDir != null)
+        {
+            var scrambleUpgradePath = Path.Combine(seedDir, "sentence-scrambles.json");
+            if (File.Exists(scrambleUpgradePath))
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(scrambleUpgradePath, cancellationToken);
+                    using var doc = JsonDocument.Parse(json);
+                    var promptById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var elem in doc.RootElement.EnumerateArray())
+                    {
+                        var id = elem.GetProperty("id").GetString();
+                        var prompt = elem.GetProperty("prompt").GetString();
+                        if (!string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(prompt))
+                            promptById[id] = prompt;
+                    }
+
+                    var existingScrambles = await db.GameQuestions
+                        .AsTracking()
+                        .Where(q => q.GameType == "sentence_scramble")
+                        .ToListAsync(cancellationToken);
+
+                    bool updated = false;
+                    foreach (var row in existingScrambles)
+                    {
+                        if (promptById.TryGetValue(row.Id, out var viPrompt) &&
+                            !string.Equals(row.Prompt, viPrompt, StringComparison.Ordinal))
+                        {
+                            row.Prompt = viPrompt;
+                            row.UpdatedAt = DateTime.UtcNow;
+                            updated = true;
+                        }
+                    }
+
+                    if (updated)
+                    {
+                        await db.SaveChangesAsync(cancellationToken);
+                        logger?.LogInformation("Updated {Count} sentence_scramble prompts to Vietnamese hints.", existingScrambles.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Failed to upgrade sentence_scramble prompts.");
+                }
+            }
+        }
     }
 
     private static string? ResolveSeedDirectory(ILogger? logger)

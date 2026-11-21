@@ -18,6 +18,9 @@ import {
   ArrowRight
 } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { useAuth } from "@/components/auth/useAuth";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface Scenario {
   id: string;
@@ -96,6 +99,7 @@ const QUICK_PROMPTS: Record<string, string[]> = {
 
 export default function TutorPage() {
   const { translate: t } = useLanguage();
+  const { user, token } = useAuth();
   const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
   const [selectedScenario, setSelectedScenario] = useState<Scenario>(DEFAULT_SCENARIOS[0]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -104,6 +108,7 @@ export default function TutorPage() {
   const [loading, setLoading] = useState(false);
   const [mascotMood, setMascotMood] = useState<MascotMood>("idle");
   const [activeTab, setActiveTab] = useState<"roleplay" | "grammar">("roleplay");
+  const chatStreamRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load scenarios on mount
@@ -151,9 +156,14 @@ export default function TutorPage() {
     }
   }, [selectedScenario, activeTab]);
 
-  // Auto scroll to bottom
+  // Auto scroll inside the chat stream only after user interaction (never yank the page on initial mount)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 1 || loading) {
+      const container = chatStreamRef.current;
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      }
+    }
   }, [messages, loading]);
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -174,15 +184,20 @@ export default function TutorPage() {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("accessToken") : null);
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
       if (activeTab === "roleplay") {
+        const validConversationId = conversationId && UUID_REGEX.test(conversationId) ? conversationId : null;
         const response = await fetch("/api/ai/roleplay", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             scenarioCode: selectedScenario.code,
             userMessage: text,
-            conversationId: conversationId,
-            mezonUserId: "web_user_demo",
+            conversationId: validConversationId,
+            mezonUserId: user?.mezonUserId || user?.id || "web_user_demo",
           }),
         });
 
@@ -196,7 +211,7 @@ export default function TutorPage() {
           explanation?: string | null;
         };
 
-        if (data.conversationId) {
+        if (data.conversationId && UUID_REGEX.test(data.conversationId)) {
           setConversationId(data.conversationId);
         }
 
@@ -216,7 +231,7 @@ export default function TutorPage() {
         // Grammar check mode
         const response = await fetch("/api/ai/grammar-check", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ text }),
         });
 
@@ -375,7 +390,7 @@ export default function TutorPage() {
         </div>
 
         {/* Message Stream */}
-        <div className="chat-messages-stream">
+        <div className="chat-messages-stream" ref={chatStreamRef}>
           {messages.map((msg) => (
             <div key={msg.id} className={`chat-bubble-row ${msg.sender === "user" ? "is-user" : "is-bot"}`}>
               {msg.sender === "bot" && (
