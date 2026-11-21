@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { proxyBackend } from "@/app/api/api";
 
-export async function GET() {
-  const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
-  try {
-    const response = await fetch(`${apiBase}/api/v1/content/leaderboard`, { cache: "no-store" });
-    return NextResponse.json(await response.json(), { status: response.status });
-  } catch {
-    return NextResponse.json({ error: "Could not load leaderboard" }, { status: 503 });
-  }
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const scope = searchParams.get("scope") || "personal";
+  const type = searchParams.get("type") || "all-time";
+  const limit = searchParams.get("limit") || "20";
+
+  return proxyBackend(
+    request,
+    `/api/v1/content/leaderboard?scope=${encodeURIComponent(scope)}&type=${encodeURIComponent(type)}&limit=${encodeURIComponent(limit)}`
+  );
 }

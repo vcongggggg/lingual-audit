@@ -1,0 +1,142 @@
+[
+  {
+    "id": "bsc-1",
+    "prompt": "Rất vui được gặp bạn tại Việt Nam",
+    "tokens": ["to", "Nice", "Vietnam", "in", "you", "meet"],
+    "answer": "Nice to meet you in Vietnam",
+    "level": "A1"
+  },
+  {
+    "id": "bsc-2",
+    "prompt": "Tôi uống cà phê nóng mỗi buổi sáng",
+    "tokens": ["drink", "hot", "every", "I", "morning", "coffee"],
+    "answer": "I drink hot coffee every morning",
+    "level": "A1"
+  },
+  {
+    "id": "bsc-3",
+    "prompt": "Cô ấy đã đặt một phòng đôi tại khách sạn",
+    "tokens": ["room", "hotel", "at", "the", "She", "booked", "double", "a"],
+    "answer": "She booked a double room at the hotel",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-4",
+    "prompt": "Các nguồn năng lượng tái tạo giúp giảm khí thải carbon",
+    "tokens": ["reduce", "energy", "carbon", "Renewable", "sources", "emissions"],
+    "answer": "Renewable energy sources reduce carbon emissions",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-5",
+    "prompt": "Trí tuệ nhân tạo đang thay đổi ngành y tế toàn cầu",
+    "tokens": ["transforming", "Artificial", "healthcare", "intelligence", "global", "is"],
+    "answer": "Artificial intelligence is transforming global healthcare",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-6",
+    "prompt": "Tập thể dục đều đặn giữ cho tinh thần và cơ thể bạn khỏe mạnh",
+    "tokens": ["keeps", "Regular", "healthy", "exercise", "mind", "and", "body", "your"],
+    "answer": "Regular exercise keeps your mind and body healthy",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-7",
+    "prompt": "Các nhà khoa học phải thu thập bằng chứng thực nghiệm để chứng minh giả thuyết",
+    "tokens": ["empirical", "gather", "substantiate", "evidence", "must", "theories", "Scientists", "to"],
+    "answer": "Scientists must gather empirical evidence to substantiate theories",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-8",
+    "prompt": "Giao tiếp hiệu quả là yếu tố thiết yếu để thành công trong sự nghiệp",
+    "tokens": ["for", "communication", "essential", "Effective", "career", "success", "is"],
+    "answer": "Effective communication is essential for career success",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-9",
+    "prompt": "Anh ấy đã mua một vé khứ hồi đi Đà Nẵng",
+    "tokens": ["ticket", "round", "trip", "bought", "He", "to", "a", "Da Nang"],
+    "answer": "He bought a round trip ticket to Da Nang",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-10",
+    "prompt": "Vui lòng tắt đèn trước khi rời khỏi văn phòng",
+    "tokens": ["leaving", "lights", "Please", "turn", "the", "off", "before", "the", "office"],
+    "answer": "Please turn off the lights before leaving the office",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-11",
+    "prompt": "Kỹ sư phần mềm đã tối ưu hóa hiệu năng cơ sở dữ liệu đáng kể",
+    "tokens": ["performance", "database", "software", "The", "engineer", "optimized", "significantly"],
+    "answer": "The software engineer optimized database performance significantly",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-12",
+    "prompt": "Ăn rau củ tươi cung cấp các vitamin và khoáng chất thiết yếu",
+    "tokens": ["essential", "Eating", "provides", "fresh", "vegetables", "and", "minerals", "vitamins"],
+    "answer": "Eating fresh vegetables provides essential vitamins and minerals",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-13",
+    "prompt": "Họ đã ký một hiệp định thương mại quốc tế vào chiều hôm qua",
+    "tokens": ["trade", "signed", "They", "afternoon", "agreement", "an", "international", "yesterday"],
+    "answer": "They signed an international trade agreement yesterday afternoon",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-14",
+    "prompt": "Các nền tảng học trực tuyến mang lại lịch học linh hoạt cho người đi làm",
+    "tokens": ["flexible", "schedules", "learning", "Online", "offer", "platforms", "for", "working", "adults"],
+    "answer": "Online learning platforms offer flexible schedules for working adults",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-15",
+    "prompt": "Chuyến bay quốc tế bị hoãn do cơn giông lớn",
+    "tokens": ["due", "international", "flight", "The", "delayed", "was", "to", "thunderstorm", "heavy"],
+    "answer": "The international flight was delayed due to heavy thunderstorm",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-16",
+    "prompt": "Các biện pháp an ninh mạng bảo vệ dữ liệu tài chính nhạy cảm khỏi tin tặc",
+    "tokens": ["sensitive", "protect", "measures", "Cybersecurity", "data", "from", "financial", "hackers"],
+    "answer": "Cybersecurity measures protect sensitive financial data from hackers",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-17",
+    "prompt": "Ôn tập từ vựng đều đặn giúp cải thiện khả năng ghi nhớ ngôn ngữ rõ rệt",
+    "tokens": ["review", "Consistent", "retention", "improves", "vocabulary", "language", "dramatically"],
+    "answer": "Consistent vocabulary review improves language retention dramatically",
+    "level": "B2"
+  },
+  {
+    "id": "bsc-18",
+    "prompt": "Bác sĩ khuyên bệnh nhân nghỉ ngơi trong ba ngày",
+    "tokens": ["advised", "doctor", "The", "to", "patient", "the", "rest", "three", "days", "for"],
+    "answer": "The doctor advised the patient to rest for three days",
+    "level": "A2"
+  },
+  {
+    "id": "bsc-19",
+    "prompt": "Công nghệ hiện đại cho phép mọi người làm việc từ xa ở bất cứ đâu",
+    "tokens": ["remotely", "allows", "technology", "Modern", "people", "to", "from", "work", "anywhere"],
+    "answer": "Modern technology allows people to work remotely from anywhere",
+    "level": "B1"
+  },
+  {
+    "id": "bsc-20",
+    "prompt": "Nhóm nghiên cứu đã trình bày kết quả của họ tại hội nghị thường niên",
+    "tokens": ["presented", "team", "research", "The", "findings", "their", "the", "at", "conference", "annual"],
+    "answer": "The research team presented their findings at the annual conference",
+    "level": "B1"
+  }
+]

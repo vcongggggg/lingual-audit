@@ -16,7 +16,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docs/database/sql/00_init_all.sql:/docker-entrypoint-initdb.d/00_init_all.sql:ro
       - ./docs/database/sql/seed_vocabulary_a1_a2_500.sql:/docker-entrypoint-initdb.d/01_seed_vocabulary.sql:ro
-      - ./docs/database/sql/seed_quiz_bank_300.sql:/docker-entrypoint-initdb.d/02_seed_quiz_questions.sql:ro
+      - ./docs/database/sql/seed_vocabulary_bulk.sql:/docker-entrypoint-initdb.d/02_seed_vocabulary_bulk.sql:ro
+      - ./docs/database/sql/seed_quiz_bank_300.sql:/docker-entrypoint-initdb.d/03_seed_quiz_questions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lingual_user -d lingual_db"]
       interval: 5s
@@ -67,8 +68,8 @@ services:
       # Tách riêng bin và obj để tránh xung đột binary giữa Windows host và Linux container
       - backend_api_bin:/app/Lingual.Api/bin
       - backend_api_obj:/app/Lingual.Api/obj
-      - backend_shared_bin:/app/Lingual.Shared/bin
-      - backend_shared_obj:/app/Lingual.Shared/obj
+      - backend_shared_bin:/app/Lingual.SharedKernel/bin
+      - backend_shared_obj:/app/Lingual.SharedKernel/obj
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +108,8 @@ services:
 # VOLUMES & NETWORKS
 # =========================================================================
   migration-api:
+    profiles:
+      - production
     build:
       context: .
       dockerfile: src/backend/Lingual.Api/Dockerfile
@@ -121,6 +124,8 @@ services:
     command: ["--migrate"]
 
   api:
+    profiles:
+      - production
     build:
       context: .
       dockerfile: src/backend/Lingual.Api/Dockerfile
@@ -137,7 +142,7 @@ services:
         condition: service_completed_successfully
     environment:
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=lingual_db;Username=lingual_user;Password=lingual_password
-      - Redis__ConnectionString=redis:6379
+      - ConnectionStrings__Redis=redis:6379
     networks:
       - lingual-net
 

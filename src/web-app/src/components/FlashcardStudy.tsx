@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
+import { clientApi } from "@/app/api/api";
 import {
   Volume2,
   RotateCw,
@@ -10,6 +11,7 @@ import {
   BookOpen,
   Keyboard,
 } from "lucide-react";
+import { useLanguage } from "@/lib/language-context";
 
 // ============================================================================
 // 1. DATA TYPES (MAPPED TO BACKEND POSTGRESQL SCHEMA: vocabulary_items & srs_cards)
@@ -30,7 +32,7 @@ export interface VocabularyItem {
   source_language: string;
   target_language: string;
   ipa?: string;
-  cefr_level?: "A1" | "A2";
+  cefr_level?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   part_of_speech?: string; // noun, verb, adjective, adverb...
   meaning: string;
   pronunciation_audio_url?: string;
@@ -72,6 +74,15 @@ export interface SrsReviewPayload {
   time_spent_ms: number;
   idempotency_key: string;
 }
+
+const DEMO_VOCABULARY: VocabularyItem[] = [
+  { id: "demo-vocab-01", term: "curious", normalized_term: "curious", source_language: "en", target_language: "vi", ipa: "/ˈkjʊəriəs/", cefr_level: "A2", part_of_speech: "adjective", meaning: "tò mò; ham tìm hiểu", examples: [{ source_text: "The curious student asked one more question.", target_text: "Bạn học sinh ham tìm hiểu hỏi thêm một câu nữa." }] },
+  { id: "demo-vocab-02", term: "journey", normalized_term: "journey", source_language: "en", target_language: "vi", ipa: "/ˈdʒɜːrni/", cefr_level: "A2", part_of_speech: "noun", meaning: "hành trình; chuyến đi", examples: [{ source_text: "Learning a language is a long journey.", target_text: "Học một ngôn ngữ là một hành trình dài." }] },
+  { id: "demo-vocab-03", term: "improve", normalized_term: "improve", source_language: "en", target_language: "vi", ipa: "/ɪmˈpruːv/", cefr_level: "A2", part_of_speech: "verb", meaning: "cải thiện; tiến bộ", examples: [{ source_text: "A little practice can improve your speaking.", target_text: "Luyện tập một chút có thể cải thiện kỹ năng nói của bạn." }] },
+  { id: "demo-vocab-04", term: "achieve", normalized_term: "achieve", source_language: "en", target_language: "vi", ipa: "/əˈtʃiːv/", cefr_level: "A2", part_of_speech: "verb", meaning: "đạt được; hoàn thành", examples: [{ source_text: "She worked hard to achieve her goal.", target_text: "Cô ấy chăm chỉ để đạt được mục tiêu." }] },
+  { id: "demo-vocab-05", term: "habit", normalized_term: "habit", source_language: "en", target_language: "vi", ipa: "/ˈhæbɪt/", cefr_level: "A1", part_of_speech: "noun", meaning: "thói quen", examples: [{ source_text: "Reading every day is a good habit.", target_text: "Đọc sách mỗi ngày là một thói quen tốt." }] },
+  { id: "demo-vocab-06", term: "careful", normalized_term: "careful", source_language: "en", target_language: "vi", ipa: "/ˈkerfəl/", cefr_level: "A1", part_of_speech: "adjective", meaning: "cẩn thận", examples: [{ source_text: "Be careful when you cross the street.", target_text: "Hãy cẩn thận khi băng qua đường." }] },
+];
 
 // ============================================================================
 // 2. SM-2 ALGORITHM CLIENT HELPER (SUPERMEMO-2 STANDARD)
@@ -160,6 +171,7 @@ export default function FlashcardStudy({
   onFinishSession,
   onReviewSubmit,
 }: FlashcardStudyProps) {
+  const { translate: t } = useLanguage();
   // Navigation & Card Flip State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -173,6 +185,7 @@ export default function FlashcardStudy({
   const [startTime, setStartTime] = useState<number>(() => Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
   const [databaseVocabulary, setDatabaseVocabulary] = useState<VocabularyItem[]>([]);
+  const [isDemoVocabulary, setIsDemoVocabulary] = useState(false);
   const reviewIdempotencyKeys = useRef<Record<string, string>>({});
   const [isLoadingVocabulary, setIsLoadingVocabulary] = useState(!vocabularyList);
   const [vocabularyLoadError, setVocabularyLoadError] = useState<string | null>(null);
@@ -183,17 +196,25 @@ export default function FlashcardStudy({
     const loadVocabulary = async () => {
       setIsLoadingVocabulary(true);
       try {
-        const response = await fetch("/api/vocabulary?limit=50", { signal: controller.signal });
-        if (!response.ok) throw new Error(`Vocabulary API returned ${response.status}`);
-        const data = (await response.json()) as { words?: VocabularyItem[] };
-        if (!Array.isArray(data.words) || data.words.length === 0) throw new Error("No vocabulary rows found in database");
-        setDatabaseVocabulary(data.words);
-        setVocabularyLoadError(null);
-        setCurrentIndex(0);
+        const data = await clientApi.get<{ words?: VocabularyItem[] }>("/api/vocabulary?limit=50", {
+          signal: controller.signal,
+        });
+        if (Array.isArray(data?.words) && data.words.length > 0) {
+          setDatabaseVocabulary(data.words);
+          setIsDemoVocabulary(false);
+          setVocabularyLoadError(null);
+          setCurrentIndex(0);
+        } else {
+          setDatabaseVocabulary(DEMO_VOCABULARY);
+          setIsDemoVocabulary(true);
+          setVocabularyLoadError(null);
+        }
       } catch (error) {
         if (controller.signal.aborted) return;
-        console.error("Could not load vocabulary from database.", error);
-        setVocabularyLoadError("Could not load vocabulary from the database.");
+        console.warn("Could not load vocabulary from database, falling back to demo cards:", error);
+        setDatabaseVocabulary(DEMO_VOCABULARY);
+        setIsDemoVocabulary(true);
+        setVocabularyLoadError(null);
       } finally {
         if (!controller.signal.aborted) setIsLoadingVocabulary(false);
       }
@@ -290,9 +311,10 @@ export default function FlashcardStudy({
     };
 
     // Persist first so a failed request never advances the learner's session.
-    if (onReviewSubmit) {
+    if (onReviewSubmit && !isDemoVocabulary) {
       try {
         await onReviewSubmit(payload);
+        delete reviewIdempotencyKeys.current[`${currentVocab.id}:${rating}`];
       } catch (err) {
         console.error("Lỗi khi gửi kết quả SRS lên server:", err);
         setReviewError("Chưa lưu được kết quả. Hãy thử gửi lại.");
@@ -349,6 +371,7 @@ export default function FlashcardStudy({
     currentIndex,
     currentVocab.id,
     isSubmitting,
+    isDemoVocabulary,
     onFinishSession,
     onReviewSubmit,
     reviewedCardsCount,
@@ -405,26 +428,27 @@ export default function FlashcardStudy({
     return (
       <section className="study-complete" aria-live="polite">
         <span className="study-complete-mark"><BookOpen aria-hidden="true" /></span>
-        <p className="study-eyebrow">Hoàn thành phiên học</p>
-        <h2>Tốt lắm. Hãy duy trì nhịp học.</h2>
-        <p className="study-complete-copy">Bạn đã ôn {reviewedCardsCount} từ trong phiên này.</p>
+        {isDemoVocabulary && <p className="study-demo-note">{t("Bản dùng thử · Kết quả ôn tập chỉ lưu trong phiên này, chưa gửi lên máy chủ.", "Demo · Review results are saved for this session only and are not sent to the server.")}</p>}
+        <p className="study-eyebrow">{t("Hoàn thành phiên học", "Session complete")}</p>
+        <h2>{t("Tốt lắm. Hãy duy trì nhịp học.", "Great work. Keep your learning rhythm.")}</h2>
+        <p className="study-complete-copy">{t(`Bạn đã ôn ${reviewedCardsCount} từ trong phiên này.`, `You reviewed ${reviewedCardsCount} words in this session.`)}</p>
         <div className="study-complete-xp"><Zap aria-hidden="true" /> +{xpGainedSession} XP</div>
         <div className="study-complete-actions">
-          <button type="button" onClick={handleRestart} className="study-restart">Ôn lại bộ thẻ</button>
-          <Link href="/" className="study-home">Về tổng quan <ArrowRight aria-hidden="true" /></Link>
+          <button type="button" onClick={handleRestart} className="study-restart">{t("Ôn lại bộ thẻ", "Review again")}</button>
+          <Link href="/" className="study-home">{t("Về tổng quan", "Back to overview")} <ArrowRight aria-hidden="true" /></Link>
         </div>
       </section>
     );
   }
 
   // Active study card
-  if (isLoadingVocabulary && !vocabularyList) return <div className="study-empty" role="status">Loading vocabulary from the database...</div>;
+  if (isLoadingVocabulary && !vocabularyList) return <div className="study-empty" role="status">{t("Đang tải từ vựng từ cơ sở dữ liệu…", "Loading vocabulary from the database…")}</div>;
   if (vocabularyLoadError && !vocabularyList) return <div className="study-empty" role="alert">{vocabularyLoadError}</div>;
 
   const progressPercent = cards.length ? Math.round(((currentIndex + 1) / cards.length) * 100) : 0;
 
   if (!cards.length) {
-    return <div className="study-empty" role="status"><BookOpen aria-hidden="true" /><h2>Chưa có thẻ để ôn</h2><p>Danh sách từ vựng hiện đang trống.</p></div>;
+    return <div className="study-empty" role="status"><BookOpen aria-hidden="true" /><h2>{t("Chưa có thẻ để ôn", "No cards to review")}</h2><p>{t("Danh sách từ vựng hiện đang trống.", "The vocabulary list is empty.")}</p></div>;
   }
 
   const renderExample = (sentence: string) => {
@@ -436,12 +460,13 @@ export default function FlashcardStudy({
   };
 
   return (
-    <section className="study-shell" aria-label="Phiên ôn từ vựng">
+    <section className="study-shell" aria-label={t("Phiên ôn từ vựng", "Vocabulary review session")}>
+      {isDemoVocabulary && <p className="study-demo-note">{t("Bản dùng thử · Đang dùng 6 từ mẫu. Đánh giá thẻ chưa được lưu lên máy chủ.", "Demo · Using 6 sample words. Card reviews are not saved to the server.")}</p>}
       <div className="study-progress-row">
-        <div className="study-progress-copy"><span>Tiến độ phiên học</span><strong>{currentIndex + 1}<span> / {cards.length}</span></strong></div>
+        <div className="study-progress-copy"><span>{t("Tiến độ phiên học", "Session progress")}</span><strong>{currentIndex + 1}<span> / {cards.length}</span></strong></div>
         <span className="study-progress-percent">{progressPercent}%</span>
       </div>
-      <div className="study-progress-track" role="progressbar" aria-label="Tiến độ phiên học" aria-valuemin={0} aria-valuemax={cards.length} aria-valuenow={currentIndex + 1}>
+      <div className="study-progress-track" role="progressbar" aria-label={t("Tiến độ phiên học", "Session progress")} aria-valuemin={0} aria-valuemax={cards.length} aria-valuenow={currentIndex + 1}>
         <span style={{ width: `${progressPercent}%` }} />
       </div>
 
@@ -458,47 +483,47 @@ export default function FlashcardStudy({
               <span className="study-card-index">{String(currentIndex + 1).padStart(2, "0")} <span>/ {String(cards.length).padStart(2, "0")}</span></span>
             </div>
             <div className="study-word-block">
-              <span className="study-eyebrow">Từ vựng tiếng Anh</span>
+              <span className="study-eyebrow">{t("Từ vựng tiếng Anh", "English vocabulary")}</span>
               <h1>{currentVocab.term}</h1>
               {currentVocab.ipa && <p className="study-ipa">{currentVocab.ipa}</p>}
-              <button type="button" onClick={handlePronounce} className={`study-audio ${isSpeaking ? "is-speaking" : ""}`} aria-label={`Play pronunciation for ${currentVocab.term}`}>
-                <Volume2 aria-hidden="true" /> <span>{isSpeaking ? "Đang phát" : "Nghe phát âm"}</span>
+              <button type="button" onClick={handlePronounce} className={`study-audio ${isSpeaking ? "is-speaking" : ""}`} aria-label={`${t("Nghe phát âm", "Play pronunciation")} ${currentVocab.term}`}>
+                <Volume2 aria-hidden="true" /> <span>{isSpeaking ? t("Đang phát", "Playing") : t("Nghe phát âm", "Play pronunciation")}</span>
               </button>
-              {speechUnavailable && <p className="study-audio-note">Trình duyệt không hỗ trợ phát âm.</p>}
+              {speechUnavailable && <p className="study-audio-note">{t("Trình duyệt không hỗ trợ phát âm.", "This browser does not support pronunciation.")}</p>}
             </div>
             <button type="button" className="study-flip-prompt" onClick={handleToggleFlip} aria-label="Flip card to reveal meaning">
-              <span>Chạm để xem nghĩa</span><RotateCw aria-hidden="true" />
+              <span>{t("Chạm để xem nghĩa", "Tap to reveal meaning")}</span><RotateCw aria-hidden="true" />
             </button>
           </article>
 
           <article className="study-card-face study-card-back" aria-hidden={!isFlipped} inert={!isFlipped}>
             <div className="study-card-meta">
-              <span className="study-pos">Nghĩa và ví dụ</span>
+              <span className="study-pos">{t("Nghĩa và ví dụ", "Meaning and example")}</span>
               <button type="button" onClick={handlePronounce} className="study-audio study-audio-small" aria-label={`Nghe phát âm ${currentVocab.term}`}><Volume2 aria-hidden="true" /></button>
             </div>
             <div className="study-answer">
-              <span className="study-eyebrow">Nghĩa tiếng Việt</span>
+              <span className="study-eyebrow">{t("Nghĩa tiếng Việt", "Vietnamese meaning")}</span>
               <p className="study-meaning">{currentVocab.meaning}</p>
-              {currentVocab.examples?.[0] && <div className="study-example"><span className="study-eyebrow">Trong ngữ cảnh</span><p lang="en">&ldquo;{renderExample(currentVocab.examples[0].source_text)}&rdquo;</p>{currentVocab.examples[0].target_text && <p className="study-translation">{currentVocab.examples[0].target_text}</p>}</div>}
+              {currentVocab.examples?.[0] && <div className="study-example"><span className="study-eyebrow">{t("Trong ngữ cảnh", "In context")}</span><p lang="en">&ldquo;{renderExample(currentVocab.examples[0].source_text)}&rdquo;</p>{currentVocab.examples[0].target_text && <p className="study-translation">{currentVocab.examples[0].target_text}</p>}</div>}
             </div>
-            <button type="button" className="study-flip-prompt" onClick={handleToggleFlip}><span>Quay lại mặt trước</span><RotateCw aria-hidden="true" /></button>
+            <button type="button" className="study-flip-prompt" onClick={handleToggleFlip}><span>{t("Quay lại mặt trước", "Back to front")}</span><RotateCw aria-hidden="true" /></button>
           </article>
         </div>
       </div>
 
       <button type="button" onClick={handleToggleFlip} className="study-reveal-link" aria-expanded={isFlipped}>
-        <RotateCw aria-hidden="true" /> {isFlipped ? "Xem mặt trước" : "Hiện đáp án"}
+        <RotateCw aria-hidden="true" /> {isFlipped ? t("Xem mặt trước", "View front") : t("Hiện đáp án", "Show answer")}
       </button>
 
-      <div className={`study-review ${isFlipped ? "is-ready" : ""}`} aria-label="Đánh giá mức độ ghi nhớ">
+      <div className={`study-review ${isFlipped ? "is-ready" : ""}`} aria-label={t("Đánh giá mức độ ghi nhớ", "Rate your memory")}>
         {reviewError && <p className="study-audio-note" role="alert">{reviewError}</p>}
-        <div className="study-review-heading"><span>{isFlipped ? "Bạn nhớ từ này thế nào?" : "Lật thẻ để chọn mức ghi nhớ"}</span>{recentXpPopup ? <span>+{recentXpPopup} XP</span> : <span className="study-shortcuts"><Keyboard aria-hidden="true" /> Phím 1–4</span>}</div>
+        <div className="study-review-heading"><span>{isFlipped ? t("Bạn nhớ từ này thế nào?", "How well do you remember this word?") : t("Lật thẻ để chọn mức ghi nhớ", "Flip the card to rate your memory")}</span>{recentXpPopup ? <span>+{recentXpPopup} XP</span> : <span className="study-shortcuts"><Keyboard aria-hidden="true" /> {t("Phím 1–4", "Keys 1–4")}</span>}</div>
         <div className="study-rating-grid">
           {([
-            ["again", "Again", "Quên", buttonIntervals.again],
-            ["hard", "Hard", "Khó", buttonIntervals.hard],
-            ["good", "Good", "Tốt", buttonIntervals.good],
-            ["easy", "Easy", "Rất dễ", buttonIntervals.easy],
+            ["again", t("Lại", "Again"), t("Quên", "Forgot"), buttonIntervals.again],
+            ["hard", t("Khó", "Hard"), t("Khó", "Difficult"), buttonIntervals.hard],
+            ["good", t("Tốt", "Good"), t("Tốt", "Good"), buttonIntervals.good],
+            ["easy", t("Rất dễ", "Easy"), t("Rất dễ", "Very easy"), buttonIntervals.easy],
           ] as const).map(([rating, label, hint, interval], index) => (
             <button key={rating} type="button" disabled={!isFlipped || isSubmitting} onClick={() => handleSm2Review(rating)} className={`study-rating study-rating-${rating}`}>
               <span className="study-rating-interval">{interval}</span><strong>{label}</strong><span className="study-rating-hint">{hint} <kbd>{index + 1}</kbd></span>

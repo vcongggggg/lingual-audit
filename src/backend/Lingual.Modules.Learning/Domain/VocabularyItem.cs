@@ -10,6 +10,7 @@ public class VocabularyItem : EntityBase, IAggregateRoot
     public string SourceLanguage { get; set; } = "en";
     public string TargetLanguage { get; set; } = "vi";
     public string? Ipa { get; set; }
+    public string CefrLevel { get; set; } = "A1";
     public string? PartOfSpeech { get; set; }
     public string Meaning { get; set; } = string.Empty;
     public string? PronunciationAudioUrl { get; set; }

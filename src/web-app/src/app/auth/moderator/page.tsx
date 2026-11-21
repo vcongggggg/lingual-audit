@@ -1,24 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, UserCheck } from 'lucide-react';
+import { ArrowLeft, Users } from 'lucide-react';
 
 export default function ModeratorAuthPage() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full p-6 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl text-center space-y-4">
-        <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center mx-auto">
-          <UserCheck className="w-6 h-6" />
+    <div className="w-full flex-1 min-h-[calc(100svh-68px)] bg-[var(--paper,#f5f2eb)] text-[var(--ink,#252820)] flex items-center justify-center p-4">
+      <div className="max-w-md w-full p-8 bg-[var(--surface,#fffefa)] border border-[var(--line,#e5e0d5)] rounded-2xl shadow-xl text-center space-y-4">
+        <div className="w-12 h-12 bg-[#eff1e8] text-[var(--olive,#69734f)] rounded-2xl border border-[#d7ddca] flex items-center justify-center mx-auto">
+          <Users className="w-6 h-6" />
         </div>
-        <h1 className="text-xl font-bold">Cổng Điều Hành (Moderator)</h1>
-        <p className="text-xs text-slate-400">
-          Vui lòng sử dụng trang kiểm thử xác thực Mezon OAuth để đăng nhập tài khoản moderator.
+        <h1 className="text-xl font-bold text-[var(--ink,#252820)]">Cổng Điều Hành Viên (Moderator)</h1>
+        <p className="text-xs text-[var(--muted,#77786f)]">
+          Vui lòng sử dụng cổng đăng nhập Mezon SSO với tài khoản Clan Moderator.
         </p>
         <Link
           href="/auth"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--olive,#69734f)] hover:opacity-90 text-white rounded-xl text-xs font-semibold shadow-xs transition-all"
         >
-          <ArrowLeft className="w-4 h-4" /> Về trang kiểm thử Mezon Auth
+          <ArrowLeft className="w-4 h-4" /> Về trang đăng nhập Mezon
         </Link>
       </div>
     </div>

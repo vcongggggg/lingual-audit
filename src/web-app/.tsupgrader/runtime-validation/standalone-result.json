@@ -1,0 +1,231 @@
+{
+  "planHash": "aa1a8a83a774bde6e6fe52a6d9f6287fb1c5239f6b592886affe0f105bb22074",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-13T18:09:16.7671168Z",
+  "retryCount": 1,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "tsc-no-emit",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "npm warn deprecated tsc@2.0.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.\r\n\r\n\u001B[41m                                                                               \u001B[0m\r\n\u001B[41m\u001B[37m                This is not the tsc command you are looking for                \u001B[0m\r\n\u001B[41m                                                                               \u001B[0m\r\n\r\nTo get access to the TypeScript compiler, \u001B[34mtsc\u001B[0m, from the command line either:\r\n\r\n- Use \u001B[1mnpm install typescript\u001B[0m to first add TypeScript to your project \u001B[1mbefore\u001B[0m using npx\r\n- Use \u001B[1myarn\u001B[0m to avoid accidentally running code from un-installed packages\r\n",
+        "durationMs": 10492
+      },
+      {
+        "name": "arena-stress-simulation",
+        "kind": "process",
+        "verificationMethod": "output-contains",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "npm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm.\r\n\r\n\u003E web-app@0.1.0 stress:arena\r\n\u003E node scripts/stress-arena.mjs\r\n\r\n{\u0022matches\u0022:10000,\u0022processedEvents\u0022:100000,\u0022elapsedMs\u0022:3.46,\u0022eventsPerSecond\u0022:28940210,\u0022status\u0022:\u0022passed\u0022}\r\n",
+        "durationMs": 2030
+      },
+      {
+        "name": "dev-server-serves-home",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!DOCTYPE html\u003E\u003Chtml lang=\u0022vi\u0022 class=\u0022geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__variable h-full antialiased\u0022\u003E\u003Chead\u003E\u003Cmeta charSet=\u0022utf-8\u0022/\u003E\u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1\u0022/\u003E\u003Clink rel=\u0022stylesheet\u0022 href=\u0022/_next/static/chunks/%5Broot-of-the-server%5D__04kpziu._.css\u0022 data-precedence=\u0022next_static/chunks/[root-of-the-server]__04kpziu._.css\u0022/\u003E\u003Clink rel=\u0022preload\u0022 as=\u0022script\u0022 fetchPriority=\u0022low\u0022 href=\u0022/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_1di75ot._.js\u0022/\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_compiled_next-devtools_index_090k2jm.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_compiled_react-dom_096_9a-._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_164kp-6._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_compiled_1amofcm._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_client_0_90u2t._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_1e8vcs8._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_%40swc_helpers_cjs_1r9vbqw._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/_1anvha4._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/turbopack-_08bm286._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/_219uq1s._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_214qlqt._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/src_1y6vqby._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/src_19smkfu._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_lucide-react_dist_esm_icons_1-3wiwv._.js\u0022 async=\u0022\u0022\u003E\u003C/script\u003E\u003Ctitle\u003ELinguaMezon | H\u1ECDc t\u1EEB v\u1EF1ng\u003C/title\u003E\u003Cmeta name=\u0022description\u0022 content=\u0022Kh\u00F4ng gian h\u1ECDc t\u1EEB v\u1EF1ng ti\u1EBFng Anh c\u00F9ng LinguaMezon.\u0022/\u003E\u003Clink rel=\u0022icon\u0022 href=\u0022/favicon.ico?favicon.2vob68tjqpejf.ico\u0022 sizes=\u0022256x256\u0022 type=\u0022image/x-icon\u0022/\u003E\u003Cmeta name=\u0022next-size-adjust\u0022 content=\u0022\u0022/\u003E\u003Cscript src=\u0022/_next/static/chunks/node_modules_next_dist_build_polyfills_polyfill-nomodule.js\u0022 noModule=\u0022\u0022\u003E\u003C/script\u003E\u003C/head\u003E\u003Cbody class=\u0022min-h-full flex flex-col bg-slate-950 text-slate-100\u0022\u003E\u003Cdiv hidden=\u0022\u0022\u003E\u003C!--$--\u003E\u003C!--/$--\u003E\u003C/div\u003E\u003Cnav class=\u0022app-nav\u0022 aria-label=\u0022\u0110i\u1EC1u h\u01B0\u1EDBng ch\u00EDnh\u0022\u003E\u003Ca class=\u0022app-brand\u0022 aria-label=\u0022LinguaMezon, trang t\u1ED5ng quan\u0022 href=\u0022/\u0022\u003E\u003Cspan class=\u0022app-brand-mark\u0022 aria-hidden=\u0022true\u0022\u003E\u003Csvg xmlns=\u0022http://www.w3.org/2000/svg\u0022 width=\u002224\u0022 height=\u002224\u0022 viewBox=\u00220 0 24 24\u0022 fill=\u0022none\u0022 stroke=\u0022currentColor\u0022 stroke-width=\u00222\u0022 stroke-linecap=\u0022round\u0022 stroke-linejoin=\u0022round\u0022 class=\u0022lucide lucide-book-open\u0022 aria-hidden=\u0022true\u0022\u003E\u003Cpath d=\u0022M12 5v16\u0022\u003E\u003C/path\u003E\u003Cpath d=\u0022M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\u0022\u003E\u003C/path\u003E\u003C/svg\u003E\u003C/span\u003E\u003Cspan\u003ELingua\u003Cspan class=\u0022app-brand-accent\u0022\u003EMezon\u003C/span\u003E\u003C/span\u003E\u003C/a\u003E\u003Cdiv class=\u0022app-nav-items\u0022\u003E\u003Ca class=\u0022app-nav-link is-active\u0022 aria-current=\u0022page\u0022 href=\u0022/\u0022\u003E\u003Csvg xmlns=\u0022http://www.w3.org/2000/svg\u0022 width=\u002224\u0022 height=\u002224\u0022 viewBox=\u00220 0 24 24\u0022 fill=\u0022none\u0022 stroke=\u0022currentColor\u0022 stroke-width=\u00222\u0022 stroke-linecap=\u0022round\u0022 stroke-linejoin=\u0022round\u0022 class=\u0022lucide lucide-house lucide-home\u0022 aria-hidden=\u0022true\u0022\u003E\u003Cpath d=\u0022M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\u0022\u003E\u003C/path\u003E\u003Cpath d=\u0022M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\u0022\u003E\u003C/path\u003E\u003C/svg\u003E\u003Cspan\u003ET\u1ED5ng quan\u003C/span\u003E\u003C/a\u003E\u003Ca class=\u0022app-nav-link \u0022 href=\u0022/learn\u0022\u003E\u003Csvg xmlns=\u0022http://www.w3.org/2000/svg\u0022 width=\u002224\u0022 height=\u002224\u0022 viewBox=\u00220 0 24 24\u0022 fill=\u0022none\u0022 stroke=\u0022currentColor\u0022 stroke-width=\u00222\u0022 stroke-linecap=\u0022round\u0022 stroke-linejoin=\u0022round\u0022 class=\u0022lucide lucide-book-open\u0022 aria-hidden=\u0022true\u0022\u003E\u003Cpath d=\u0022M12 5v16\u0022\u003E\u003C/path\u003E\u003Cpath d=\u0022M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\u0022\u003E\u003C/path\u003E\u003C/svg\u003E\u003Cspan\u003EFlashcard\u003C/span\u003E\u003C/a\u003E\u003Ca class=\u0022app-nav-link \u0022 href=\u0022/words\u0022\u003E\u003Csvg xmlns=\u0022http://www.w3.org/2000/svg\u0022\n\u2026[truncated]",
+        "durationMs": 388
+      },
+      {
+        "name": "dev-server-serves-arena",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "server exited before responding (exit=1)\n--- server output ---\nnpm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm.\r\n\r\n\u003E web-app@0.1.0 dev\r\n\u003E next dev\r\n\r\n\u0027next\u0027 is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+        "durationMs": 5276
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "npm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm.\r\n\r\n\u003E web-app@0.1.0 test\r\n\u003E set NODE_OPTIONS=--max-old-space-size=4096 \u0026\u0026 tsc --noEmit\r\n\r\n\u0027tsc\u0027 is not recognized as an internal or external command,\r\noperable program or batch file.\r\n",
+        "durationMs": 2263,
+        "testResults": {
+          "testFramework": "unknown",
+          "runnerDetectedFrom": "none",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      }
+    ],
+    "executions": [
+      {
+        "source": "devServer",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "args": [
+          "run",
+          "dev"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.10.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.6.1",
+        "cleanup": {
+          "RootProcessId": 23856,
+          "Completed": true,
+          "ProcessesObserved": 6,
+          "ProcessesTerminated": 0,
+          "Failure": null
+        }
+      },
+      {
+        "source": "tsc-no-emit",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npx.CMD",
+        "args": [
+          "tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": null,
+        "nodeVersion": null,
+        "packageManager": null,
+        "packageManagerExecutable": null,
+        "packageManagerVersion": null,
+        "cleanup": {
+          "RootProcessId": 24632,
+          "Completed": true,
+          "ProcessesObserved": 7,
+          "ProcessesTerminated": 1,
+          "Failure": null
+        }
+      },
+      {
+        "source": "arena-stress-simulation",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "args": [
+          "run",
+          "stress:arena"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.10.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.6.1",
+        "cleanup": {
+          "RootProcessId": 7336,
+          "Completed": true,
+          "ProcessesObserved": 7,
+          "ProcessesTerminated": 1,
+          "Failure": null
+        }
+      },
+      {
+        "source": "dev-server-serves-home",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "args": [
+          "run",
+          "dev"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.10.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.6.1",
+        "cleanup": {
+          "RootProcessId": 14520,
+          "Completed": true,
+          "ProcessesObserved": 4,
+          "ProcessesTerminated": 4,
+          "Failure": null
+        }
+      },
+      {
+        "source": "dev-server-serves-arena",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "args": [
+          "run",
+          "dev"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.10.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.6.1",
+        "cleanup": {
+          "RootProcessId": 16476,
+          "Completed": true,
+          "ProcessesObserved": 6,
+          "ProcessesTerminated": 0,
+          "Failure": null
+        }
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "args": [
+          "test"
+        ],
+        "cwd": "C:\\Users\\LENOVO\\mezon-campus-studio-06-2026-ut-can-tri\\src\\web-app",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.10.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.6.1",
+        "cleanup": {
+          "RootProcessId": 28756,
+          "Completed": true,
+          "ProcessesObserved": 6,
+          "ProcessesTerminated": 1,
+          "Failure": null
+        }
+      }
+    ]
+  }
+}

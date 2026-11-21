@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "set NODE_OPTIONS=--max-old-space-size=4096 && tsc --noEmit",
+    "stress:arena": "node scripts/stress-arena.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",
@@ -26,5 +28,8 @@
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "^16.3.8"
   }
 }

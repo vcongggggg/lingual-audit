@@ -1,0 +1,24 @@
+﻿-- Starter vocabulary for every CEFR level. Safe to run repeatedly.
+-- Apply the AddVocabularyCefrLevel migration before running this seed.
+INSERT INTO vocabulary_items
+(id, term, normalized_term, source_language, target_language, ipa, cefr_level, part_of_speech, meaning, examples, status)
+VALUES
+('a1000000-0000-4000-8000-000000000001','hello','hello','en','vi','/həˈləʊ/','A1','interjection','xin chào','[{"source_text":"Hello, my name is Anna.","target_text":"Xin chào, tên tôi là Anna."}]'::jsonb,'published'),
+('a1000000-0000-4000-8000-000000000002','family','family','en','vi','/ˈfæməli/','A1','noun','gia đình','[{"source_text":"My family lives near the sea.","target_text":"Gia đình tôi sống gần biển."}]'::jsonb,'published'),
+('a1000000-0000-4000-8000-000000000003','breakfast','breakfast','en','vi','/ˈbrekfəst/','A1','noun','bữa sáng','[{"source_text":"I have breakfast at seven.","target_text":"Tôi ăn sáng lúc bảy giờ."}]'::jsonb,'published'),
+('a2000000-0000-4000-8000-000000000001','usually','usually','en','vi','/ˈjuːʒuəli/','A2','adverb','thường xuyên','[{"source_text":"We usually walk to school.","target_text":"Chúng tôi thường đi bộ đến trường."}]'::jsonb,'published'),
+('a2000000-0000-4000-8000-000000000002','journey','journey','en','vi','/ˈdʒɜːni/','A2','noun','hành trình','[{"source_text":"The journey takes two hours.","target_text":"Hành trình mất hai giờ."}]'::jsonb,'published'),
+('a2000000-0000-4000-8000-000000000003','receipt','receipt','en','vi','/rɪˈsiːt/','A2','noun','hóa đơn','[{"source_text":"Could I have a receipt, please?","target_text":"Cho tôi xin hóa đơn được không?"}]'::jsonb,'published'),
+('b1000000-0000-4000-8000-000000000001','independent','independent','en','vi','/ˌɪndɪˈpendənt/','B1','adjective','độc lập','[{"source_text":"She became financially independent.","target_text":"Cô ấy đã tự chủ về tài chính."}]'::jsonb,'published'),
+('b1000000-0000-4000-8000-000000000002','opportunity','opportunity','en','vi','/ˌɒpəˈtjuːnəti/','B1','noun','cơ hội','[{"source_text":"This is a great opportunity to learn.","target_text":"Đây là cơ hội tuyệt vời để học hỏi."}]'::jsonb,'published'),
+('b1000000-0000-4000-8000-000000000003','reliable','reliable','en','vi','/rɪˈlaɪəbəl/','B1','adjective','đáng tin cậy','[{"source_text":"We need a reliable source of information.","target_text":"Chúng ta cần một nguồn thông tin đáng tin cậy."}]'::jsonb,'published'),
+('b2000000-0000-4000-8000-000000000001','sustainable','sustainable','en','vi','/səˈsteɪnəbəl/','B2','adjective','bền vững','[{"source_text":"Cities need sustainable transport.","target_text":"Các thành phố cần giao thông bền vững."}]'::jsonb,'published'),
+('b2000000-0000-4000-8000-000000000002','significant','significant','en','vi','/sɪɡˈnɪfɪkənt/','B2','adjective','đáng kể; quan trọng','[{"source_text":"The study found a significant change.","target_text":"Nghiên cứu phát hiện một thay đổi đáng kể."}]'::jsonb,'published'),
+('b2000000-0000-4000-8000-000000000003','allocate','allocate','en','vi','/ˈæləkeɪt/','B2','verb','phân bổ','[{"source_text":"The team allocated more time to research.","target_text":"Nhóm đã phân bổ thêm thời gian cho nghiên cứu."}]'::jsonb,'published'),
+('c1000000-0000-4000-8000-000000000001','ambiguous','ambiguous','en','vi','/æmˈbɪɡjuəs/','C1','adjective','mơ hồ; đa nghĩa','[{"source_text":"The wording was deliberately ambiguous.","target_text":"Cách diễn đạt được cố ý làm cho mơ hồ."}]'::jsonb,'published'),
+('c1000000-0000-4000-8000-000000000002','compelling','compelling','en','vi','/kəmˈpelɪŋ/','C1','adjective','đầy sức thuyết phục','[{"source_text":"She made a compelling argument.","target_text":"Cô ấy đưa ra lập luận đầy sức thuyết phục."}]'::jsonb,'published'),
+('c1000000-0000-4000-8000-000000000003','intrinsic','intrinsic','en','vi','/ɪnˈtrɪnsɪk/','C1','adjective','vốn có; nội tại','[{"source_text":"Curiosity has intrinsic value.","target_text":"Sự tò mò có giá trị tự thân."}]'::jsonb,'published'),
+('c2000000-0000-4000-8000-000000000001','ubiquitous','ubiquitous','en','vi','/juːˈbɪkwɪtəs/','C2','adjective','có mặt khắp nơi','[{"source_text":"Smartphones are ubiquitous today.","target_text":"Điện thoại thông minh ngày nay có mặt khắp nơi."}]'::jsonb,'published'),
+('c2000000-0000-4000-8000-000000000002','nuance','nuance','en','vi','/ˈnjuːɑːns/','C2','noun','sắc thái tinh tế','[{"source_text":"Translation must preserve every nuance.","target_text":"Bản dịch phải giữ được mọi sắc thái."}]'::jsonb,'published'),
+('c2000000-0000-4000-8000-000000000003','resilience','resilience','en','vi','/rɪˈzɪliəns/','C2','noun','khả năng phục hồi','[{"source_text":"Resilience helped the community recover.","target_text":"Khả năng phục hồi giúp cộng đồng hồi phục."}]'::jsonb,'published')
+ON CONFLICT (normalized_term, source_language, target_language) DO NOTHING;

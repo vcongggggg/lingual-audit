@@ -19,9 +19,9 @@ public class LoginWithMezonEndpoint : IEndpointBase
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
         // 1. Authorize URL endpoints
-        app.MapGet("/api/v1/auth/mezon/authorize", async (IMezonAuthService mezonAuthService) =>
+        app.MapGet("/api/v1/auth/mezon/authorize", async (string? redirectUri, IMezonAuthService mezonAuthService) =>
         {
-            var result = await mezonAuthService.GetAuthorizeUrlAsync();
+            var result = await mezonAuthService.GetAuthorizeUrlAsync(redirectUri);
             return Results.Json(result.Payload, statusCode: result.StatusCode);
         })
         .WithName("GetMezonAuthorizeUrl")
@@ -31,9 +31,9 @@ public class LoginWithMezonEndpoint : IEndpointBase
         .Produces(StatusCodes.Status200OK)
         .AllowAnonymous();
 
-        app.MapGet("/api/v1/auth/mezon/authorize-url", async (IMezonAuthService mezonAuthService) =>
+        app.MapGet("/api/v1/auth/mezon/authorize-url", async (string? redirectUri, IMezonAuthService mezonAuthService) =>
         {
-            var result = await mezonAuthService.GetAuthorizeUrlAsync();
+            var result = await mezonAuthService.GetAuthorizeUrlAsync(redirectUri);
             return Results.Json(result.Payload, statusCode: result.StatusCode);
         })
         .WithName("GetMezonAuthorizeUrlAlias")

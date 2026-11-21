@@ -15,6 +15,9 @@ public static class Extension
         // AITutor DbContext & Persistence
         services.AddAITutorDbContext(configuration);
 
+        // AITutor Service & Options
+        services.AddAITutorModule(configuration);
+
         return builder;
     }
 

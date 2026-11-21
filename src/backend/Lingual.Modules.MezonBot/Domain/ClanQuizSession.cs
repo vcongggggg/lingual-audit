@@ -17,6 +17,7 @@ public class ClanQuizSession : HasDomainEventsBase, IAggregateRoot
     public int? WinningResponseMs { get; set; }
     public DateTime? ExplanationPublishedAt { get; set; }
     public string Responses { get; set; } = "[]";
+    public string? SlotKey { get; set; }
 
     public QuizQuestion? Question { get; set; }
 }

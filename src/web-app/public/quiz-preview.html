@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LinguaMezon - Web Ôn Tập Trắc Nghiệm 300 Câu</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#070b14] text-slate-100 font-sans min-h-screen antialiased flex flex-col justify-between p-4 md:py-6 relative overflow-x-hidden select-none">
+
+  <!-- Ambient background glow elements -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/20 blur-[130px] rounded-full"></div>
+    <div class="absolute top-[40%] -left-32 w-80 h-80 bg-cyan-500/10 blur-[100px] rounded-full"></div>
+    <div class="absolute top-[60%] -right-32 w-80 h-80 bg-amber-500/10 blur-[100px] rounded-full"></div>
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="w-full max-w-xl mx-auto flex items-center justify-between pb-3 border-b border-white/5 z-10">
+    <a href="preview-leaderboard.html" class="flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-white/10 transition-colors">
+      <i data-lucide="chevron-left" class="w-4 h-4"></i>
+      <span>Bảng Xếp Hạng</span>
+    </a>
+
+    <!-- Mode Selector Tabs -->
+    <div class="flex p-0.5 bg-slate-900/90 rounded-xl border border-white/10 text-xs font-semibold">
+      <button onclick="switchMode(10)" id="modeTab10" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow">Sprint 10 câu</button>
+      <button onclick="switchMode(20)" id="modeTab20" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white">Clan 20 câu</button>
+      <button onclick="switchMode(50)" id="modeTab50" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white">Kho 300 câu</button>
+    </div>
+
+    <a href="preview-flashcard.html" class="flex items-center gap-1 text-xs font-bold text-cyan-400 bg-cyan-400/10 px-2.5 py-1.5 rounded-xl border border-cyan-400/20">
+      <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+      <span class="hidden sm:inline">Flashcard</span>
+    </a>
+  </header>
+
+  <!-- MAIN QUIZ AREA -->
+  <main class="w-full flex-1 flex flex-col items-center justify-center py-4 z-10">
+    <div class="w-full max-w-xl mx-auto flex flex-col" id="quizPlayContainer">
+      
+      <!-- Top Progress Bar & Live Session Stats -->
+      <div class="w-full flex items-center justify-between mb-3 text-xs px-1">
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-white text-sm" id="progressText">Câu 1 <span class="text-slate-500 text-xs">/ 10</span></span>
+          <div class="w-24 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+            <div id="progressBar" style="width: 10%" class="h-full bg-gradient-to-r from-indigo-500 via-indigo-400 to-cyan-400 rounded-full transition-all duration-300"></div>
+          </div>
+        </div>
+
+        <!-- Timer & Combo & XP -->
+        <div class="flex items-center gap-2.5">
+          <div id="comboBadge" class="hidden flex items-center gap-1 font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-xl border border-amber-400/20 animate-pulse">
+            <i data-lucide="flame" class="w-3.5 h-3.5 fill-amber-400"></i>
+            <span id="comboText">Combo x2!</span>
+          </div>
+
+          <div id="timerBadge" class="flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-xl border text-slate-300 bg-slate-900/80 border-white/10">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span id="timerText">30s</span>
+          </div>
+
+          <div class="flex items-center gap-1 font-black text-cyan-400 bg-cyan-400/10 px-2.5 py-0.5 rounded-xl border border-cyan-400/20">
+            <i data-lucide="zap" class="w-3.5 h-3.5 fill-cyan-400"></i>
+            <span id="sessionXp">0 XP</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUESTION CARD -->
+      <div class="w-full rounded-3xl bg-gradient-to-b from-indigo-950/40 via-slate-900/80 to-slate-950/90 border border-white/10 p-5 sm:p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+        <!-- Metadata Tags -->
+        <div class="flex items-center justify-between mb-3 text-xs">
+          <div class="flex items-center gap-2">
+            <span id="questionLevel" class="text-[10px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+              Cấp độ B1
+            </span>
+            <span id="questionDiff" class="text-[10px] text-slate-400 font-semibold bg-slate-800/80 px-2 py-0.5 rounded-md border border-white/5">
+              Độ khó 2/3
+            </span>
+          </div>
+          <span class="text-amber-400 font-bold flex items-center gap-1 text-[11px]">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+            +10 Điểm
+          </span>
+        </div>
+
+        <!-- Question Prompt -->
+        <h2 id="questionPrompt" class="text-lg sm:text-xl font-bold text-white leading-relaxed my-2">
+          She showed remarkable ________ by reviewing 30 flashcards every morning without missing a single day.
+        </h2>
+
+        <!-- 4 CHOICES (A, B, C, D) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5" id="optionsContainer">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- EXPLANATION BOX (HIỆN NGAY KHI CHỌN) -->
+        <div id="explanationBox" class="hidden mt-4 p-4 rounded-2xl bg-gradient-to-r from-indigo-950/70 via-slate-900 to-slate-900 border border-indigo-500/30 text-xs text-left">
+          <div class="flex items-center gap-2 mb-1 text-indigo-300 font-extrabold uppercase tracking-wider text-[11px]">
+            <i data-lucide="help-circle" class="w-4 h-4 text-cyan-400"></i>
+            <span>Giải Thích Chi Tiết:</span>
+          </div>
+          <p id="explanationText" class="text-slate-200 leading-relaxed font-medium">
+            Đáp án đúng là A.
+          </p>
+        </div>
+      </div>
+
+      <!-- BOTTOM CONTROLS & NEXT BUTTON -->
+      <div class="flex items-center justify-between mt-4 px-1">
+        <span class="text-[11px] text-slate-500 flex items-center gap-1">
+          <i data-lucide="keyboard" class="w-3.5 h-3.5 text-slate-500"></i>
+          Phím tắt: 1-4 hoặc A-D để chọn • Phím Space/Enter để tiếp tục
+        </span>
+
+        <button id="btnNext" onclick="nextQuestion()" class="hidden py-2.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-black text-xs md:text-sm shadow-lg shadow-indigo-600/30 transition-transform active:scale-95 flex items-center gap-2 animate-bounce">
+          <span>Câu Tiếp Theo</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- RESULT COMPLETED CONTAINER (Ban đầu ẩn) -->
+    <div id="resultContainer" class="hidden w-full max-w-xl mx-auto flex flex-col items-center text-center">
+      <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-400 via-yellow-400 to-amber-600 flex items-center justify-center text-4xl shadow-2xl shadow-amber-500/30 mb-3 animate-bounce">
+        🏆
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black text-white">Hoàn Thành Bài Ôn Tập!</h1>
+      <p class="text-xs sm:text-sm text-slate-400 mt-1">
+        Bạn đã hoàn thành phiên luyện tập trắc nghiệm từ vựng chuẩn bị cho Clan War.
+      </p>
+
+      <div class="grid grid-cols-3 gap-2.5 w-full my-6">
+        <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-white/5 flex flex-col items-center">
+          <span class="text-[10px] text-slate-400 uppercase font-bold">Số câu đúng</span>
+          <span class="text-2xl font-black text-white mt-0.5" id="resScore">8 <span class="text-xs text-slate-500 font-semibold">/ 10</span></span>
+          <span class="text-[10px] text-emerald-400 font-semibold mt-0.5" id="resAccuracy">80% Chính xác</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-white/5 flex flex-col items-center">
+          <span class="text-[10px] text-slate-400 uppercase font-bold">XP Tích Lũy</span>
+          <span class="text-2xl font-black text-amber-400 mt-0.5 flex items-center gap-1">
+            <i data-lucide="zap" class="w-5 h-5 fill-amber-400"></i>
+            <span id="resXp">+120</span>
+          </span>
+          <span class="text-[10px] text-indigo-300 font-semibold mt-0.5">Cộng vào Clan</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-white/5 flex flex-col items-center">
+          <span class="text-[10px] text-slate-400 uppercase font-bold">Cấp bậc</span>
+          <span class="text-2xl font-black text-cyan-400 mt-0.5" id="resTier">Sử Thi</span>
+          <span class="text-[10px] text-slate-400 font-semibold mt-0.5">Level A2+</span>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex flex-col sm:flex-row gap-3 w-full">
+        <button onclick="restartQuiz()" class="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all border border-white/10">
+          <i data-lucide="rotate-cw" class="w-4 h-4 text-indigo-400"></i>
+          <span>Làm Lại Bộ Này</span>
+        </button>
+        <a href="preview-flashcard.html" class="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all border border-white/10">
+          <i data-lucide="book-open" class="w-4 h-4 text-cyan-400"></i>
+          <span>Học Flashcard 3D</span>
+        </a>
+        <a href="preview-leaderboard.html" class="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all">
+          <span>Xem BXH</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="w-full max-w-xl mx-auto pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500 z-10">
+    <span>Ngân hàng 300 câu hỏi trắc nghiệm CEFR A1-B2</span>
+    <span>LinguaMezon • Quiz Clan</span>
+  </footer>
+
+  <!-- ========================================================= -->
+  <!-- JAVASCRIPT LOGIC -->
+  <!-- ========================================================= -->
+  <script>
+    // 20 Sample Questions loaded for instant practice
+    const ALL_QUESTIONS = [
+      {
+        prompt: "She showed remarkable ________ by reviewing 30 flashcards every morning without missing a single day.",
+        level: "B1",
+        diff: 2,
+        options: [
+          { key: "A", text: "perseverance", is_correct: true },
+          { key: "B", text: "hesitation", is_correct: false },
+          { key: "C", text: "reluctance", is_correct: false },
+          { key: "D", text: "negligence", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (perseverance - sự kiên trì, bền chí). Dấu hiệu ngữ cảnh là 'reviewing flashcards every morning without missing a single day'."
+      },
+      {
+        prompt: "In order to win the Clan War, all members need to ________ closely and share vocabulary strategies.",
+        level: "B1",
+        diff: 2,
+        options: [
+          { key: "A", text: "compete", is_correct: false },
+          { key: "B", text: "collaborate", is_correct: true },
+          { key: "C", text: "hesitate", is_correct: false },
+          { key: "D", text: "isolate", is_correct: false }
+        ],
+        correct: "B",
+        expl: "Đáp án đúng là B (collaborate - hợp tác, cộng tác). 'Collaborate closely' nghĩa là làm việc và phối hợp chặt chẽ với nhau để đạt mục tiêu chung."
+      },
+      {
+        prompt: "The team leader was ________ in checking every translation error, ensuring the deck was 100% accurate.",
+        level: "B2",
+        diff: 3,
+        options: [
+          { key: "A", text: "meticulous", is_correct: true },
+          { key: "B", text: "careless", is_correct: false },
+          { key: "C", text: "superficial", is_correct: false },
+          { key: "D", text: "indifferent", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (meticulous - tỉ mỉ, kỹ lưỡng). Việc 'kiểm tra từng lỗi dịch thuật để đạt 100% chính xác' thể hiện sự cẩn thận cao độ."
+      },
+      {
+        prompt: "Alex gave an ________ speech at the Mezon Demo Day that inspired hundreds of learners to join our platform.",
+        level: "B2",
+        diff: 3,
+        options: [
+          { key: "A", text: "awkward", is_correct: false },
+          { key: "B", text: "eloquent", is_correct: true },
+          { key: "C", text: "abrupt", is_correct: false },
+          { key: "D", text: "ambiguous", is_correct: false }
+        ],
+        correct: "B",
+        expl: "Đáp án đúng là B (eloquent - hùng biện, lưu loát, giàu sức thuyết phục)."
+      },
+      {
+        prompt: "Learning a new foreign language is a wonderful way to broaden your ________.",
+        level: "A2",
+        diff: 1,
+        options: [
+          { key: "A", text: "horizons", is_correct: true },
+          { key: "B", text: "boundaries", is_correct: false },
+          { key: "C", text: "limitations", is_correct: false },
+          { key: "D", text: "barriers", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (horizons). Idiom cố định: 'broaden one's horizons' (mở rộng tầm nhìn, hiểu biết và trải nghiệm sống)."
+      },
+      {
+        prompt: "Don't ________ until tomorrow what you can review today, or you will risk losing your 14-day streak!",
+        level: "B1",
+        diff: 2,
+        options: [
+          { key: "A", text: "put off", is_correct: true },
+          { key: "B", text: "put on", is_correct: false },
+          { key: "C", text: "put out", is_correct: false },
+          { key: "D", text: "put up", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (put off - trì hoãn, hoãn lại = postpone)."
+      },
+      {
+        prompt: "Consistent daily practice plays a ________ role in retaining vocabulary in long-term memory.",
+        level: "B1",
+        diff: 2,
+        options: [
+          { key: "A", text: "crucial", is_correct: true },
+          { key: "B", text: "trivial", is_correct: false },
+          { key: "C", text: "minor", is_correct: false },
+          { key: "D", text: "negligible", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (crucial - có tính quyết định, cực kỳ quan trọng = essential/vital)."
+      },
+      {
+        prompt: "She speaks English so ________ that native speakers often mistake her for an American resident.",
+        level: "A2",
+        diff: 1,
+        options: [
+          { key: "A", text: "fluently", is_correct: true },
+          { key: "B", text: "harshly", is_correct: false },
+          { key: "C", text: "clumsily", is_correct: false },
+          { key: "D", text: "vaguely", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (fluently - trôi chảy, lưu loát). Bổ nghĩa cho động từ 'speaks English'."
+      },
+      {
+        prompt: "Applying the Spaced Repetition (SRS SM-2) algorithm was a major ________ that boosted users' retention rate by 40%.",
+        level: "B2",
+        diff: 3,
+        options: [
+          { key: "A", text: "breakdown", is_correct: false },
+          { key: "B", text: "breakthrough", is_correct: true },
+          { key: "C", text: "setback", is_correct: false },
+          { key: "D", text: "drawback", is_correct: false }
+        ],
+        correct: "B",
+        expl: "Đáp án đúng là B (breakthrough - bước đột phá mang tính lịch sử)."
+      },
+      {
+        prompt: "If you want to reach Level 20 this season, you must ________ a steady study habit every evening.",
+        level: "B1",
+        diff: 2,
+        options: [
+          { key: "A", text: "maintain", is_correct: true },
+          { key: "B", text: "abandon", is_correct: false },
+          { key: "C", text: "interrupt", is_correct: false },
+          { key: "D", text: "neglect", is_correct: false }
+        ],
+        correct: "A",
+        expl: "Đáp án đúng là A (maintain - duy trì, giữ vững thói quen). Collocation: 'maintain a habit'."
+      }
+    ];
+
+    let currentQuestions = ALL_QUESTIONS.slice(0, 10);
+    let currentIndex = 0;
+    let selectedKey = null;
+    let isAnswered = false;
+    let timer = 30;
+    let timerInterval = null;
+    let score = 0;
+    let totalXp = 0;
+    let combo = 0;
+
+    function renderQuestion() {
+      const q = currentQuestions[currentIndex];
+      selectedKey = null;
+      isAnswered = false;
+      timer = 30;
+      clearInterval(timerInterval);
+
+      // Start timer
+      document.getElementById('timerText').textContent = timer + 's';
+      document.getElementById('timerBadge').className = 'flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-xl border text-slate-300 bg-slate-900/80 border-white/10';
+      timerInterval = setInterval(() => {
+        timer--;
+        document.getElementById('timerText').textContent = timer + 's';
+        if (timer <= 5) {
+          document.getElementById('timerBadge').className = 'flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-xl border text-rose-400 bg-rose-500/10 border-rose-500/30 animate-ping';
+        }
+        if (timer <= 0) {
+          clearInterval(timerInterval);
+          selectOption('timeout');
+        }
+      }, 1000);
+
+      // Progress
+      const pct = Math.round(((currentIndex + 1) / currentQuestions.length) * 100);
+      document.getElementById('progressText').innerHTML = `Câu ${currentIndex + 1} <span class="text-slate-500 text-xs">/ ${currentQuestions.length}</span>`;
+      document.getElementById('progressBar').style.width = pct + '%';
+
+      // Meta
+      document.getElementById('questionLevel').textContent = `Cấp độ ${q.level}`;
+      document.getElementById('questionDiff').textContent = `Độ khó ${q.diff}/3`;
+      document.getElementById('questionPrompt').textContent = q.prompt;
+
+      // Options
+      const optionsContainer = document.getElementById('optionsContainer');
+      optionsContainer.innerHTML = q.options.map(opt => `
+        <button onclick="selectOption('${opt.key}')" id="opt-${opt.key}" class="flex items-center justify-between p-3.5 rounded-2xl border text-sm font-semibold transition-all duration-200 active:scale-98 bg-slate-900/80 hover:bg-slate-800/80 border-white/10 text-slate-200">
+          <div class="flex items-center gap-3">
+            <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs bg-slate-800 text-indigo-300 border border-white/10" id="badge-${opt.key}">
+              ${opt.key}
+            </span>
+            <span>${opt.text}</span>
+          </div>
+          <span id="icon-${opt.key}"></span>
+        </button>
+      `).join('');
+
+      // Hide next button & explanation
+      document.getElementById('explanationBox').classList.add('hidden');
+      document.getElementById('btnNext').classList.add('hidden');
+
+      lucide.createIcons();
+    }
+
+    function selectOption(key) {
+      if (isAnswered) return;
+      isAnswered = true;
+      clearInterval(timerInterval);
+      selectedKey = key;
+
+      const q = currentQuestions[currentIndex];
+      const isCorrect = key === q.correct;
+
+      if (isCorrect) {
+        score++;
+        combo++;
+        const earned = 10 + Math.min(15, combo * 3);
+        totalXp += earned;
+        document.getElementById('sessionXp').textContent = `${totalXp} XP`;
+        
+        if (combo > 1) {
+          document.getElementById('comboBadge').classList.remove('hidden');
+          document.getElementById('comboText').textContent = `Combo x${combo}!`;
+        }
+      } else {
+        combo = 0;
+        document.getElementById('comboBadge').classList.add('hidden');
+      }
+
+      // Update styling
+      q.options.forEach(opt => {
+        const btn = document.getElementById(`opt-${opt.key}`);
+        const badge = document.getElementById(`badge-${opt.key}`);
+        const iconSpan = document.getElementById(`icon-${opt.key}`);
+
+        if (opt.key === q.correct) {
+          btn.className = "flex items-center justify-between p-3.5 rounded-2xl border text-sm font-black bg-emerald-950/60 border-emerald-400 text-emerald-200 ring-2 ring-emerald-400/40";
+          badge.className = "w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs bg-emerald-500 text-slate-950";
+          iconSpan.innerHTML = `<i data-lucide="check" class="w-5 h-5 text-emerald-400"></i>`;
+        } else if (opt.key === key && !isCorrect) {
+          btn.className = "flex items-center justify-between p-3.5 rounded-2xl border text-sm font-bold bg-rose-950/60 border-rose-500 text-rose-200 ring-1 ring-rose-500/40";
+          badge.className = "w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs bg-rose-500 text-white";
+          iconSpan.innerHTML = `<i data-lucide="x" class="w-5 h-5 text-rose-400"></i>`;
+        } else {
+          btn.className = "flex items-center justify-between p-3.5 rounded-2xl border text-sm font-semibold bg-slate-950/40 border-white/5 text-slate-500 opacity-60";
+        }
+      });
+
+      // Show explanation
+      document.getElementById('explanationText').textContent = q.expl;
+      document.getElementById('explanationBox').classList.remove('hidden');
+      document.getElementById('btnNext').classList.remove('hidden');
+
+      lucide.createIcons();
+    }
+
+    function nextQuestion() {
+      if (currentIndex + 1 < currentQuestions.length) {
+        currentIndex++;
+        renderQuestion();
+      } else {
+        showResult();
+      }
+    }
+
+    function showResult() {
+      clearInterval(timerInterval);
+      document.getElementById('quizPlayContainer').classList.add('hidden');
+      document.getElementById('resultContainer').classList.remove('hidden');
+
+      const pct = Math.round((score / currentQuestions.length) * 100);
+      document.getElementById('resScore').innerHTML = `${score} <span class="text-xs text-slate-500 font-semibold">/ ${currentQuestions.length}</span>`;
+      document.getElementById('resAccuracy').textContent = `${pct}% Chính xác`;
+      document.getElementById('resXp').textContent = `+${totalXp}`;
+      document.getElementById('resTier').textContent = pct >= 80 ? "Sử Thi" : pct >= 50 ? "Khá Tốt" : "Cần Ôn";
+      
+      lucide.createIcons();
+    }
+
+    function restartQuiz() {
+      currentIndex = 0;
+      score = 0;
+      totalXp = 0;
+      combo = 0;
+      document.getElementById('sessionXp').textContent = '0 XP';
+      document.getElementById('comboBadge').classList.add('hidden');
+      document.getElementById('resultContainer').classList.add('hidden');
+      document.getElementById('quizPlayContainer').classList.remove('hidden');
+      renderQuestion();
+    }
+
+    function switchMode(count) {
+      ['10', '20', '50'].forEach(c => {
+        const tab = document.getElementById(`modeTab${c}`);
+        if (c == count) {
+          tab.className = "px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow";
+        } else {
+          tab.className = "px-2.5 py-1 rounded-lg text-slate-400 hover:text-white";
+        }
+      });
+      currentQuestions = ALL_QUESTIONS.slice(0, Math.min(count, ALL_QUESTIONS.length));
+      restartQuiz();
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (!isAnswered) {
+        if (e.key === '1' || e.key.toUpperCase() === 'A') selectOption('A');
+        if (e.key === '2' || e.key.toUpperCase() === 'B') selectOption('B');
+        if (e.key === '3' || e.key.toUpperCase() === 'C') selectOption('C');
+        if (e.key === '4' || e.key.toUpperCase() === 'D') selectOption('D');
+      } else {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          nextQuestion();
+        }
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderQuestion();
+    });
+  </script>
+</body>
+</html>

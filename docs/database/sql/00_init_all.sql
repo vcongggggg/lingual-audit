@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS vocabulary_items (
     source_language         VARCHAR(16) NOT NULL DEFAULT 'en',
     target_language         VARCHAR(16) NOT NULL DEFAULT 'vi',
     ipa                     VARCHAR(240),
+    cefr_level              VARCHAR(2) NOT NULL DEFAULT 'A1' CHECK (cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     part_of_speech          VARCHAR(32),
     meaning                 TEXT NOT NULL,
     pronunciation_audio_url TEXT,
@@ -250,8 +251,8 @@ CREATE TABLE IF NOT EXISTS srs_cards (
 CREATE TABLE IF NOT EXISTS xp_ledger (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    source_type      VARCHAR(24) NOT NULL 
-                     CHECK (source_type IN ('new_vocabulary','srs_review','clan_quiz','speed_bonus','lesson_complete','duel_win','duel_participation','adjustment')),
+    source_type      VARCHAR(32) NOT NULL 
+                     CHECK (source_type IN ('new_vocabulary','srs_review','clan_quiz','speed_bonus','lesson_complete','duel_win','duel_participation','adjustment','quiz_attempt','daily_checkin','game_word_match','game_sentence_scramble','game_typing_race','game_fill_blitz','game_sound_reflex','game_lingo_wordle','game_center')),
     source_id        UUID,
     xp_delta         INTEGER NOT NULL CHECK (xp_delta <> 0),
     awarded_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -276,9 +277,10 @@ CREATE INDEX IF NOT EXISTS idx_srs_due_queue ON srs_cards(user_id, next_due_at) 
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_user ON xp_ledger(user_id, awarded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_xp_ledger_source ON xp_ledger(source_type, source_id);
 
--- Chống cộng XP trùng lặp khi app không truyền idempotency_key
+-- Chống cộng XP trùng lặp theo từng user khi app không truyền idempotency_key
+DROP INDEX IF EXISTS uq_xp_ledger_source;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_xp_ledger_source
-    ON xp_ledger(source_type, source_id) WHERE source_id IS NOT NULL;
+    ON xp_ledger(user_id, source_type, source_id) WHERE source_id IS NOT NULL AND idempotency_key IS NULL;
 
 -- Triggers tự động cập nhật updated_at cho Module 03
 DROP TRIGGER IF EXISTS trg_srs_cards_updated_at ON srs_cards;

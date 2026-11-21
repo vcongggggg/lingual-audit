@@ -22,6 +22,49 @@ namespace Lingual.Modules.Gamification.Infrastructure.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Lingual.Modules.Gamification.Domain.ActiveGameAttempt", b =>
+                {
+                    b.Property<string>("AttemptId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("GameType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("game_type");
+
+                    b.Property<string>("QuestionsPayloadJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("questions_payload_json");
+
+                    b.Property<DateTime>("StartedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("AttemptId")
+                        .HasName("pk_active_game_attempts");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_active_game_attempts_user_id");
+
+                    b.ToTable("active_game_attempts", (string)null);
+                });
+
             modelBuilder.Entity("Lingual.Modules.Gamification.Domain.DuelMatch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -130,6 +173,333 @@ namespace Lingual.Modules.Gamification.Infrastructure.Data.Migrations
                         .HasDatabaseName("ix_duel_matches_opponent_id_created_at");
 
                     b.ToTable("duel_matches", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.Gamification.Domain.GameQuestion", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("answer");
+
+                    b.Property<string>("ChoicesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("choices_json");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("GameType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("game_type");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("A2")
+                        .HasColumnName("level");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("prompt");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("script-derived")
+                        .HasColumnName("source");
+
+                    b.Property<string>("SourceRef")
+                        .HasColumnType("text")
+                        .HasColumnName("source_ref");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_game_questions");
+
+                    b.HasIndex("GameType")
+                        .HasDatabaseName("ix_game_questions_game_type");
+
+                    b.HasIndex("Level")
+                        .HasDatabaseName("ix_game_questions_level");
+
+                    b.ToTable("game_questions", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.Gamification.Domain.GameSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<double>("Accuracy")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0)
+                        .HasColumnName("accuracy");
+
+                    b.Property<string>("AttemptId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<int>("ComboMax")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("combo_max");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("DurationSeconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("duration_seconds");
+
+                    b.Property<string>("GameType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("game_type");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("text")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<int>("Score")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("score");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("XpEarned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("xp_earned");
+
+                    b.HasKey("Id")
+                        .HasName("pk_game_sessions");
+
+                    b.HasIndex("AttemptId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_game_sessions_attempt_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_game_sessions_user_id");
+
+                    b.HasIndex("GameType", "Score")
+                        .HasDatabaseName("ix_game_sessions_game_type_score");
+
+                    b.ToTable("game_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.Gamification.Domain.GameWordPool", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CefrLevel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("A1")
+                        .HasColumnName("cefr_level");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("ExampleSentence")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("example_sentence");
+
+                    b.Property<string>("ExampleTranslation")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("example_translation");
+
+                    b.Property<string>("Phonetic")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("phonetic");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("ai-generated")
+                        .HasColumnName("source");
+
+                    b.Property<string>("TargetText")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("target_text");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("topic");
+
+                    b.Property<string>("TopicVi")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("topic_vi");
+
+                    b.Property<string>("Translation")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("translation");
+
+                    b.Property<bool>("Verified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("verified");
+
+                    b.HasKey("Id")
+                        .HasName("pk_game_word_pools");
+
+                    b.HasIndex("CefrLevel")
+                        .HasDatabaseName("ix_game_word_pools_cefr_level");
+
+                    b.HasIndex("Topic")
+                        .HasDatabaseName("ix_game_word_pools_topic");
+
+                    b.ToTable("game_word_pools", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.Gamification.Domain.UserGameStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<double>("AvgAccuracy")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0)
+                        .HasColumnName("avg_accuracy");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("GameType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("game_type");
+
+                    b.Property<int>("HighScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("high_score");
+
+                    b.Property<DateTime>("LastPlayedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_played_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("TotalGamesPlayed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_games_played");
+
+                    b.Property<int>("TotalWins")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_wins");
+
+                    b.Property<int>("TotalXpEarned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("total_xp_earned");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_game_stats");
+
+                    b.HasIndex("GameType", "HighScore")
+                        .HasDatabaseName("ix_user_game_stats_game_type_high_score");
+
+                    b.HasIndex("UserId", "GameType")
+                        .IsUnique()
+                        .HasDatabaseName("ix_user_game_stats_user_id_game_type");
+
+                    b.ToTable("user_game_stats", (string)null);
                 });
 
             modelBuilder.Entity("Lingual.Modules.Gamification.Domain.UserStreak", b =>

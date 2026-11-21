@@ -1,5 +1,7 @@
 using System.Reflection;
+using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Infrastructure.Data;
+using Lingual.Modules.Gamification.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +16,17 @@ public static class Extension
 
         // Gamification DbContext & Persistence
         services.AddGamificationDbContext(configuration);
+
+        // Core Gamification Services
+        services.AddScoped<IStreakService, StreakService>();
+        services.AddScoped<IBadgeService, BadgeService>();
+        services.AddScoped<ILeaderboardService, LeaderboardService>();
+        services.AddScoped<IXpService, XpService>();
+        services.AddScoped<IGamificationService, GamificationService>();
+        services.AddScoped<IGameService, GameService>();
+
+        // Game Data Seeder Hosted Service
+        services.AddHostedService<GameDataSeedHostedService>();
 
         return builder;
     }

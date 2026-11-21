@@ -18,7 +18,7 @@ public class XpLedgerConfiguration : IEntityTypeConfiguration<XpLedger>
             .IsRequired();
 
         builder.Property(x => x.SourceType)
-            .HasMaxLength(24)
+            .HasMaxLength(32)
             .IsRequired();
 
         builder.Property(x => x.SourceId);
