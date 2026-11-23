@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Domain;
@@ -28,15 +29,18 @@ public class GameService : IGameService
     private readonly GamificationDbContext _dbContext;
     private readonly IGamificationService _gamificationService;
     private readonly ILogger<GameService> _logger;
+    private readonly IAiQuotaService? _aiQuotaService;
 
     public GameService(
         GamificationDbContext dbContext,
         IGamificationService gamificationService,
-        ILogger<GameService> logger)
+        ILogger<GameService> logger,
+        IAiQuotaService? aiQuotaService = null)
     {
         _dbContext = dbContext;
         _gamificationService = gamificationService;
         _logger = logger;
+        _aiQuotaService = aiQuotaService;
     }
 
     public async Task<GameDataResponseDto> GetGameDataAsync(
@@ -730,6 +734,26 @@ public class GameService : IGameService
             }
         }
 
+        // Award +1 AI bonus credit strictly from server-verified accuracy (>= 50%)
+        int aiCreditsEarned = 0;
+        if (_aiQuotaService != null && totalQuestions > 0 && scoreOutput.Accuracy >= 0.50)
+        {
+            try
+            {
+                var grant = await _aiQuotaService.GrantBonusCreditsAsync(
+                    userId: userId,
+                    amount: 1,
+                    reason: $"reward_game_{gameType}",
+                    idempotencyKey: $"reward_game_{userId:N}_{session.AttemptId}",
+                    cancellationToken: ct);
+                aiCreditsEarned = grant.CreditsAdded;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Không thể cộng lượt AI thưởng sau Game Center cho user {UserId}", userId);
+            }
+        }
+
         return new GameSubmitResultDto(
             Success: true,
             Score: finalScore,
@@ -743,7 +767,8 @@ public class GameService : IGameService
             TotalQuestions: totalQuestions,
             HighScore: stat.HighScore,
             IsNewHighScore: isNewHighScore,
-            StampsAwarded: stamps
+            StampsAwarded: stamps,
+            AiCreditsEarned: aiCreditsEarned
         );
     }
 

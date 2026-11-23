@@ -93,7 +93,8 @@ public class GeminiAITutorService : IAITutorService
                 OriginalText: request.Text,
                 CorrectedText: request.Text,
                 Explanation: "Hệ thống AI LingLing chưa được cấu hình API Key trên máy chủ.",
-                Tips: "Vui lòng kiểm tra lại thiết lập Gemini:ApiKey trong user-secrets hoặc appsettings.Local.json."
+                Tips: "Vui lòng kiểm tra lại thiết lập Gemini:ApiKey trong user-secrets hoặc appsettings.Local.json.",
+                ProviderFailed: true
             );
         }
 
@@ -280,7 +281,8 @@ public class GeminiAITutorService : IAITutorService
                 Reply: fallbackReply,
                 HasFeedback: false,
                 FeedbackCorrection: null,
-                Explanation: null
+                Explanation: null,
+                ProviderFailed: true
             );
         }
 
@@ -411,7 +413,8 @@ public class GeminiAITutorService : IAITutorService
             Reply: fallback,
             HasFeedback: false,
             FeedbackCorrection: null,
-            Explanation: null
+            Explanation: null,
+            ProviderFailed: true
         );
     }
 
@@ -661,7 +664,8 @@ public class GeminiAITutorService : IAITutorService
             OriginalText: originalText,
             CorrectedText: originalText,
             Explanation: message,
-            Tips: "Mẹo: Bạn có thể thử kiểm tra lại cấu trúc câu đơn giản hơn."
+            Tips: "Mẹo: Bạn có thể thử kiểm tra lại cấu trúc câu đơn giản hơn.",
+            ProviderFailed: true
         );
 
     public class ConversationTurnMessage

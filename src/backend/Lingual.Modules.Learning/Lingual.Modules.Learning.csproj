@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Lingual.Infrastructure\Lingual.Infrastructure.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Learning.Contracts\Lingual.Modules.Learning.Contracts.csproj" />
     <ProjectReference Include="..\Lingual.Modules.Gamification.Contracts\Lingual.Modules.Gamification.Contracts.csproj" />
+    <ProjectReference Include="..\Lingual.Modules.AITutor.Contracts\Lingual.Modules.AITutor.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

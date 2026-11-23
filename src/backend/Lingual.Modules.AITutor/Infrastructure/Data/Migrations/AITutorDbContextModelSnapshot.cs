@@ -97,6 +97,107 @@ namespace Lingual.Modules.AITutor.Infrastructure.Data.Migrations
                     b.ToTable("ai_conversations", (string)null);
                 });
 
+            modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiCreditTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("Amount")
+                        .HasColumnType("integer")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_credit_transactions");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ai_credit_transactions_idempotency_key");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_ai_credit_transactions_user_id_created_at");
+
+                    b.ToTable("ai_credit_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiCreditWallet", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("Balance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("balance");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("DailyBonusEarned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("daily_bonus_earned");
+
+                    b.Property<int>("DailyFreeRemaining")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(5)
+                        .HasColumnName("daily_free_remaining");
+
+                    b.Property<DateOnly>("LastResetDate")
+                        .HasColumnType("date")
+                        .HasColumnName("last_reset_date");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_ai_credit_wallets");
+
+                    b.ToTable("ai_credit_wallets", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ai_credit_wallets_balance_non_negative", "balance >= 0");
+
+                            t.HasCheckConstraint("ck_ai_credit_wallets_daily_bonus_non_negative", "daily_bonus_earned >= 0");
+
+                            t.HasCheckConstraint("ck_ai_credit_wallets_daily_free_non_negative", "daily_free_remaining >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiScenario", b =>
                 {
                     b.Property<Guid>("Id")
@@ -114,7 +215,7 @@ namespace Lingual.Modules.AITutor.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 47, 19, 916, DateTimeKind.Utc).AddTicks(5490))
+                        .HasDefaultValue(new DateTime(2026, 11, 23, 3, 43, 37, 999, DateTimeKind.Utc).AddTicks(1420))
                         .HasColumnName("created_at");
 
                     b.Property<Guid?>("CreatedBy")
@@ -153,7 +254,7 @@ namespace Lingual.Modules.AITutor.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValue(new DateTime(2026, 10, 14, 14, 47, 19, 916, DateTimeKind.Utc).AddTicks(5729))
+                        .HasDefaultValue(new DateTime(2026, 11, 23, 3, 43, 37, 999, DateTimeKind.Utc).AddTicks(1925))
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id")
@@ -178,6 +279,23 @@ namespace Lingual.Modules.AITutor.Infrastructure.Data.Migrations
                         .HasConstraintName("fk_ai_conversations_ai_scenarios_scenario_id");
 
                     b.Navigation("Scenario");
+                });
+
+            modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiCreditTransaction", b =>
+                {
+                    b.HasOne("Lingual.Modules.AITutor.Domain.AiCreditWallet", "Wallet")
+                        .WithMany("Transactions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_credit_transactions_ai_credit_wallets_user_id");
+
+                    b.Navigation("Wallet");
+                });
+
+            modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiCreditWallet", b =>
+                {
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("Lingual.Modules.AITutor.Domain.AiScenario", b =>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.MezonBot.Contracts;
@@ -13,7 +14,8 @@ namespace Lingual.Modules.MezonBot.Services;
 public class QuizService(
     MezonBotDbContext dbContext,
     IGamificationService gamificationService,
-    ILogger<QuizService> logger) : IQuizService
+    ILogger<QuizService> logger,
+    IAiQuotaService? aiQuotaService = null) : IQuizService
 {
     private static readonly Guid DemoUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private const int DefaultQuizXp = 20;
@@ -158,6 +160,83 @@ public class QuizService(
             Metadata: null), cancellationToken);
 
         int awardedXp = awardResult.AlreadyAwarded ? 0 : xpToAward;
+
+        // 3. Thưởng +1 lượt AI dựa trên chấm điểm phía server từ bảng quiz_questions (>= 60%), tuyệt đối không tin a.IsCorrect của client
+        if (aiQuotaService != null && !awardResult.AlreadyAwarded && totalCount > 0)
+        {
+            try
+            {
+                var verifiedCorrect = await CountServerVerifiedCorrectAnswersAsync(answers, cancellationToken);
+                if ((double)verifiedCorrect / totalCount >= 0.60)
+                {
+                    var keySuffix = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+                        ? Guid.NewGuid().ToString("N")
+                        : request.IdempotencyKey.Trim();
+                    await aiQuotaService.GrantBonusCreditsAsync(
+                        userId: effectiveUserId,
+                        amount: 1,
+                        reason: "reward_quiz",
+                        idempotencyKey: $"reward_quiz_{effectiveUserId:N}_{keySuffix}",
+                        cancellationToken: cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Không thể cộng lượt AI thưởng sau QuizService cho user {UserId}", effectiveUserId);
+            }
+        }
+
         return new QuizAttemptResultDto(Saved: true, CorrectAnswers: correctCount, Xp: awardedXp);
+    }
+
+    private async Task<int> CountServerVerifiedCorrectAnswersAsync(
+        List<QuizAnswerItemDto> answers,
+        CancellationToken cancellationToken)
+    {
+        var seen = new HashSet<Guid>();
+        var submittedByQuestionId = new Dictionary<Guid, string>();
+        foreach (var ans in answers)
+        {
+            if (string.IsNullOrWhiteSpace(ans.QuestionId) || string.IsNullOrWhiteSpace(ans.SelectedKey)) continue;
+            if (Guid.TryParse(ans.QuestionId.Trim(), out var qId) && seen.Add(qId))
+            {
+                submittedByQuestionId[qId] = ans.SelectedKey.Trim();
+            }
+        }
+
+        if (submittedByQuestionId.Count == 0)
+        {
+            return 0;
+        }
+
+        var questionIds = submittedByQuestionId.Keys.ToList();
+        var dbQuestions = await dbContext.QuizQuestions
+            .AsNoTracking()
+            .Where(q => questionIds.Contains(q.Id))
+            .ToListAsync(cancellationToken);
+
+        int verifiedCorrect = 0;
+        foreach (var q in dbQuestions)
+        {
+            if (!submittedByQuestionId.TryGetValue(q.Id, out var selectedKey)) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(q.Options);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+                foreach (var opt in doc.RootElement.EnumerateArray())
+                {
+                    if (opt.TryGetProperty("is_correct", out var isCorr) && isCorr.GetBoolean() &&
+                        opt.TryGetProperty("key", out var keyProp) &&
+                        string.Equals(keyProp.GetString()?.Trim(), selectedKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        verifiedCorrect++;
+                        break;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return verifiedCorrect;
     }
 }

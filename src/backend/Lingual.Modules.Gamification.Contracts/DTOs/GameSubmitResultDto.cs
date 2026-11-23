@@ -15,5 +15,6 @@ public record GameSubmitResultDto(
     int TotalQuestions,
     int HighScore,
     bool IsNewHighScore,
-    List<string> StampsAwarded
+    List<string> StampsAwarded,
+    int AiCreditsEarned = 0
 );

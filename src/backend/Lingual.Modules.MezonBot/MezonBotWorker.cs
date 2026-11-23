@@ -936,10 +936,16 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
     private async Task HandleAskGrammarAsync(long channelId, string userQuery, ChannelMessageResponse? replyTo = null)
     {
+        IAiQuotaService? aiQuota = null;
+        Guid resolvedUserId = Guid.Empty;
+        AiQuotaConsumeResult? consume = null;
+
         try
         {
             using var scope = _scopeFactory.CreateScope();
             var aiTutor = scope.ServiceProvider.GetService<IAITutorService>();
+            aiQuota = scope.ServiceProvider.GetService<IAiQuotaService>();
+            var userResolver = scope.ServiceProvider.GetService<IMezonUserResolver>();
 
             if (aiTutor == null)
             {
@@ -947,7 +953,40 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 return;
             }
 
+            // Dùng chung ví quota Web + Bot theo UserId chuẩn từ bảng users
+            if (aiQuota != null && userResolver != null && replyTo != null)
+            {
+                var senderId = replyTo.Value.SenderId.ToString();
+                var displayName = string.IsNullOrWhiteSpace(replyTo.Value.Username)
+                    ? $"Member_{senderId[..Math.Min(6, senderId.Length)]}"
+                    : replyTo.Value.Username;
+                resolvedUserId = await userResolver.ResolveUserIdAsync(senderId, displayName);
+
+                if (resolvedUserId != Guid.Empty)
+                {
+                    var msgId = replyTo.Value.MessageId != 0 ? replyTo.Value.MessageId.ToString() : Guid.NewGuid().ToString("N");
+                    consume = await aiQuota.TryConsumeTurnAsync(
+                        resolvedUserId,
+                        reason: "consume_bot_ask",
+                        idempotencyKey: $"bot_ask_{channelId}_{msgId}");
+
+                    if (!consume.Allowed)
+                    {
+                        await ReplyToChannelAsync(
+                            channelId,
+                            $"⏳ LingLing AI: {consume.Message}\n🎮 Kiếm thêm lượt ngay tại: {_options.WebAppUrl}/games | {_options.WebAppUrl}/quiz | {_options.WebAppUrl}/learn",
+                            replyTo);
+                        return;
+                    }
+                }
+            }
+
             var analysis = await aiTutor.AnalyzeGrammarAsync(new GrammarAnalysisRequest(userQuery));
+
+            if (analysis.ProviderFailed && aiQuota != null && resolvedUserId != Guid.Empty && consume != null && !consume.AlreadyProcessed)
+            {
+                await aiQuota.RefundTurnAsync(resolvedUserId, consume.ConsumedFromDailyFree, consume.IdempotencyKey, "refund_bot_ask_error");
+            }
 
             var embedBuilder = new MessageEmbedBuilder();
 
@@ -973,7 +1012,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                     .AddField("🎯 Mẹo ghi nhớ", analysis.Tips, false);
             }
 
-            embedBuilder.SetFooter("Powered by LINGUAL AI • Mezon Campus Studio 2026", "");
+            var quotaFooter = consume != null && !analysis.ProviderFailed
+                ? $"⚡ Còn {consume.Quota.TotalAvailable} lượt AI hôm nay (Miễn phí: {consume.Quota.DailyRemaining} · Thưởng: {consume.Quota.BonusCredits}) • LINGUAL AI"
+                : "Powered by LINGUAL AI • Mezon Campus Studio 2026";
+            embedBuilder.SetFooter(quotaFooter, "");
 
             var isClan = (replyTo != null && replyTo.Value.ClanId > 0) ||
                          (ChannelClanMap.TryGetValue(channelId, out var cid) && cid > 0);
@@ -998,8 +1040,21 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         }
         catch (Exception ex)
         {
+            if (aiQuota != null && resolvedUserId != Guid.Empty && consume != null && consume.Allowed && !consume.AlreadyProcessed)
+            {
+                try
+                {
+                    using var refundScope = _scopeFactory.CreateScope();
+                    var refundQuota = refundScope.ServiceProvider.GetService<IAiQuotaService>();
+                    if (refundQuota != null)
+                    {
+                        await refundQuota.RefundTurnAsync(resolvedUserId, consume.ConsumedFromDailyFree, consume.IdempotencyKey, "refund_bot_ask_exception");
+                    }
+                }
+                catch { }
+            }
             _logger.LogError(ex, "❌ [MezonBot] Lỗi khi xử lý lệnh /ask cho channel {ChannelId}", channelId);
-            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Bạn hãy thử lại sau ít giây nhé!", replyTo);
+            await ReplyToChannelAsync(channelId, "🦉 LingLing: Xin lỗi bạn, mình đang gặp chút gián đoạn khi kết nối AI. Lượt của bạn đã được hoàn lại, hãy thử lại sau ít giây nhé!", replyTo);
         }
     }
 
@@ -1206,13 +1261,65 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 };
             }
 
-            var result = await aiTutor.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
-                ScenarioCode: scenarioCode,
-                UserMessage: userMessage,
-                ConversationId: conversationId,
-                MezonUserId: senderId,
-                ChannelId: channelId.ToString()
-            ));
+            // Dùng chung ví quota Web + Bot theo UserId chuẩn từ bảng users
+            var aiQuota = scope.ServiceProvider.GetService<IAiQuotaService>();
+            var userResolver = scope.ServiceProvider.GetService<IMezonUserResolver>();
+            Guid resolvedUserId = Guid.Empty;
+            AiQuotaConsumeResult? consume = null;
+
+            if (aiQuota != null && userResolver != null && !string.IsNullOrWhiteSpace(senderId))
+            {
+                var displayName = replyTo != null && !string.IsNullOrWhiteSpace(replyTo.Value.Username)
+                    ? replyTo.Value.Username
+                    : $"Member_{senderId[..Math.Min(6, senderId.Length)]}";
+                resolvedUserId = await userResolver.ResolveUserIdAsync(senderId, displayName);
+
+                if (resolvedUserId != Guid.Empty)
+                {
+                    var msgId = replyTo != null && replyTo.Value.MessageId != 0
+                        ? replyTo.Value.MessageId.ToString()
+                        : Guid.NewGuid().ToString("N");
+
+                    consume = await aiQuota.TryConsumeTurnAsync(
+                        resolvedUserId,
+                        reason: "consume_bot_roleplay",
+                        idempotencyKey: $"bot_roleplay_{channelId}_{msgId}");
+
+                    if (!consume.Allowed)
+                    {
+                        await ReplyToChannelAsync(
+                            channelId,
+                            $"⏳ LingLing AI: {consume.Message}\n🎮 Kiếm thêm lượt ngay tại: {_options.WebAppUrl}/games | {_options.WebAppUrl}/quiz | {_options.WebAppUrl}/learn",
+                            replyTo);
+                        return;
+                    }
+                }
+            }
+
+            RoleplayTurnResponse result;
+            try
+            {
+                result = await aiTutor.ProcessRoleplayTurnAsync(new RoleplayTurnRequest(
+                    ScenarioCode: scenarioCode,
+                    UserMessage: userMessage,
+                    ConversationId: conversationId,
+                    MezonUserId: resolvedUserId != Guid.Empty ? resolvedUserId.ToString() : senderId,
+                    ChannelId: channelId.ToString()
+                ));
+            }
+            catch
+            {
+                if (aiQuota != null && resolvedUserId != Guid.Empty && consume != null && consume.Allowed && !consume.AlreadyProcessed)
+                {
+                    await aiQuota.RefundTurnAsync(resolvedUserId, consume.ConsumedFromDailyFree, consume.IdempotencyKey, "refund_bot_roleplay_exception");
+                }
+                throw;
+            }
+
+            if (result.ProviderFailed && aiQuota != null && resolvedUserId != Guid.Empty && consume != null && !consume.AlreadyProcessed)
+            {
+                await aiQuota.RefundTurnAsync(resolvedUserId, consume.ConsumedFromDailyFree, consume.IdempotencyKey, "refund_bot_roleplay_error");
+            }
 
             var embedBuilder = new MessageEmbedBuilder()
                 .SetColor("#10B981")
@@ -1229,7 +1336,10 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
                 }
             }
 
-            embedBuilder.SetFooter($"Gõ /roleplay {scenarioCode} <câu tiếp theo> để trò chuyện tiếp nhé!", "");
+            var rpFooter = consume != null && !result.ProviderFailed
+                ? $"⚡ Còn {consume.Quota.TotalAvailable} lượt AI hôm nay · Gõ /roleplay {scenarioCode} <câu tiếp theo> để trò chuyện tiếp!"
+                : $"Gõ /roleplay {scenarioCode} <câu tiếp theo> để trò chuyện tiếp nhé!";
+            embedBuilder.SetFooter(rpFooter, "");
 
             await ReplyWithTrackedButtonsAsync(
                 channelId,

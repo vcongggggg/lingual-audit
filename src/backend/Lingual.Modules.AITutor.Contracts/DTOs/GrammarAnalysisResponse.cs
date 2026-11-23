@@ -5,5 +5,7 @@ public record GrammarAnalysisResponse(
     string OriginalText,
     string CorrectedText,
     string Explanation,
-    string Tips
+    string Tips,
+    bool ProviderFailed = false,
+    AiQuotaStatusDto? Quota = null
 );

@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Lingual.Modules.AITutor.Contracts;
+using Lingual.Modules.AITutor.Contracts.DTOs;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Domain;
@@ -555,5 +557,69 @@ public class GameServiceTests
 
         result.CorrectCount.Should().Be(1);
         result.TotalQuestions.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task SubmitGameAsync_AccuracyAtLeast50Percent_Awards1AiCredit_Below50Awards0()
+    {
+        var db = CreateInMemoryDb();
+        var userId = Guid.NewGuid();
+
+        db.ActiveGameAttempts.AddRange(
+            new ActiveGameAttempt
+            {
+                AttemptId = "ai-credit-pass",
+                UserId = userId,
+                GameType = "word_match",
+                StartedAt = DateTime.UtcNow.AddSeconds(-10),
+                QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"},{\"id\":\"w2\",\"targetText\":\"Dog\",\"translation\":\"Con chó\"}]"
+            },
+            new ActiveGameAttempt
+            {
+                AttemptId = "ai-credit-fail",
+                UserId = userId,
+                GameType = "word_match",
+                StartedAt = DateTime.UtcNow.AddSeconds(-10),
+                QuestionsPayloadJson = "[{\"id\":\"w1\",\"targetText\":\"Cat\",\"translation\":\"Con mèo\"},{\"id\":\"w2\",\"targetText\":\"Dog\",\"translation\":\"Con chó\"},{\"id\":\"w3\",\"targetText\":\"Bird\",\"translation\":\"Con chim\"}]"
+            });
+        await db.SaveChangesAsync();
+
+        var quotaMock = new Mock<IAiQuotaService>();
+        quotaMock
+            .Setup(q => q.GrantBonusCreditsAsync(userId, 1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQuotaGrantResult(
+                Granted: true,
+                CreditsAdded: 1,
+                AlreadyGranted: false,
+                DailyCapReached: false,
+                Quota: new AiQuotaStatusDto(5, 0, 5, 1, 6, 1, 5, DateTime.UtcNow.AddHours(10))));
+
+        var service = new GameService(db, new Mock<IGamificationService>().Object, new Mock<ILogger<GameService>>().Object, quotaMock.Object);
+
+        // 1/2 = 50% -> MUST grant +1 AI credit
+        var passResult = await service.SubmitGameAsync(new GameSubmitRequestDto
+        {
+            AttemptId = "ai-credit-pass",
+            GameType = "word_match",
+            TimeRemainingSeconds = 40,
+            Answers = new List<GameAnswerSubmissionDto> { new() { QuestionId = "w1", Answer = "Con mèo" } }
+        }, userId, "Tester", CancellationToken.None);
+
+        passResult.Accuracy.Should().Be(0.5);
+        passResult.AiCreditsEarned.Should().Be(1);
+        quotaMock.Verify(q => q.GrantBonusCreditsAsync(userId, 1, "reward_game_word_match", $"reward_game_{userId:N}_ai-credit-pass", It.IsAny<CancellationToken>()), Times.Once);
+
+        // 1/3 = 33% < 50% -> MUST NOT grant AI credit
+        quotaMock.Invocations.Clear();
+        var failResult = await service.SubmitGameAsync(new GameSubmitRequestDto
+        {
+            AttemptId = "ai-credit-fail",
+            GameType = "word_match",
+            TimeRemainingSeconds = 40,
+            Answers = new List<GameAnswerSubmissionDto> { new() { QuestionId = "w1", Answer = "Con mèo" } }
+        }, userId, "Tester", CancellationToken.None);
+
+        failResult.AiCreditsEarned.Should().Be(0);
+        quotaMock.Verify(q => q.GrantBonusCreditsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
