@@ -11,19 +11,19 @@ import {
   ArrowRight,
   ArrowLeft,
   Volume2,
+  VolumeX,
   CheckCircle,
   Shuffle,
   Keyboard,
-  Sparkles,
   Check,
   X,
   Flame,
-  BookOpen,
   HelpCircle,
-  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/useAuth';
 import { useLanguage } from '@/lib/language-context';
+import { useSoundEffects } from '@/lib/sound-effects';
+import GameTutorialModal, { isGameTutorialDismissed } from '@/components/GameTutorialModal';
 import {
   getGameData,
   submitGameResult,
@@ -140,9 +140,28 @@ const CATALOG_ITEMS: GameCatalogItem[] = [
 export default function GameCenterPage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { translate: t, language } = useLanguage();
+  const { sfxEnabled, toggleSound, playClick } = useSoundEffects();
   const [activeTab, setActiveTab] = useState<'catalog' | 'leaderboard'>('catalog');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [activeGame, setActiveGame] = useState<GameCatalogItem | null>(null);
+  const [tutorialGame, setTutorialGame] = useState<GameCatalogItem | null>(null);
+  const [tutorialLaunchMode, setTutorialLaunchMode] = useState<'launch' | 'inspect'>('launch');
+
+  const handlePlayGame = useCallback((item: GameCatalogItem) => {
+    playClick();
+    if (!isGameTutorialDismissed(item.apiKey)) {
+      setTutorialLaunchMode('launch');
+      setTutorialGame(item);
+      return;
+    }
+    setActiveGame(item);
+  }, [playClick]);
+
+  const handleOpenGameRules = useCallback((item: GameCatalogItem) => {
+    playClick();
+    setTutorialLaunchMode('inspect');
+    setTutorialGame(item);
+  }, [playClick]);
 
   // Player Stats (Real stats only, initialized to 0)
   const [stats, setStats] = useState({
@@ -163,15 +182,15 @@ export default function GameCenterPage() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [isAuthenticated, user?.id]);
 
   const rankTitle =
     stats.gamesPlayed > 10
       ? t('Đại cao thủ', 'Grandmaster')
       : stats.gamesPlayed > 3
-      ? t('Cao thủ', 'Master')
-      : t('Tập sự', 'Novice');
+        ? t('Cao thủ', 'Master')
+        : t('Tập sự', 'Novice');
 
   const recordGameCompletion = useCallback((won: boolean, xpEarned: number) => {
     setStats((prev) => ({
@@ -205,23 +224,35 @@ export default function GameCenterPage() {
           </p>
         </div>
 
-        {/* Tab Switcher - Fixed high contrast text & active background */}
+        {/* Tab Switcher + SFX Toggle */}
         {!activeGame && (
-          <div className="games-tabs" role="tablist">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className={`games-tab-btn ${activeTab === 'catalog' ? 'is-active' : ''}`}
-              onClick={() => setActiveTab('catalog')}
+              className="sfx-toggle-btn"
+              onClick={toggleSound}
+              aria-pressed={sfxEnabled}
+              aria-label={sfxEnabled ? t('Tắt hiệu ứng âm thanh', 'Mute sound effects') : t('Bật hiệu ứng âm thanh', 'Enable sound effects')}
             >
-              <Gamepad2 size={15} /> {t('Kho trò chơi', 'Game Catalog')}
+              {sfxEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span>{sfxEnabled ? t('Âm thanh Bật', 'SFX On') : t('Âm thanh Tắt', 'SFX Off')}</span>
             </button>
-            <button
-              type="button"
-              className={`games-tab-btn ${activeTab === 'leaderboard' ? 'is-active' : ''}`}
-              onClick={() => setActiveTab('leaderboard')}
-            >
-              <Trophy size={15} /> {t('Bảng xếp hạng', 'Leaderboard')}
-            </button>
+            <div className="games-tabs" role="tablist">
+              <button
+                type="button"
+                className={`games-tab-btn ${activeTab === 'catalog' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('catalog')}
+              >
+                <Gamepad2 size={15} /> {t('Kho trò chơi', 'Game Catalog')}
+              </button>
+              <button
+                type="button"
+                className={`games-tab-btn ${activeTab === 'leaderboard' ? 'is-active' : ''}`}
+                onClick={() => setActiveTab('leaderboard')}
+              >
+                <Trophy size={15} /> {t('Bảng xếp hạng', 'Leaderboard')}
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -362,12 +393,24 @@ export default function GameCenterPage() {
                     <span className="game-catalog-xp">
                       <Zap size={14} /> {item.xpReward}
                     </span>
-                    <button
-                      className="game-catalog-play-btn"
-                      onClick={() => setActiveGame(item)}
-                    >
-                      {t('Chơi ngay', 'Play now')} <ArrowRight size={14} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="game-catalog-rules-btn"
+                        onClick={() => handleOpenGameRules(item)}
+                        aria-label={`${t('Luật chơi', 'Rules')} ${language === 'vi' ? item.title : item.englishTitle}`}
+                        title={t('Xem hướng dẫn luật chơi', 'View how to play')}
+                      >
+                        <HelpCircle size={14} /> {t('Luật chơi', 'Rules')}
+                      </button>
+                      <button
+                        type="button"
+                        className="game-catalog-play-btn"
+                        onClick={() => handlePlayGame(item)}
+                      >
+                        {t('Chơi ngay', 'Play now')} <ArrowRight size={14} />
+                      </button>
+                    </div>
                   </div>
                 </article>
               );
@@ -378,6 +421,24 @@ export default function GameCenterPage() {
         /* Leaderboard Tab */
         <GamesLeaderboardTab />
       )}
+
+      {tutorialGame && (
+        <GameTutorialModal
+          gameApiKey={tutorialGame.apiKey}
+          isOpen={Boolean(tutorialGame)}
+          onClose={() => setTutorialGame(null)}
+          onStart={() => {
+            const target = tutorialGame;
+            setTutorialGame(null);
+            setActiveGame(target);
+          }}
+          actionLabel={
+            tutorialLaunchMode === 'inspect'
+              ? t('Chơi ngay', 'Play now')
+              : t('Bắt đầu chơi ngay', 'Start playing now')
+          }
+        />
+      )}
     </main>
   );
 }
@@ -385,6 +446,23 @@ export default function GameCenterPage() {
 // ==========================================
 // 3. ACTIVE GAME ARENA CONTAINER (DB SYNCED)
 // ==========================================
+
+function shuffleWithSeed<T>(items: T[], seedStr: string): T[] {
+  const copy = [...items];
+  let h = 2166136261;
+  for (let i = 0; i < seedStr.length; i += 1) {
+    h ^= seedStr.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    h ^= h << 13;
+    h ^= h >>> 17;
+    h ^= h << 5;
+    const j = (h >>> 0) % (i + 1);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 function ActiveGameArena({
   game,
@@ -398,21 +476,24 @@ function ActiveGameArena({
   onFinish: (won: boolean, xp: number) => void;
 }) {
   const { translate: t } = useLanguage();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [dbData, setDbData] = useState<GameDataPayload | null>(null);
+  const { sfxEnabled, toggleSound, playVictory } = useSoundEffects();
   const [gameOver, setGameOver] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [finalAccuracy, setFinalAccuracy] = useState(100);
   const [earnedXp, setEarnedXp] = useState(25);
 
+  const requestKey = `${game.apiKey}:${level}:${replayKey}`;
+  const [fetchState, setFetchState] = useState<{
+    key: string;
+    data: GameDataPayload | null;
+    error: string | null;
+  }>({ key: '', data: null, error: null });
+
   // Fetch live game data from Database on start / replay
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
-    setLoadError(null);
-    setDbData(null);
 
     getGameData(game.apiKey, level === 'all' ? undefined : level)
       .then((res) => {
@@ -427,30 +508,37 @@ function ActiveGameArena({
             Boolean(d?.prompt));
 
         if (hasData && d) {
-          setDbData(d);
-          setLoadError(null);
+          setFetchState({ key: requestKey, data: d, error: null });
         } else {
-          setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
+          setFetchState({
+            key: requestKey,
+            data: null,
+            error: 'Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.',
+          });
         }
       })
       .catch((err: Error & { status?: number }) => {
         if (isMounted) {
           console.warn('Could not fetch DB game data:', err);
-          if (err?.status === 401) {
-            setLoadError('Bạn cần đăng nhập tài khoản Mezon để chơi và lưu điểm.');
-          } else {
-            setLoadError('Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.');
-          }
+          setFetchState({
+            key: requestKey,
+            data: null,
+            error:
+              err?.status === 401
+                ? 'Bạn cần đăng nhập tài khoản Mezon để chơi và lưu điểm.'
+                : 'Chưa có dữ liệu cho trò chơi này. Vui lòng thử lại sau.',
+          });
         }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [game.apiKey, level, replayKey]);
+  }, [game.apiKey, level, requestKey]);
+
+  const loading = fetchState.key !== requestKey;
+  const dbData = loading ? null : fetchState.data;
+  const loadError = loading ? null : fetchState.error;
 
   const handleGameEnd = (
     score: number,
@@ -465,6 +553,7 @@ function ActiveGameArena({
     setFinalAccuracy(accuracy);
     setEarnedXp(xp);
     setGameOver(true);
+    playVictory();
 
     // Call backend submit with attemptId and real player answers
     submitGameResult({
@@ -572,24 +661,50 @@ function ActiveGameArena({
 
   return (
     <div className="game-arena-wrapper">
+      <div className="game-arena-utility-strip">
+        <button
+          type="button"
+          className="game-catalog-rules-btn"
+          onClick={() => setShowRulesModal(true)}
+        >
+          <HelpCircle size={14} /> {t('Luật chơi', 'How to play')}
+        </button>
+        <button
+          type="button"
+          className="sfx-toggle-btn"
+          onClick={toggleSound}
+          aria-pressed={sfxEnabled}
+          aria-label={sfxEnabled ? t('Tắt hiệu ứng âm thanh', 'Mute sound effects') : t('Bật hiệu ứng âm thanh', 'Enable sound effects')}
+        >
+          {sfxEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+          <span>{sfxEnabled ? t('Âm thanh Bật', 'SFX On') : t('Âm thanh Tắt', 'SFX Off')}</span>
+        </button>
+      </div>
       {game.id === 'word-match' && (
-        <WordMatchEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <WordMatchEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
       {game.id === 'scramble' && (
-        <ScrambleEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <ScrambleEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
       {game.id === 'typing-race' && (
-        <TypingRaceEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <TypingRaceEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
       {game.id === 'word-fill' && (
-        <ContextClozeEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <ContextClozeEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
       {game.id === 'audio-reflex' && (
-        <AudioReflexEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <AudioReflexEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
       {game.id === 'word-guess' && (
-        <WordleEngine dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
+        <WordleEngine key={dbData?.attemptId ?? requestKey} dbData={dbData} onEnd={handleGameEnd} onExit={onExit} />
       )}
+      <GameTutorialModal
+        gameApiKey={game.apiKey}
+        isOpen={showRulesModal}
+        onClose={() => setShowRulesModal(false)}
+        onStart={() => setShowRulesModal(false)}
+        actionLabel={t('Tiếp tục chơi', 'Resume game')}
+      />
     </div>
   );
 }
@@ -608,31 +723,25 @@ function WordMatchEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playWrong, playClick, playTick } = useSoundEffects();
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [cards, setCards] = useState<
     { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[]
-  >([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mismatchIds, setMismatchIds] = useState<string[]>([]);
-  const matchedAnswersRef = useRef<{ questionId: string; answer: string }[]>([]);
-  const endedRef = useRef(false);
-
-  // Init cards from DB items
-  useEffect(() => {
+  >(() => {
     const rawItems = dbData?.items || [];
-    if (rawItems.length === 0) return;
-
-    matchedAnswersRef.current = [];
-    endedRef.current = false;
     const generated: { id: string; text: string; pairId: string; type: 'en' | 'vi'; isMatched: boolean }[] = [];
     rawItems.slice(0, 8).forEach((item) => {
       generated.push({ id: `en-${item.id}`, text: item.targetText, pairId: item.id, type: 'en', isMatched: false });
       generated.push({ id: `vi-${item.id}`, text: item.translation, pairId: item.id, type: 'vi', isMatched: false });
     });
-    setCards(generated.sort(() => 0.5 - Math.random()));
-  }, [dbData]);
+    return shuffleWithSeed(generated, dbData?.attemptId || 'word-match');
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mismatchIds, setMismatchIds] = useState<string[]>([]);
+  const matchedAnswersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const endedRef = useRef(false);
 
   // Timer countdown
   useEffect(() => {
@@ -643,9 +752,10 @@ function WordMatchEngine({
       }
       return;
     }
+    if (timeLeft <= 5) playTick(timeLeft <= 2);
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, cards.length, onEnd]);
+  }, [timeLeft, score, cards.length, onEnd, playTick]);
 
   // Click card handler
   const handleCardClick = (cardId: string) => {
@@ -653,17 +763,20 @@ function WordMatchEngine({
     if (!card || card.isMatched || mismatchIds.length > 0) return;
 
     if (!selectedId) {
+      playClick();
       setSelectedId(cardId);
       return;
     }
 
     if (selectedId === cardId) {
+      playClick();
       setSelectedId(null);
       return;
     }
 
     const prevCard = cards.find((c) => c.id === selectedId);
     if (!prevCard) {
+      playClick();
       setSelectedId(cardId);
       return;
     }
@@ -678,6 +791,7 @@ function WordMatchEngine({
         all.map((c) => (c.pairId === card.pairId ? { ...c, isMatched: true } : c))
       );
       const newCombo = combo + 1;
+      playCorrect(newCombo);
       const nextScore = score + 25 * Math.min(newCombo, 3);
       setCombo(newCombo);
       setScore(nextScore);
@@ -690,6 +804,7 @@ function WordMatchEngine({
         setTimeout(() => onEnd(nextScore, 100, 35, matchedAnswersRef.current, timeLeft), 400);
       }
     } else {
+      playWrong();
       setMismatchIds([selectedId, cardId]);
       setCombo(0);
       setTimeout(() => {
@@ -731,9 +846,8 @@ function WordMatchEngine({
                 key={c.id}
                 disabled={c.isMatched}
                 onClick={() => handleCardClick(c.id)}
-                className={`word-match-card ${isSel ? 'is-selected' : ''} ${
-                  c.isMatched ? 'is-matched' : ''
-                } ${isMis ? 'is-mismatched' : ''}`}
+                className={`word-match-card ${isSel ? 'is-selected' : ''} ${c.isMatched ? 'is-matched' : ''
+                  } ${isMis ? 'is-mismatched' : ''}`}
               >
                 <span>{c.text}</span>
               </button>
@@ -759,16 +873,10 @@ function ScrambleEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playWrong, playClick, playTick } = useSoundEffects();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
-  const [slottedTokens, setSlottedTokens] = useState<string[]>([]);
-  const [availableTokens, setAvailableTokens] = useState<{ id: string; text: string }[]>([]);
-  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-  const [wrongAttempts, setWrongAttempts] = useState(0);
-  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
-  const endedRef = useRef(false);
-
   const sentences = useMemo(() => {
     const fromDb = dbData?.questions || [];
     return fromDb.map((q) => ({
@@ -779,19 +887,37 @@ function ScrambleEngine({
     }));
   }, [dbData]);
 
+  const buildTokensForSentence = useCallback(
+    (sentence: (typeof sentences)[number] | undefined, seedSuffix: string) => {
+      if (!sentence) return [];
+      const mapped = sentence.tokens.map((tok, idx) => ({ id: `${idx}-${tok}`, text: tok }));
+      return shuffleWithSeed(mapped, `${dbData?.attemptId || 'scramble'}-${sentence.id}-${seedSuffix}`);
+    },
+    [dbData?.attemptId]
+  );
+
+  const [slottedTokens, setSlottedTokens] = useState<string[]>([]);
+  const [availableTokens, setAvailableTokens] = useState<{ id: string; text: string }[]>(() =>
+    buildTokensForSentence(sentences[0], '0')
+  );
+  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const answersRef = useRef<{ questionId: string; answer: string }[]>([]);
+  const endedRef = useRef(false);
+
   const currentSentence = sentences[currentIndex % (sentences.length || 1)];
 
-  // Load sentence tokens
-  useEffect(() => {
-    if (!currentSentence) return;
-    const shuffled = [...currentSentence.tokens]
-      .map((t, idx) => ({ id: `${idx}-${t}`, text: t }))
-      .sort(() => 0.5 - Math.random());
-    setAvailableTokens(shuffled);
-    setSlottedTokens([]);
-    setFeedback(null);
-    setWrongAttempts(0);
-  }, [currentIndex, currentSentence]);
+  const moveToSentence = useCallback(
+    (nextIdx: number) => {
+      const nextSentence = sentences[nextIdx % (sentences.length || 1)];
+      setCurrentIndex(nextIdx);
+      setAvailableTokens(buildTokensForSentence(nextSentence, String(nextIdx)));
+      setSlottedTokens([]);
+      setFeedback(null);
+      setWrongAttempts(0);
+    },
+    [sentences, buildTokensForSentence]
+  );
 
   // Timer countdown
   useEffect(() => {
@@ -802,17 +928,20 @@ function ScrambleEngine({
       }
       return;
     }
+    if (timeLeft <= 5) playTick(timeLeft <= 2);
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, sentences.length, onEnd]);
+  }, [timeLeft, score, sentences.length, onEnd, playTick]);
 
   const handleSlotToken = (item: { id: string; text: string }) => {
+    playClick();
     setFeedback(null);
     setSlottedTokens((prev) => [...prev, item.text]);
     setAvailableTokens((prev) => prev.filter((t) => t.id !== item.id));
   };
 
   const handleUnslotToken = (text: string, index: number) => {
+    playClick();
     setFeedback(null);
     setSlottedTokens((prev) => prev.filter((_, i) => i !== index));
     setAvailableTokens((prev) => [...prev, { id: `${Date.now()}-${text}`, text }]);
@@ -820,6 +949,7 @@ function ScrambleEngine({
 
   const handleResetSentence = () => {
     if (!currentSentence) return;
+    playClick();
     setAvailableTokens(
       [...currentSentence.tokens].map((t, idx) => ({ id: `${Date.now()}-${idx}-${t}`, text: t })).sort(() => 0.5 - Math.random())
     );
@@ -828,13 +958,14 @@ function ScrambleEngine({
   };
 
   const handleSkipSentence = () => {
+    playClick();
     if (currentIndex + 1 >= sentences.length) {
       if (!endedRef.current) {
         endedRef.current = true;
         onEnd(score, Math.round((answersRef.current.length / Math.max(sentences.length, 1)) * 100), 30, answersRef.current, timeLeft);
       }
     } else {
-      setCurrentIndex((i) => i + 1);
+      moveToSentence(currentIndex + 1);
     }
   };
 
@@ -846,6 +977,7 @@ function ScrambleEngine({
     const isCorrect = userAns === correctAns;
 
     if (isCorrect) {
+      playCorrect(1);
       setFeedback('correct');
       const nextScore = score + 30;
       setScore(nextScore);
@@ -857,10 +989,11 @@ function ScrambleEngine({
             onEnd(nextScore, 100, 35, answersRef.current, timeLeft);
           }
         } else {
-          setCurrentIndex((i) => i + 1);
+          moveToSentence(currentIndex + 1);
         }
       }, 750);
     } else {
+      playWrong();
       setWrongAttempts((n) => n + 1);
       setFeedback('wrong');
     }
@@ -903,13 +1036,12 @@ function ScrambleEngine({
         </div>
 
         <div
-          className={`sentence-drop-area ${
-            feedback === 'correct'
-              ? 'is-correct'
-              : feedback === 'wrong'
+          className={`sentence-drop-area ${feedback === 'correct'
+            ? 'is-correct'
+            : feedback === 'wrong'
               ? 'is-wrong'
               : ''
-          }`}
+            }`}
         >
           {slottedTokens.length === 0 ? (
             <span className="text-xs text-[#8a897f]">
@@ -937,15 +1069,15 @@ function ScrambleEngine({
           <div className="sentence-feedback-msg is-wrong">
             {availableTokens.length > 0
               ? t(
-                  `Bạn chưa xếp hết các từ (còn ${availableTokens.length} từ bên dưới).`,
-                  `Please place all remaining words (${availableTokens.length} left below).`
-                )
+                `Bạn chưa xếp hết các từ (còn ${availableTokens.length} từ bên dưới).`,
+                `Please place all remaining words (${availableTokens.length} left below).`
+              )
               : wrongAttempts >= 2
-              ? t(
+                ? t(
                   `Thứ tự chưa khớp đáp án chuẩn — Gợi ý: câu bắt đầu bằng "${firstWord}" và kết thúc bằng "${lastWord}".`,
                   `Word order does not match yet — Hint: starts with "${firstWord}" and ends with "${lastWord}".`
                 )
-              : t(
+                : t(
                   'Thứ tự từ chưa đúng đáp án chuẩn. Bấm vào từ ở khung trên để gỡ ra và xếp lại!',
                   'Word order is not quite right. Tap any placed word above to move it back!'
                 )}
@@ -1009,6 +1141,7 @@ function TypingRaceEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playTick } = useSoundEffects();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
@@ -1038,9 +1171,10 @@ function TypingRaceEngine({
       }
       return;
     }
+    if (timeLeft <= 5) playTick(timeLeft <= 2);
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, wordList.length, onEnd]);
+  }, [timeLeft, score, wordList.length, onEnd, playTick]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!currentWord) return;
@@ -1048,6 +1182,7 @@ function TypingRaceEngine({
     setInputVal(val);
 
     if (val.trim().toLowerCase() === currentWord.en.toLowerCase()) {
+      playCorrect(Math.min(wordsDone + 1, 6));
       const nextScore = score + 40;
       setScore(nextScore);
       setWordsDone((w) => w + 1);
@@ -1122,6 +1257,7 @@ function ContextClozeEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playWrong, playTick } = useSoundEffects();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
@@ -1132,18 +1268,19 @@ function ContextClozeEngine({
   const endedRef = useRef(false);
 
   const questions = useMemo(() => {
+    type RawChoice = string | { targetText?: string; translation?: string };
     const raw = dbData?.questions || [];
     return raw.map((q) => {
       let choicesArr: string[] = [];
-      const rawChoices = (q as any).choices;
+      const rawChoices = (q as { choices?: RawChoice[] | string }).choices;
       if (Array.isArray(rawChoices)) {
-        choicesArr = rawChoices.map((c: any) =>
+        choicesArr = rawChoices.map((c: RawChoice) =>
           typeof c === 'string' ? c : c.targetText || c.translation || String(c)
         );
       } else if (typeof rawChoices === 'string') {
         try {
           const parsed = JSON.parse(rawChoices);
-          choicesArr = Array.isArray(parsed) ? parsed : rawChoices.trim().split(/\s+/);
+          choicesArr = Array.isArray(parsed) ? parsed.map(String) : rawChoices.trim().split(/\s+/);
         } catch {
           choicesArr = rawChoices.trim().split(/\s+/);
         }
@@ -1173,9 +1310,10 @@ function ContextClozeEngine({
       }
       return;
     }
+    if (timeLeft <= 5) playTick(timeLeft <= 2);
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, onEnd]);
+  }, [timeLeft, score, onEnd, playTick]);
 
   const handleSelect = (idx: number) => {
     if (selectedChoice !== null || !currentQ) return;
@@ -1187,6 +1325,9 @@ function ContextClozeEngine({
     if (isRight) {
       correctCountRef.current += 1;
       setScore((s) => s + 20);
+      playCorrect(1);
+    } else {
+      playWrong();
     }
   };
 
@@ -1294,6 +1435,7 @@ function AudioReflexEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playWrong, playTick } = useSoundEffects();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
@@ -1303,22 +1445,33 @@ function AudioReflexEngine({
   const endedRef = useRef(false);
 
   const questions = useMemo(() => {
-    const raw = dbData?.questions || [];
-    return raw.map((q: any) => {
-      let rawChoices = q.choices || [];
+    type RawAudioQuestion = {
+      id: string;
+      audioText?: string;
+      choices?: unknown;
+    };
+    const raw = (dbData?.questions || []) as RawAudioQuestion[];
+    return raw.map((q) => {
+      let rawChoices: unknown = q.choices || [];
       if (typeof rawChoices === 'string') {
+        const rawStr = rawChoices;
         try {
-          rawChoices = JSON.parse(rawChoices);
+          rawChoices = JSON.parse(rawStr);
         } catch {
-          rawChoices = rawChoices.split(',');
+          rawChoices = rawStr.split(',');
         }
       }
       const choicesList: { label: string; targetText: string }[] = Array.isArray(rawChoices)
-        ? rawChoices.map((c: any) =>
-            typeof c === 'object' && c !== null
-              ? { label: c.translation || c.targetText || '', targetText: c.targetText || c.translation || '' }
-              : { label: String(c), targetText: String(c) }
-          )
+        ? rawChoices.map((c: unknown) => {
+          if (typeof c === 'object' && c !== null) {
+            const obj = c as { translation?: string; targetText?: string };
+            return {
+              label: obj.translation || obj.targetText || '',
+              targetText: obj.targetText || obj.translation || '',
+            };
+          }
+          return { label: String(c), targetText: String(c) };
+        })
         : [];
 
       const correctObj = choicesList.find((c) => c.targetText === q.audioText);
@@ -1348,7 +1501,6 @@ function AudioReflexEngine({
 
   useEffect(() => {
     if (!currentQ || !currentQ.audioText) return;
-    setSelectedIdx(null);
     playAudio(currentQ.audioText);
   }, [currentIndex, currentQ, playAudio]);
 
@@ -1362,9 +1514,10 @@ function AudioReflexEngine({
       }
       return;
     }
+    if (timeLeft <= 5) playTick(timeLeft <= 2);
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, score, onEnd]);
+  }, [timeLeft, score, onEnd, playTick]);
 
   const handleChoose = (idx: number) => {
     if (selectedIdx !== null || !currentQ) return;
@@ -1379,6 +1532,9 @@ function AudioReflexEngine({
     if (isMatch) {
       correctCountRef.current += 1;
       setScore(nextScore);
+      playCorrect(1);
+    } else {
+      playWrong();
     }
 
     setTimeout(() => {
@@ -1389,6 +1545,7 @@ function AudioReflexEngine({
           onEnd(nextScore, acc, 35, answersRef.current, timeLeft);
         }
       } else {
+        setSelectedIdx(null);
         setCurrentIndex((i) => i + 1);
       }
     }, 700);
@@ -1468,6 +1625,7 @@ function WordleEngine({
   onExit: () => void;
 }) {
   const { translate: t } = useLanguage();
+  const { playCorrect, playWrong, playClick } = useSoundEffects();
   const [guesses, setGuesses] = useState<string[]>([]);
   const [evaluations, setEvaluations] = useState<('correct' | 'present' | 'absent')[][]>([]);
   const [currentGuess, setCurrentGuess] = useState('');
@@ -1488,7 +1646,8 @@ function WordleEngine({
 
       if (key === 'ENTER') {
         if (currentGuess.length < 5) {
-          setStatusMsg('Vui lòng nhập đủ 5 chữ cái');
+          playWrong();
+          setStatusMsg(t('Vui lòng nhập đủ 5 chữ cái', 'Please enter all 5 letters'));
           setTimeout(() => setStatusMsg(''), 1500);
           return;
         }
@@ -1537,31 +1696,41 @@ function WordleEngine({
           });
 
           if (res.isWon) {
+            playCorrect(3);
             setIsGameOver(true);
-            setStatusMsg('Chúc mừng bạn đã đoán chính xác!');
+            setStatusMsg(t('Chúc mừng bạn đã đoán chính xác!', 'Congratulations! You guessed the word!'));
             setTimeout(() => {
               onEnd(100, 100, 50, answersBuffer.current);
             }, 1200);
           } else if (res.isGameOver || nextGuesses.length >= 6) {
+            playWrong();
             setIsGameOver(true);
-            setStatusMsg('Hết lượt đoán! Trò chơi kết thúc.');
+            setStatusMsg(t('Hết lượt đoán! Trò chơi kết thúc.', 'Out of guesses! Game over.'));
             setTimeout(() => {
               onEnd(20, 40, 15, answersBuffer.current);
             }, 1500);
+          } else if (res.evaluations.includes('correct')) {
+            playCorrect(1);
+          } else {
+            playWrong();
           }
-        } catch (err: any) {
-          setStatusMsg(err.message || 'Không thể kết nối máy chủ');
+        } catch (err: unknown) {
+          playWrong();
+          const msg = err instanceof Error ? err.message : '';
+          setStatusMsg(msg || t('Không thể kết nối máy chủ', 'Could not connect to server'));
           setTimeout(() => setStatusMsg(''), 2000);
         } finally {
           setIsSubmitting(false);
         }
       } else if (key === 'BACK' || key === '⌫') {
+        playClick();
         setCurrentGuess((prev) => prev.slice(0, -1));
       } else if (/^[A-Z]$/.test(key) && currentGuess.length < 5) {
+        playClick();
         setCurrentGuess((prev) => prev + key);
       }
     },
-    [attemptId, currentGuess, evaluations, guesses, isGameOver, isSubmitting, onEnd]
+    [attemptId, currentGuess, evaluations, guesses, isGameOver, isSubmitting, onEnd, playClick, playCorrect, playWrong, t]
   );
 
   useEffect(() => {

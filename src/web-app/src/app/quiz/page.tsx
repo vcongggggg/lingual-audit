@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Clock3, Headphones, Image as ImageIcon, Link2, Mic, Play, RotateCcw, Shuffle, Trophy, Volume2, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Clock3, Headphones, Image as ImageIcon, Link2, Mic, Play, RotateCcw, Shuffle, Trophy, Volume2, VolumeX, Zap } from "lucide-react";
 import { saveQuizProgress } from "@/lib/quiz-progress";
 import LinguaMascot, { type MascotMood } from "@/components/LinguaMascot";
 import bank from "@/data/quiz-bank-300.json";
 import { mockQuestions, quizTypeOptions, type MockQuestion, type MockQuestionType, type QuizOption } from "@/data/quiz-mock-data";
 import { useLanguage } from "@/lib/language-context";
+import { useSoundEffects } from "@/lib/sound-effects";
 
 type Mode = "sprint10" | "clan20" | "marathon";
 type Difficulty = "all" | "1" | "2" | "3";
@@ -27,13 +28,6 @@ const difficulties = [{ id: "all", label: "Mọi độ khó" }, { id: "1", label
 const localBank = bank as unknown as Question[];
 const newId = () => typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 const normalize = (value: string) => value.trim().toLocaleLowerCase().replace(/[.,!?]/g, "").replace(/\s+/g, " ");
-const playFeedbackSound = (feedback: Exclude<Feedback, null>) => {
-  if (typeof window === "undefined") return;
-  const Constructor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Constructor) return;
-  const context = new Constructor();
-  void context.resume().then(() => { const oscillator = context.createOscillator(); oscillator.frequency.value = feedback === "correct" ? 660 : 180; oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.12); window.setTimeout(() => void context.close(), 250); });
-};
 
 function speak(question: Question) {
   if (typeof window === "undefined") return;
@@ -54,6 +48,7 @@ function speak(question: Question) {
 
 export default function QuizPage() {
   const { translate: t } = useLanguage();
+  const { sfxEnabled, toggleSound, playCorrect, playWrong, playTick, playVictory } = useSoundEffects();
   const [mode, setMode] = useState<Mode>("sprint10");
   const [type, setType] = useState<MockQuestionType>("multiple_choice");
   const [difficulty, setDifficulty] = useState<Difficulty>("all");
@@ -113,10 +108,12 @@ export default function QuizPage() {
   const submit = useCallback((value: string | null, correct: boolean) => {
     if (!started || !current || selected !== null || completed) return;
     const result: Exclude<Feedback, null> = value === null ? "timeout" : correct ? "correct" : "wrong";
-    setSelected(value ?? "timeout"); setFeedback(result); playFeedbackSound(result);
+    setSelected(value ?? "timeout"); setFeedback(result);
+    if (result === "correct") playCorrect(1);
+    else playWrong();
     setAnswers((previous) => [...previous, { questionId: current.id, selectedKey: value, isCorrect: correct }]);
     setElapsedSeconds((previous) => previous + Math.max(0, 30 - seconds));
-  }, [completed, current, seconds, selected, started]);
+  }, [completed, current, playCorrect, playWrong, seconds, selected, started]);
   const checkAnswer = async (value: string) => {
     if (!current || selected !== null) return;
     if (demo) {
@@ -131,8 +128,13 @@ export default function QuizPage() {
       });
       if (response.ok) {
         const data = await response.json() as { isCorrect: boolean; correctAnswer: string; explanation?: string };
-        current.correct_answer = data.correctAnswer;
-        if (data.explanation) current.explanation = data.explanation;
+        setQuestions((prev) =>
+          prev.map((q, idx) =>
+            idx === index
+              ? { ...q, correct_answer: data.correctAnswer, explanation: data.explanation ?? q.explanation }
+              : q
+          )
+        );
         submit(value, Boolean(data.isCorrect));
         return;
       }
@@ -152,16 +154,21 @@ export default function QuizPage() {
         });
         if (response.ok) {
           const data = await response.json() as { correctAnswer: string; explanation?: string };
-          current.correct_answer = data.correctAnswer;
-          if (data.explanation) current.explanation = data.explanation;
+          setQuestions((prev) =>
+            prev.map((q, idx) =>
+              idx === index
+                ? { ...q, correct_answer: data.correctAnswer, explanation: data.explanation ?? q.explanation }
+                : q
+            )
+          );
         }
       } catch {}
     }
     submit(null, false);
   };
-  const finish = useCallback(() => { setElapsedSeconds((value) => value + (selected === null ? Math.max(0, 30 - seconds) : 0)); setCompleted(true); }, [seconds, selected]);
+  const finish = useCallback(() => { playVictory(); setElapsedSeconds((value) => value + (selected === null ? Math.max(0, 30 - seconds) : 0)); setCompleted(true); }, [playVictory, seconds, selected]);
   const next = useCallback(() => { if (selected === null) return; if (index + 1 >= questions.length) finish(); else { setIndex((value) => value + 1); resetQuestionState(); } }, [finish, index, questions.length, selected]);
-  useEffect(() => { if (!started || !current || selected !== null || completed) return; if (seconds <= 0) { const timer = window.setTimeout(() => void handleTimeout(), 0); return () => window.clearTimeout(timer); } const timer = window.setTimeout(() => setSeconds((value) => value - 1), 1000); return () => window.clearTimeout(timer); }, [completed, current, seconds, selected, started, handleTimeout]);
+  useEffect(() => { if (!started || !current || selected !== null || completed) return; if (seconds <= 0) { const timer = window.setTimeout(() => void handleTimeout(), 0); return () => window.clearTimeout(timer); } if (seconds <= 5) { playTick(seconds <= 2); } const timer = window.setTimeout(() => setSeconds((value) => value - 1), 1000); return () => window.clearTimeout(timer); }, [completed, current, playTick, seconds, selected, started, handleTimeout]);
   useEffect(() => {
     if (!completed || !questions.length || saveState !== "idle") return;
     const timer = window.setTimeout(() => {
@@ -216,7 +223,7 @@ export default function QuizPage() {
   };
   const mascotMood: MascotMood = completed ? "complete" : selected === null ? (started ? "thinking" : "idle") : selected === current?.correct_answer ? "correct" : "encourage";
 
-  return <main className="quiz-page"><header className="quiz-heading"><div><p className="quiz-eyebrow">LINGUAL · {t("LUYỆN TẬP", "PRACTICE")}</p><h1>{t("Quiz đa dạng kỹ năng", "Multi-skill quiz")}</h1><p>{t("Chọn loại bài và độ khó trước khi bắt đầu.", "Choose a question type and difficulty before starting.")}</p></div><div className="quiz-heading-actions"><label className="demo-toggle"><input type="checkbox" checked={demoMode} onChange={(event) => { setDemoMode(event.target.checked); setStarted(false); }} /><span /> Mock data</label><Link href="/leaderboard" className="quiz-back"><ArrowLeft size={16}/> {t("Bảng xếp hạng", "Leaderboard")}</Link></div></header>
+  return <main className="quiz-page"><header className="quiz-heading"><div><p className="quiz-eyebrow">LINGUAL · {t("LUYỆN TẬP", "PRACTICE")}</p><h1>{t("Quiz đa dạng kỹ năng", "Multi-skill quiz")}</h1><p>{t("Chọn loại bài và độ khó trước khi bắt đầu.", "Choose a question type and difficulty before starting.")}</p></div><div className="quiz-heading-actions"><button type="button" className="sfx-toggle-btn" onClick={toggleSound} aria-pressed={sfxEnabled} aria-label={sfxEnabled ? t("Tắt âm thanh", "Mute SFX") : t("Bật âm thanh", "Enable SFX")}>{sfxEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}<span>{sfxEnabled ? t("Âm thanh", "SFX On") : t("Tắt tiếng", "Muted")}</span></button><label className="demo-toggle"><input type="checkbox" checked={demoMode} onChange={(event) => { setDemoMode(event.target.checked); setStarted(false); }} /><span /> Mock data</label><Link href="/leaderboard" className="quiz-back"><ArrowLeft size={16}/> {t("Bảng xếp hạng", "Leaderboard")}</Link></div></header>
     {!started && <section className="quiz-start"><div className="quiz-start-visual"><LinguaMascot mood="idle" /><div><p className="quiz-eyebrow">{t("THIẾT LẬP PHIÊN HỌC", "SET UP SESSION")}</p><h2>{selectedType?.label}</h2><p>{selectedType?.description}. {loading ? t("Đang tải dữ liệu…", "Loading data…") : t("Dữ liệu thật sẽ được dùng khi máy chủ sẵn sàng; mock data dùng để xem trước.", "Live data will be used when the server is ready; mock data is for preview.")}</p></div></div><div className="quiz-start-modes" aria-label={t("Chọn loại quiz", "Choose quiz type")}>{quizTypeOptions.map((item) => <button key={item.id} onClick={() => chooseSettings(item.id, difficulty)} className={type === item.id ? "is-active" : ""} aria-pressed={type === item.id}><strong>{item.label}</strong><span>{item.description}</span></button>)}</div><div className="quiz-start-modes" aria-label="Chọn độ khó">{difficulties.map((item) => <button key={item.id} onClick={() => chooseSettings(type, item.id)} className={difficulty === item.id ? "is-active" : ""} aria-pressed={difficulty === item.id}><strong>{item.label}</strong></button>)}</div><div className="quiz-start-modes" aria-label="Chọn nhịp học">{modes.map((item) => <button key={item.id} onClick={() => setMode(item.id)} className={mode === item.id ? "is-active" : ""}><strong>{item.label}</strong><span>{item.detail}</span></button>)}</div><button className="quiz-primary quiz-start-button" disabled={loading || !questions.length} onClick={start}><Zap size={16}/> Bắt đầu phiên học <ArrowRight size={16}/></button>{error && <p className="quiz-demo-banner">{error}</p>}</section>}
     {started && current && !completed && <><nav className="quiz-modes" aria-label="Chọn chế độ quiz">{modes.map((item) => <button key={item.id} onClick={() => { setMode(item.id); setStarted(false); }} className={mode === item.id ? "is-active" : ""}><strong>{item.label}</strong><span>{item.detail}</span></button>)}</nav>{demo && <p className="quiz-demo-banner">Mock data · Kết quả chỉ dùng để xem trước giao diện.</p>}<section className="quiz-session"><div className="quiz-progress-top"><span>Câu <strong>{index + 1}</strong> / {questions.length}</span><div className="quiz-progress-track"><span style={{ width: `${((index + 1) / questions.length) * 100}%` }}/></div></div><article className={`quiz-question ${feedback ? `has-feedback feedback-${feedback}` : ""}`}><div className="quiz-question-mascot"><LinguaMascot mood={mascotMood} compact /></div><div className="quiz-question-meta"><span>{current.level} · Độ khó {current.difficulty}/3</span><span className={seconds <= 5 && selected === null ? "is-urgent" : ""}><Clock3 size={15}/>{selected === null ? `${seconds} giây` : "Đã trả lời"}</span></div><h2>{current.prompt}</h2>{renderQuestion()}{selected !== null && <div className={`quiz-feedback feedback-${feedback}`} role="status"><span>{feedback === "correct" ? "✨" : feedback === "timeout" ? "⏰" : "💡"}</span><strong>{feedback === "correct" ? "Chính xác!" : feedback === "timeout" ? "Đã hết giờ" : `Đáp án: ${current.correct_answer}`}</strong><p>{current.explanation}</p></div>}</article><div className="quiz-controls"><span>Hoàn thành thao tác để tiếp tục</span><div className="quiz-control-actions"><button className="quiz-end-button" onClick={finish}>Kết thúc bài</button>{selected !== null && <button className="quiz-primary" onClick={next}>{index + 1 === questions.length ? "Xem kết quả" : "Câu tiếp theo"}<ArrowRight size={16}/></button>}</div></div></section></>}
     {started && completed && <section className="quiz-results"><LinguaMascot mood="complete" /><span className="quiz-result-icon"><Trophy size={30}/></span><p className="quiz-eyebrow">HOÀN THÀNH PHIÊN HỌC</p><h2>{score >= questions.length / 2 ? "Bạn đang tiến bộ!" : "Mỗi lần luyện tập đều có ích."}</h2><div className="quiz-result-stats"><div><span>Câu đúng</span><strong>{score}<small> / {questions.length}</small></strong></div><div><span>Độ chính xác</span><strong>{Math.round(score / questions.length * 100)}%</strong></div><div><span>XP đã nhận</span><strong>{awardedXp ?? "—"}</strong></div><div><span>Thời gian</span><strong>{Math.floor(elapsedSeconds / 60)}<small> phút</small></strong></div></div><p className="quiz-save-state">{saveState === "failed" ? "Không thể lưu kết quả." : saveState === "saved" ? "Kết quả đã được lưu." : "Đang gửi kết quả…"}</p><div className="quiz-result-actions"><button className="quiz-primary" onClick={() => { setStarted(false); setCompleted(false); resetQuestionState(); }}><RotateCcw size={16}/> Chọn bài khác</button><Link className="quiz-secondary" href="/"><BookOpen size={16}/> Về trang chủ</Link></div></section>}</main>;

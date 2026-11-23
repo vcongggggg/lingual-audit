@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { Be_Vietnam_Pro, Geist_Mono } from "next/font/google";
 import AppNavigation from "@/components/AppNavigation";
+import SectionSubNav from "@/components/SectionSubNav";
+import OnboardingTour from "@/components/OnboardingTour";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { LanguageProvider } from "@/lib/language-context";
@@ -33,11 +34,13 @@ export default function RootLayout({
       lang="vi"
       className={`${beVietnamPro.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
+      <body className="min-h-full flex flex-col bg-[var(--paper)] text-[var(--ink)]">
         <LanguageProvider>
           <AuthProvider>
             <AppNavigation />
+            <SectionSubNav />
             <div className="app-route-content">{children}</div>
+            <OnboardingTour />
           </AuthProvider>
         </LanguageProvider>
       </body>

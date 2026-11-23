@@ -2,24 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Trophy, NotebookTabs, House, Library, Bot, Languages, Swords, Gamepad2, LogIn, LogOut, User } from "lucide-react";
+import {
+  BookOpen,
+  Trophy,
+  NotebookTabs,
+  House,
+  Bot,
+  Languages,
+  Gamepad2,
+  LogIn,
+  LogOut,
+  HelpCircle,
+} from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
+import { triggerOnboardingTour } from "@/components/OnboardingTour";
 
 const NAV_ITEMS = [
-  { href: "/", labels: { vi: "Tổng quan", en: "Overview" }, icon: House },
-  { href: "/learn", labels: { vi: "Flashcard", en: "Flashcards" }, icon: BookOpen },
-  { href: "/words", labels: { vi: "Từ vựng", en: "Vocabulary" }, icon: Library },
-  { href: "/quiz", labels: { vi: "Luyện tập", en: "Practice" }, icon: NotebookTabs },
-  { href: "/games", labels: { vi: "Game Center", en: "Game Center" }, icon: Gamepad2 },
-  { href: "/tutor", labels: { vi: "LingLing AI", en: "LingLing AI" }, icon: Bot },
-  { href: "/leaderboard", labels: { vi: "Giải đấu", en: "Leaderboard" }, icon: Trophy },
-  { href: "/arena", labels: { vi: "Arena 1vs1", en: "1v1 Arena" }, icon: Swords },
+  { href: "/", matchPaths: ["/"], labels: { vi: "Tổng quan", en: "Overview" }, icon: House },
+  { href: "/words", matchPaths: ["/words", "/learn"], labels: { vi: "Học từ", en: "Vocabulary" }, icon: BookOpen },
+  { href: "/quiz", matchPaths: ["/quiz"], labels: { vi: "Luyện tập", en: "Practice" }, icon: NotebookTabs },
+  { href: "/games", matchPaths: ["/games", "/arena"], labels: { vi: "Đấu trường", en: "Arena" }, icon: Gamepad2 },
+  { href: "/tutor", matchPaths: ["/tutor"], labels: { vi: "LingLing AI", en: "LingLing AI" }, icon: Bot },
+  { href: "/leaderboard", matchPaths: ["/leaderboard"], labels: { vi: "Giải đấu", en: "Leaderboard" }, icon: Trophy },
 ];
 
 export default function AppNavigation() {
   const pathname = usePathname();
-  const { language, toggleLanguage, dictionary } = useLanguage();
+  const { language, toggleLanguage, dictionary, translate: t } = useLanguage();
   const { user, isAuthenticated, loading, logout } = useAuth();
 
   return (
@@ -29,10 +39,10 @@ export default function AppNavigation() {
         <span>Lingua<span className="app-brand-accent">Mezon</span></span>
       </Link>
 
-      {/* Main Navigation Links */}
+      {/* Main Navigation Links (6 compact primary tabs) */}
       <div className="app-nav-items">
-        {NAV_ITEMS.map(({ href, labels, icon: Icon }) => {
-          const active = pathname === href;
+        {NAV_ITEMS.map(({ href, matchPaths, labels, icon: Icon }) => {
+          const active = matchPaths.includes(pathname);
           return (
             <Link
               key={href}
@@ -46,7 +56,17 @@ export default function AppNavigation() {
           );
         })}
       </div>
+
       <div className="app-nav-actions">
+        <button
+          className="app-help-toggle"
+          type="button"
+          onClick={triggerOnboardingTour}
+          aria-label={t("Mở hướng dẫn sử dụng", "Open user guide")}
+          title={t("Hướng dẫn sử dụng", "User guide")}
+        >
+          <HelpCircle size={15} aria-hidden="true" />
+        </button>
         <button
           className="app-language-toggle"
           type="button"
@@ -70,7 +90,7 @@ export default function AppNavigation() {
               <Link
                 href="/profile"
                 className="flex items-center gap-2 hover:opacity-85 transition-opacity shrink-0"
-                title="Xem hồ sơ cá nhân"
+                title={t("Xem hồ sơ cá nhân", "View profile")}
               >
                 {user.avatarUrl && user.avatarUrl.trim() !== "" ? (
                   <img
@@ -89,16 +109,16 @@ export default function AppNavigation() {
                   </span>
                   <span className="text-[10px] text-[var(--olive,#69734f)] font-medium leading-tight">
                     {user.role === "admin"
-                      ? (language === "vi" ? "Quản trị" : "Admin")
-                      : (language === "vi" ? "Học viên" : "Learner")}
+                      ? t("Quản trị", "Admin")
+                      : t("Học viên", "Learner")}
                   </span>
                 </div>
               </Link>
               <button
                 onClick={logout}
-                title="Đăng xuất"
+                title={t("Đăng xuất", "Sign out")}
                 className="p-1 hover:bg-[#e0e4d5] rounded-md text-[var(--muted,#77786f)] hover:text-red-600 transition-colors cursor-pointer shrink-0"
-                aria-label="Đăng xuất"
+                aria-label={t("Đăng xuất", "Sign out")}
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -109,7 +129,7 @@ export default function AppNavigation() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[var(--olive,#69734f)] hover:opacity-90 text-white transition-all shadow-xs whitespace-nowrap shrink-0"
             >
               <LogIn className="w-3.5 h-3.5 shrink-0" />
-              <span>{language === "vi" ? "Đăng nhập" : "Sign in"}</span>
+              <span>{t("Đăng nhập", "Sign in")}</span>
             </Link>
           )
         )}
