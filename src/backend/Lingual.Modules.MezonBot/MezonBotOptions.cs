@@ -32,9 +32,17 @@ public class MezonBotOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// URL của ứng dụng Webview Next.js (mặc định: http://localhost:3000).
+    /// URL của ứng dụng Webview Next.js (mặc định: bản deploy chính thức trên Render, có thể override bằng Mezon__WebAppUrl).
     /// </summary>
-    public string WebAppUrl { get; set; } = "http://localhost:3000";
+    public string WebAppUrl { get; set; } = "https://lingual-web.onrender.com";
+
+    public string GetEffectiveWebAppUrl()
+    {
+        var raw = string.IsNullOrWhiteSpace(WebAppUrl)
+            ? "https://lingual-web.onrender.com"
+            : WebAppUrl.Trim();
+        return raw.TrimEnd('/');
+    }
 
     public long GetEffectiveBotId()
     {

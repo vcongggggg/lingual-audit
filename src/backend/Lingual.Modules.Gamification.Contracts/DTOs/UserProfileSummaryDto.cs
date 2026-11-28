@@ -13,7 +13,8 @@ public sealed record UserStreakSummaryDto(
 public sealed record UserPerformanceStatsDto(
     [property: JsonPropertyName("wordsLearned")] int WordsLearned,
     [property: JsonPropertyName("quizzesCompleted")] int QuizzesCompleted,
-    [property: JsonPropertyName("accuracyRate")] int AccuracyRate);
+    [property: JsonPropertyName("accuracyRate")] int AccuracyRate,
+    [property: JsonPropertyName("quizzesThisWeek")] int QuizzesThisWeek = 0);
 
 public sealed record UserProfileSummaryDto(
     [property: JsonPropertyName("userId")] string UserId,

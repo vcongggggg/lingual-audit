@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -20,12 +21,15 @@ namespace Lingual.Modules.MezonBot.Services;
 /// </summary>
 public class ScheduledQuizService : IScheduledQuizService
 {
+    private static readonly ConcurrentDictionary<Guid, long> ActiveScheduledMessages = new();
+
     private readonly MezonBotDbContext _dbContext;
     private readonly IClanQuizService _clanQuizService;
     private readonly IMezonBotNotifier _notifier;
     private readonly ScheduledQuizOptions _options;
     private readonly ILogger<ScheduledQuizService> _logger;
     private readonly IServiceScopeFactory? _scopeFactory;
+    private readonly IButtonInteractionObserver? _buttonObserver;
 
     public ScheduledQuizService(
         MezonBotDbContext dbContext,
@@ -33,7 +37,8 @@ public class ScheduledQuizService : IScheduledQuizService
         IMezonBotNotifier notifier,
         IOptions<ScheduledQuizOptions> options,
         ILogger<ScheduledQuizService> logger,
-        IServiceScopeFactory? scopeFactory = null)
+        IServiceScopeFactory? scopeFactory = null,
+        IButtonInteractionObserver? buttonObserver = null)
     {
         _dbContext = dbContext;
         _clanQuizService = clanQuizService;
@@ -41,6 +46,7 @@ public class ScheduledQuizService : IScheduledQuizService
         _options = options.Value;
         _logger = logger;
         _scopeFactory = scopeFactory;
+        _buttonObserver = buttonObserver;
     }
 
     public async Task<bool> PostWarningAsync(string slotKey, long channelId, string timeSlot, CancellationToken cancellationToken = default)
@@ -127,24 +133,38 @@ public class ScheduledQuizService : IScheduledQuizService
             .SetFooter("Mỗi học viên nhận XP tối đa 1 lần/khung giờ trên toàn hệ thống • LINGUAL Clan Quiz", "");
 
         var buttonBuilder = new ButtonBuilder();
+        var trackedButtons = new List<TrackedButton>();
         foreach (var opt in session.Options)
         {
-            buttonBuilder.AddButton(
-                $"btn_quiz_{session.SessionId}_{opt.Key}",
-                $"{opt.Key}. {opt.Text}",
-                1,
-                false,
-                "",
-                "");
+            var btnId = $"btn_quiz_{session.SessionId}_{opt.Key}";
+            var btnLabel = $"{opt.Key}. {opt.Text}";
+            buttonBuilder.AddButton(btnId, btnLabel, 1, false, "", "");
+            trackedButtons.Add(new TrackedButton(btnId, btnLabel, 1));
         }
 
+        var messageText = $"🔔 **[THỬ THÁCH KHUNG GIỜ VÀNG {timeSlot}]** Cả Clan cùng tham gia trả lời câu đố:";
+        var embed = embedBuilder.Build();
         var content = new MessageContentBuilder()
-            .SetText($"🔔 **[THỬ THÁCH KHUNG GIỜ VÀNG {timeSlot}]** Cả Clan cùng tham gia trả lời câu đố:")
-            .AddEmbed(embedBuilder.Build())
+            .SetText(messageText)
+            .AddEmbed(embed)
             .AddActionRow(buttonBuilder.BuildComponents())
             .Build();
 
         var sentMessageId = await _notifier.SendPublicChannelContentAsync(channelId, content, cancellationToken);
+        if (sentMessageId is > 0 and <= long.MaxValue)
+        {
+            var trackedMessageId = (long)sentMessageId.Value;
+            ActiveScheduledMessages[session.SessionId] = trackedMessageId;
+            _buttonObserver?.TrackMessage(new TrackedButtonMessage
+            {
+                ChannelId = channelId,
+                MessageId = trackedMessageId,
+                Text = messageText,
+                Embed = embed,
+                Buttons = trackedButtons,
+                SingleUse = false
+            });
+        }
 
         // 2. Lưu trạng thái vào Database (Chống trùng lặp bằng DB)
         var now = DateTime.UtcNow;
@@ -202,6 +222,11 @@ public class ScheduledQuizService : IScheduledQuizService
     {
         var conclude = await _clanQuizService.ConcludeSessionAsync(sessionId);
         if (conclude == null) return null;
+
+        if (ActiveScheduledMessages.TryRemove(sessionId, out var quizMessageId))
+        {
+            _buttonObserver?.MarkMessageDisabled(quizMessageId);
+        }
 
         var embedBuilder = new MessageEmbedBuilder();
         if (!string.IsNullOrWhiteSpace(conclude.WinnerUsername))

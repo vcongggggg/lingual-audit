@@ -101,10 +101,18 @@ public class ButtonInteractionObserver : IButtonInteractionObserver
         }
 
         // 4. Dự phòng cho các tin nhắn lịch sử (gửi trước khi bot khởi động lại)
-        var historicalKey = $"{channelId}_{messageId}_{buttonId}";
+        // Với nút chọn đáp án Clan Quiz (btn_quiz_*), mỗi người chơi được trả lời 1 lần độc lập
+        // nên phải khóa theo từng user thay vì khóa toàn cục theo buttonId (tránh chặn người thứ 2 chọn cùng đáp án).
+        var isQuizAnswerButton = buttonId.StartsWith("btn_quiz_")
+            && !buttonId.Equals("btn_quiz_start_prompt", StringComparison.OrdinalIgnoreCase);
+        var historicalKey = isQuizAnswerButton
+            ? $"{channelId}_{messageId}_{mezonUserId}"
+            : $"{channelId}_{messageId}_{buttonId}";
         if (_historicalClicks.ContainsKey(historicalKey))
         {
-            return new(false, "🔒 Nút bấm của tin nhắn cũ này đã được xử lý trước đó rồi!");
+            return new(false, isQuizAnswerButton
+                ? "⚠️ Bạn đã gửi câu trả lời cho câu hỏi này rồi nhé!"
+                : "🔒 Nút bấm của tin nhắn cũ này đã được xử lý trước đó rồi!");
         }
 
         _clickCooldowns[debounceKey] = now;
@@ -125,6 +133,13 @@ public class ButtonInteractionObserver : IButtonInteractionObserver
             return;
         }
 
+        // Tin nhắn nhiều người tham gia (Clan Quiz / Scheduled Quiz, SingleUse = false) KHÔNG được
+        // disable hay gắn dấu ✅ công khai sau lượt bấm đầu tiên để không lộ đáp án và không khóa nút của người chơi khác.
+        if (!tracked.SingleUse)
+        {
+            return;
+        }
+
         try
         {
             var disabledButtons = new ButtonBuilder();
@@ -132,9 +147,9 @@ public class ButtonInteractionObserver : IButtonInteractionObserver
             {
                 var isClicked = btn.Id.Equals(clickedButtonId, StringComparison.OrdinalIgnoreCase);
                 var label = btn.Label;
-                if (isClicked && !label.StartsWith("✓ "))
+                if (isClicked && !label.StartsWith("✅ "))
                 {
-                    label = $"✓ {label}";
+                    label = $"✅ {label}";
                 }
 
                 var shouldDisable = tracked.SingleUse || isClicked;

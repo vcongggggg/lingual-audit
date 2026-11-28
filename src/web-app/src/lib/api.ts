@@ -383,6 +383,7 @@ export interface UserPerformanceStatsDto {
   wordsLearned: number;
   quizzesCompleted: number;
   accuracyRate: number;
+  quizzesThisWeek?: number;
 }
 
 export interface UserProfileSummaryDto {

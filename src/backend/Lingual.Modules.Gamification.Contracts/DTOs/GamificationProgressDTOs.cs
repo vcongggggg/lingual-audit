@@ -10,7 +10,8 @@ public sealed record DailyProgressDto(
     [property: JsonPropertyName("target")] int Target,
     [property: JsonPropertyName("xpEarned")] int XpEarned,
     [property: JsonPropertyName("accuracy")] int Accuracy,
-    [property: JsonPropertyName("isToday")] bool IsToday = false);
+    [property: JsonPropertyName("isToday")] bool IsToday = false,
+    [property: JsonPropertyName("isoDate")] string? IsoDate = null);
 
 public sealed record WeeklyActivityResponseDto(
     [property: JsonPropertyName("days")] IReadOnlyList<DailyProgressDto> Days);

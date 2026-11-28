@@ -520,4 +520,36 @@ public class ContentControllerTests
         System.Text.Json.JsonSerializer.Serialize(ok.Value).Should().Contain("\"aiCreditsEarned\":1");
         quotaMock.Verify(q => q.GrantBonusCreditsAsync(userId, 1, "reward_quiz", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task CheckSingleAnswer_DbQuestionWithSnakeCaseIsCorrect_ResolvesTrueOptionKey()
+    {
+        var (botDb, learnDb, gameDb) = CreateInMemoryDbs();
+        var qId = Guid.NewGuid();
+        botDb.QuizQuestions.Add(new Lingual.Modules.MezonBot.Domain.QuizQuestion
+        {
+            Id = qId,
+            Level = "A1",
+            Difficulty = 2,
+            QuestionType = "multiple_choice",
+            Prompt = "Write your ________ on the paper.",
+            Options = """[{"key":"A","text":"foot","is_correct":false},{"key":"B","text":"boat","is_correct":false},{"key":"C","text":"bridge","is_correct":false},{"key":"D","text":"answer","is_correct":true}]""",
+            Explanation = "Đáp án đúng là D (answer - câu trả lời).",
+            Points = 10,
+            Status = "published"
+        });
+        await botDb.SaveChangesAsync();
+
+        var controller = CreateController(botDb, learnDb, gameDb, new Mock<IUserStreakService>());
+
+        var rightRes = await controller.CheckSingleAnswer(new CheckAnswerRequest(qId.ToString(), "D"));
+        var rightJson = System.Text.Json.JsonSerializer.Serialize(rightRes.Should().BeOfType<OkObjectResult>().Subject.Value);
+        rightJson.Should().Contain("\"isCorrect\":true");
+        rightJson.Should().Contain("\"correctAnswer\":\"D\"");
+
+        var wrongRes = await controller.CheckSingleAnswer(new CheckAnswerRequest(qId.ToString(), "A"));
+        var wrongJson = System.Text.Json.JsonSerializer.Serialize(wrongRes.Should().BeOfType<OkObjectResult>().Subject.Value);
+        wrongJson.Should().Contain("\"isCorrect\":false");
+        wrongJson.Should().Contain("\"correctAnswer\":\"D\"");
+    }
 }

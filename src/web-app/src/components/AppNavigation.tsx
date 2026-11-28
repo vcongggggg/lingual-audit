@@ -40,7 +40,7 @@ export default function AppNavigation() {
       </Link>
 
       {/* Main Navigation Links (6 compact primary tabs) */}
-      <div className="app-nav-items">
+      <div className="app-nav-items" data-tour="nav-tabs">
         {NAV_ITEMS.map(({ href, matchPaths, labels, icon: Icon }) => {
           const active = matchPaths.includes(pathname);
           return (
@@ -61,9 +61,10 @@ export default function AppNavigation() {
         <button
           className="app-help-toggle"
           type="button"
+          data-tour="nav-help"
           onClick={triggerOnboardingTour}
-          aria-label={t("Mở hướng dẫn sử dụng", "Open user guide")}
-          title={t("Hướng dẫn sử dụng", "User guide")}
+          aria-label={t("Mở hướng dẫn trang này", "Open walkthrough for this page")}
+          title={t("Hướng dẫn khoanh vùng trang này", "Interactive guide for this page")}
         >
           <HelpCircle size={15} aria-hidden="true" />
         </button>

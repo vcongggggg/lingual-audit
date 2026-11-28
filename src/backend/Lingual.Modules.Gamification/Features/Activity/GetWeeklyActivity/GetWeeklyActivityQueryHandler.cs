@@ -11,6 +11,6 @@ public class GetWeeklyActivityQueryHandler(IStreakService streakService)
         GetWeeklyActivityQuery query,
         CancellationToken cancellationToken)
     {
-        return await streakService.GetWeeklyActivityAsync(query.UserId, cancellationToken);
+        return await streakService.GetWeeklyActivityAsync(query.UserId, query.Days, cancellationToken);
     }
 }

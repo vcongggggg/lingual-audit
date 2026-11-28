@@ -58,7 +58,7 @@ export default function LearnPage() {
           </Link>
         </div>
 
-        <div className="learn-filters" aria-label={t("Lọc bộ thẻ", "Deck filters")}>
+        <div className="learn-filters" data-tour="learn-filters" aria-label={t("Lọc bộ thẻ", "Deck filters")}>
           <div className="learn-cefr-pills" role="group" aria-label={t("Cấp độ CEFR", "CEFR level")}>
             {CEFR_OPTIONS.map((lvl) => (
               <button

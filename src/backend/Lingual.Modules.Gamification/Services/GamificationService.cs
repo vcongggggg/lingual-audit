@@ -226,16 +226,22 @@ public class GamificationService(
             }
 
             int quizzesCompleted = 0;
+            int quizzesThisWeek = 0;
             try
             {
-                quizzesCompleted = await dbContext.XpLedgers.AsNoTracking()
-                    .CountAsync(x => x.UserId == targetUserId &&
+                var sevenDaysAgoUtc = DateTime.UtcNow.Date.AddDays(-6);
+                var quizEntries = await dbContext.XpLedgers.AsNoTracking()
+                    .Where(x => x.UserId == targetUserId &&
                         (x.SourceType == "quiz" ||
                          x.SourceType == "quiz_attempt" ||
                          x.SourceType == "clan_quiz" ||
                          x.SourceType == "practice" ||
                          x.SourceType == "duel" ||
-                         x.SourceType.StartsWith("game_")), ct);
+                         x.SourceType.StartsWith("game_")))
+                    .Select(x => x.AwardedAt)
+                    .ToListAsync(ct);
+                quizzesCompleted = quizEntries.Count;
+                quizzesThisWeek = quizEntries.Count(awardedAt => awardedAt >= sevenDaysAgoUtc);
             }
             catch (Exception ex)
             {
@@ -289,7 +295,8 @@ public class GamificationService(
             stats = new UserPerformanceStatsDto(
                 WordsLearned: wordsLearned,
                 QuizzesCompleted: quizzesCompleted,
-                AccuracyRate: accuracyRate);
+                AccuracyRate: accuracyRate,
+                QuizzesThisWeek: quizzesThisWeek);
         }
 
         return new UserProfileSummaryDto(

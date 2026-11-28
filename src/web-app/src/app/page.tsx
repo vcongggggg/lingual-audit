@@ -31,6 +31,7 @@ type GroupsResponse = { groups?: { word_count?: number }[] };
 type ReviewsResponse = { totalLearned?: number; totalDue?: number };
 type WeeklyDayDto = {
   date?: string;
+  isoDate?: string;
   words?: number;
   xpEarned?: number;
   isToday?: boolean;
@@ -162,7 +163,7 @@ export default function HomePage() {
       })
       .catch(() => {});
 
-    void fetch("/api/activity/weekly", {
+    void fetch("/api/activity/weekly?days=30", {
       headers: authHeaders,
       cache: "no-store",
       signal: controller.signal,
@@ -260,10 +261,15 @@ export default function HomePage() {
         date.setHours(0, 0, 0, 0);
         date.setDate(date.getDate() - (activityRange - 1 - offset));
         const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        const ddMm = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
         const localWords = sessions
           .filter((session) => new Date(session.completedAt).toDateString() === date.toDateString())
           .reduce((total, session) => total + session.correctAnswers, 0);
-        const apiMatch = activeWeeklyApiDays.find((d) => d.date && d.date.startsWith(isoDay));
+        const apiMatch = activeWeeklyApiDays.find(
+          (d) =>
+            (d.isoDate && d.isoDate.startsWith(isoDay)) ||
+            (d.date && (d.date.startsWith(isoDay) || d.date === ddMm))
+        );
         const apiWords = Number(apiMatch?.words) || 0;
         const apiXp = Number(apiMatch?.xpEarned) || 0;
         return {
@@ -279,6 +285,11 @@ export default function HomePage() {
         };
       }),
     [sessions, activityRange, language, activeWeeklyApiDays]
+  );
+
+  const maxDayCount = useMemo(
+    () => Math.max(1, ...activityDays.map((day) => day.count)),
+    [activityDays]
   );
 
   const rangeXp = useMemo(() => {
@@ -297,7 +308,8 @@ export default function HomePage() {
     [activityDays]
   );
 
-  const learnedQuizzes = sessions.length;
+  const learnedQuizzes = Math.max(sessions.length, activeLiveSummary?.stats?.quizzesCompleted ?? 0);
+  const weeklyQuizzesCount = Math.max(weekly.length, activeLiveSummary?.stats?.quizzesThisWeek ?? 0);
   const effectiveVocabCount = vocabularyTotal ?? (vocabularyPool.length > 0 ? vocabularyPool.length : null);
   const unlockedCount =
     Number(learnedQuizzes > 0 || activeReviewStats.totalLearned > 0) +
@@ -349,7 +361,7 @@ export default function HomePage() {
           </div>
 
           {/* Daily Goal Progress Bar (Real API + Daily Sessions) */}
-          <div className="dashboard-daily-goal" aria-label={t("Mục tiêu hôm nay", "Today's goal")}>
+          <div className="dashboard-daily-goal" data-tour="home-daily-goal" aria-label={t("Mục tiêu hôm nay", "Today's goal")}>
             <div className="daily-goal-header">
               <span className="daily-goal-title">
                 <Target size={14} aria-hidden="true" /> {t("Mục tiêu hôm nay", "Today's goal")}
@@ -387,7 +399,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="dashboard-streak">
+        <div className="dashboard-streak" data-tour="home-streak">
           <span className="dashboard-streak-icon">
             <Flame size={21} />
           </span>
@@ -415,7 +427,7 @@ export default function HomePage() {
       </section>
 
       {/* 2. STATS BAR */}
-      <section className="dashboard-stats" aria-label={t("Tiến độ học tập", "Learning progress")}>
+      <section className="dashboard-stats" data-tour="home-stats" aria-label={t("Tiến độ học tập", "Learning progress")}>
         <article className="dashboard-stat-xp">
           <span className="dashboard-stat-icon">
             <Zap size={17} />
@@ -434,9 +446,11 @@ export default function HomePage() {
           </span>
           <div>
             <small>{t("Quiz đã hoàn thành", "Quizzes completed")}</small>
-            <strong>{sessions.length}</strong>
+            <strong>{learnedQuizzes}</strong>
           </div>
-          <span className="dashboard-stat-note">{t("Thiết bị này", "This device")}</span>
+          <span className="dashboard-stat-note">
+            {activeLiveSummary ? t("Hồ sơ", "Profile") : t("Thiết bị này", "This device")}
+          </span>
         </article>
         <article>
           <span className="dashboard-stat-icon">
@@ -444,7 +458,7 @@ export default function HomePage() {
           </span>
           <div>
             <small>{t("Quiz tuần này", "Quizzes this week")}</small>
-            <strong>{weekly.length}</strong>
+            <strong>{weeklyQuizzesCount}</strong>
           </div>
           <span className="dashboard-stat-note">{t("7 ngày qua", "Last 7 days")}</span>
         </article>
@@ -464,7 +478,7 @@ export default function HomePage() {
 
       {/* 3. WORD OF THE DAY INTERACTIVE CARD (G2 - Real /api/vocabulary) */}
       {wordOfTheDay && (
-        <section className="wotd-card" aria-label={t("Từ vựng hôm nay", "Word of the Day")}>
+        <section className="wotd-card" data-tour="home-wotd" aria-label={t("Từ vựng hôm nay", "Word of the Day")}>
           <div className="wotd-left">
             <div className="wotd-top-row">
               <span className="wotd-eyebrow">
@@ -606,7 +620,7 @@ export default function HomePage() {
 
       {/* 5. MAIN 6-CARD ACTIVITY GRID (3x2 DESKTOP) + RIGHT ACTIVITY & MILESTONES */}
       <div className="dashboard-content-grid">
-        <section className="dashboard-section dashboard-activities">
+        <section className="dashboard-section dashboard-activities" data-tour="home-activities">
           <div className="dashboard-section-heading">
             <div>
               <p className="dashboard-eyebrow">{t("CHỌN CÁCH HỌC", "CHOOSE HOW TO LEARN")}</p>
@@ -732,7 +746,7 @@ export default function HomePage() {
         </section>
 
         <aside className="dashboard-side-column">
-          <section className="dashboard-panel dashboard-weekly">
+          <section className="dashboard-panel dashboard-weekly" data-tour="home-weekly">
             <div className="dashboard-section-heading">
               <div>
                 <p className="dashboard-eyebrow">{t("TỪ VỰNG ĐÃ HỌC", "WORDS LEARNED")}</p>
@@ -764,7 +778,7 @@ export default function HomePage() {
               </span>
             </div>
 
-            {totalRangeWords === 0 ? (
+            {totalRangeWords === 0 && rangeXp === 0 ? (
               <div className="weekly-empty-state">
                 <p>
                   {t(
@@ -786,18 +800,27 @@ export default function HomePage() {
                   `Words learned over the last ${activityRange} days`
                 )}
               >
-                {activityDays.map(({ label, count, date }) => (
-                  <div className="weekly-day" key={date.toISOString()}>
-                    <span className="weekly-bar-wrap">
-                      <span
-                        className={count ? "weekly-bar is-active" : "weekly-bar"}
-                        style={{ height: `${count ? Math.min(100, 18 + count * 9) : 8}%` }}
-                        title={t(`${count} từ đã học`, `${count} words learned`)}
-                      />
-                    </span>
-                    <small suppressHydrationWarning>{label}</small>
-                  </div>
-                ))}
+                {activityDays.map(({ label, count, apiXp, date }) => {
+                  const hasActivity = count > 0 || apiXp > 0;
+                  const barHeight = hasActivity
+                    ? Math.max(22, Math.round((count / maxDayCount) * 100))
+                    : 8;
+                  return (
+                    <div className="weekly-day" key={date.toISOString()}>
+                      <span className="weekly-bar-wrap">
+                        <span
+                          className={hasActivity ? "weekly-bar is-active" : "weekly-bar"}
+                          style={{ height: `${barHeight}%` }}
+                          title={t(
+                            `${count} từ đã học · ${apiXp} XP`,
+                            `${count} words learned · ${apiXp} XP`
+                          )}
+                        />
+                      </span>
+                      <small suppressHydrationWarning>{label}</small>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

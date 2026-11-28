@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyBackend } from "@/app/api/api";
 
 export async function GET(request: NextRequest) {
   const params = new URLSearchParams();
@@ -10,9 +9,17 @@ export async function GET(request: NextRequest) {
   if (query) params.set("q", query);
   const topic = request.nextUrl.searchParams.get("topic");
   if (topic) params.set("topic", topic);
+  const mode = request.nextUrl.searchParams.get("mode");
+  if (mode) params.set("mode", mode);
   const apiBase = process.env.LINGUAL_API_URL ?? "http://localhost:5000";
   try {
-    const response = await fetch(`${apiBase}/api/v1/content/vocabulary?${params.toString()}`, { cache: "no-store" });
+    const authHeader = request.headers.get("authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) headers.authorization = authHeader;
+    const response = await fetch(`${apiBase}/api/v1/content/vocabulary?${params.toString()}`, {
+      headers,
+      cache: "no-store",
+    });
     if (!response.ok) return NextResponse.json({ error: "Vocabulary database is unavailable" }, { status: response.status });
     return NextResponse.json(await response.json());
   } catch {

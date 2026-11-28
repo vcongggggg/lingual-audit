@@ -145,5 +145,53 @@ public class ButtonInteractionObserverTests
         click.Allowed.Should().BeFalse();
         click.EphemeralReason.Should().Contain("vô hiệu hóa để tránh spam tin nhắn");
     }
+
+    [Fact]
+    public void CanProcessClick_MultiUserMessage_AllowsDifferentUsersToClickSameCorrectOption()
+    {
+        // Arrange: Scheduled / Clan Quiz tracked with SingleUse = false
+        var messageId = 4004L;
+        var channelId = 500L;
+        var buttonId = "btn_quiz_9fda8d3d-e4d1-484b-934c-c11961ea6fe1_D";
+        _observer.TrackMessage(new TrackedButtonMessage
+        {
+            ChannelId = channelId,
+            MessageId = messageId,
+            Text = "Scheduled Quiz",
+            Buttons = new List<TrackedButton> { new(buttonId, "D. Answer", 1) },
+            SingleUse = false
+        });
+
+        // Act: Two different members click the exact same button D
+        var user1Click = _observer.CanProcessClick(channelId, messageId, buttonId, "2100896006294999040");
+        var user2Click = _observer.CanProcessClick(channelId, messageId, buttonId, "2121580905989410816");
+        var user2Repeat = _observer.CanProcessClick(channelId, messageId, buttonId, "2121580905989410816");
+
+        // Assert
+        user1Click.Allowed.Should().BeTrue();
+        user2Click.Allowed.Should().BeTrue();
+        user2Repeat.Allowed.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CanProcessClick_UntrackedQuizMessage_AllowsDifferentUsersSameOption_RejectsSameUser()
+    {
+        // Arrange: Untracked quiz message (e.g. after restart)
+        var messageId = 5005L;
+        var channelId = 500L;
+        var buttonD = "btn_quiz_9fda8d3d-e4d1-484b-934c-c11961ea6fe1_D";
+        var buttonA = "btn_quiz_9fda8d3d-e4d1-484b-934c-c11961ea6fe1_A";
+
+        // Act
+        var user1Click = _observer.CanProcessClick(channelId, messageId, buttonD, "2100896006294999040");
+        var user2Click = _observer.CanProcessClick(channelId, messageId, buttonD, "2121580905989410816");
+        var user1SecondTry = _observer.CanProcessClick(channelId, messageId, buttonA, "2100896006294999040");
+
+        // Assert
+        user1Click.Allowed.Should().BeTrue();
+        user2Click.Allowed.Should().BeTrue();
+        user1SecondTry.Allowed.Should().BeFalse();
+        user1SecondTry.EphemeralReason.Should().Contain("Bạn đã gửi câu trả lời");
+    }
 }
 

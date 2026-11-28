@@ -64,39 +64,103 @@ public class StreakService(
             streak.UpdatedAt);
     }
 
-    public async Task<WeeklyActivityResponseDto> GetWeeklyActivityAsync(Guid userId, CancellationToken cancellationToken = default)
+    public Task<WeeklyActivityResponseDto> GetWeeklyActivityAsync(Guid userId, CancellationToken cancellationToken = default)
+        => GetWeeklyActivityAsync(userId, rollingDays: null, cancellationToken);
+
+    public async Task<WeeklyActivityResponseDto> GetWeeklyActivityAsync(Guid userId, int? rollingDays, CancellationToken cancellationToken = default)
     {
         var streak = await dbContext.UserStreaks.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == userId, cancellationToken);
         var activities = streak != null ? DeserializeDailyActivity(streak.DailyActivity) : new Dictionary<string, DailyActivityEntry>();
 
-        var (weekStart, _) = TimeZoneHelper.GetCurrentWeekRange();
         var today = TimeZoneHelper.GetCurrentVietnamDate();
-
-        var days = new List<DailyProgressDto>();
-        var dayNames = new[] { ("T2", "Thứ Hai"), ("T3", "Thứ Ba"), ("T4", "Thứ Tư"), ("T5", "Thứ Năm"), ("T6", "Thứ Sáu"), ("T7", "Thứ Bảy"), ("CN", "Chủ Nhật") };
-
-        for (int i = 0; i < 7; i++)
+        DateOnly startDate;
+        int totalDays;
+        if (rollingDays.HasValue)
         {
-            var date = weekStart.AddDays(i);
+            totalDays = Math.Clamp(rollingDays.Value, 1, 30);
+            startDate = today.AddDays(-(totalDays - 1));
+        }
+        else
+        {
+            (startDate, _) = TimeZoneHelper.GetCurrentWeekRange();
+            totalDays = 7;
+        }
+
+        // Gộp thêm dữ liệu thực tế từ xp_ledger (bao gồm Clan Quiz, Scheduled Quiz, SRS Review, Game Center...)
+        // vì các nguồn ghi trực tiếp vào xp_ledger có thể chưa ghi vào user_streaks.daily_activity.
+        var ledgerByDate = new Dictionary<string, (int Xp, int Actions)>();
+        if (userId != Guid.Empty)
+        {
+            try
+            {
+                var startUtcBuffer = startDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(-1);
+                var ledgerRows = await dbContext.XpLedgers.AsNoTracking()
+                    .Where(x => x.UserId == userId && x.AwardedAt >= startUtcBuffer && x.XpDelta > 0)
+                    .Select(x => new { x.AwardedAt, x.XpDelta })
+                    .ToListAsync(cancellationToken);
+
+                foreach (var row in ledgerRows)
+                {
+                    var awardedUtc = row.AwardedAt.Kind == DateTimeKind.Utc
+                        ? row.AwardedAt
+                        : DateTime.SpecifyKind(row.AwardedAt, DateTimeKind.Utc);
+                    var vnDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(awardedUtc, TimeZoneHelper.VietnamTimeZone));
+                    var key = vnDate.ToString("yyyy-MM-dd");
+                    if (ledgerByDate.TryGetValue(key, out var existing))
+                    {
+                        ledgerByDate[key] = (existing.Xp + row.XpDelta, existing.Actions + 1);
+                    }
+                    else
+                    {
+                        ledgerByDate[key] = (row.XpDelta, 1);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Could not aggregate xp_ledger for weekly activity of user {UserId}", userId);
+            }
+        }
+
+        var days = new List<DailyProgressDto>(totalDays);
+        for (int i = 0; i < totalDays; i++)
+        {
+            var date = startDate.AddDays(i);
             var dateKey = date.ToString("yyyy-MM-dd");
-            var (shortName, fullName) = dayNames[i];
+            var (shortName, fullName) = date.DayOfWeek switch
+            {
+                DayOfWeek.Monday => ("T2", "Thứ Hai"),
+                DayOfWeek.Tuesday => ("T3", "Thứ Ba"),
+                DayOfWeek.Wednesday => ("T4", "Thứ Tư"),
+                DayOfWeek.Thursday => ("T5", "Thứ Năm"),
+                DayOfWeek.Friday => ("T6", "Thứ Sáu"),
+                DayOfWeek.Saturday => ("T7", "Thứ Bảy"),
+                _ => ("CN", "Chủ Nhật")
+            };
 
-            int words;
-            int xpEarned;
-            int accuracy;
-
+            int streakWords = 0;
+            int streakXp = 0;
             if (activities.TryGetValue(dateKey, out var act))
             {
-                words = act.WordsCount > 0 ? act.WordsCount : act.Xp / 5;
-                xpEarned = act.Xp;
-                accuracy = act.Xp > 0 ? Math.Min(100, Math.Max(80, 85 + (act.Xp % 15))) : 0;
+                streakWords = act.WordsCount > 0 ? act.WordsCount : act.Xp / 5;
+                streakXp = act.Xp;
             }
-            else
+
+            int ledgerXp = 0;
+            int ledgerWords = 0;
+            if (ledgerByDate.TryGetValue(dateKey, out var ledgerDay))
             {
-                words = 0;
-                xpEarned = 0;
-                accuracy = 0;
+                ledgerXp = ledgerDay.Xp;
+                ledgerWords = Math.Max(ledgerDay.Actions, ledgerDay.Xp / 5);
             }
+
+            int xpEarned = Math.Max(streakXp, ledgerXp);
+            int words = Math.Max(streakWords, ledgerWords);
+            if (words == 0 && xpEarned > 0)
+            {
+                words = 1;
+            }
+            int accuracy = xpEarned > 0 ? Math.Min(100, Math.Max(80, 85 + (xpEarned % 15))) : 0;
 
             days.Add(new DailyProgressDto(
                 Day: shortName,
@@ -106,7 +170,8 @@ public class StreakService(
                 Target: 25,
                 XpEarned: xpEarned,
                 Accuracy: accuracy,
-                IsToday: date == today));
+                IsToday: date == today,
+                IsoDate: dateKey));
         }
 
         return new WeeklyActivityResponseDto(days);

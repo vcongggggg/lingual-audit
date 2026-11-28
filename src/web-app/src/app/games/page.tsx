@@ -226,7 +226,7 @@ export default function GameCenterPage() {
 
         {/* Tab Switcher + SFX Toggle */}
         {!activeGame && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2" data-tour="games-sfx">
             <button
               type="button"
               className="sfx-toggle-btn"
@@ -362,8 +362,8 @@ export default function GameCenterPage() {
           </div>
 
           {/* Catalog Cards Grid */}
-          <div className="games-grid">
-            {filteredCatalog.map((item) => {
+          <div className="games-grid" data-tour="games-catalog">
+            {filteredCatalog.map((item, idx) => {
               const IconComp = item.icon;
               return (
                 <article key={item.id} className="game-catalog-card">
@@ -397,6 +397,7 @@ export default function GameCenterPage() {
                       <button
                         type="button"
                         className="game-catalog-rules-btn"
+                        data-tour={idx === 0 ? "games-rules-btn" : undefined}
                         onClick={() => handleOpenGameRules(item)}
                         aria-label={`${t('Luật chơi', 'Rules')} ${language === 'vi' ? item.title : item.englishTitle}`}
                         title={t('Xem hướng dẫn luật chơi', 'View how to play')}

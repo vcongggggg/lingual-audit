@@ -15,11 +15,12 @@ public class GetWeeklyActivityEndpoint : IEndpointBase
     {
         app.MapGet("/api/v1/gamification/activity/weekly", async (
             HttpContext httpContext,
+            [FromQuery] int? days,
             [FromServices] ISender sender,
             CancellationToken ct) =>
         {
             var userId = GetCurrentUserId(httpContext) ?? Guid.Empty;
-            var result = await sender.Send(new GetWeeklyActivityQuery(userId), ct);
+            var result = await sender.Send(new GetWeeklyActivityQuery(userId, days), ct);
             return Results.Ok(result);
         })
         .WithName("GetWeeklyActivity")

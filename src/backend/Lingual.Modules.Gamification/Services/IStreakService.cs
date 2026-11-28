@@ -8,6 +8,8 @@ public interface IStreakService
 
     Task<WeeklyActivityResponseDto> GetWeeklyActivityAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    Task<WeeklyActivityResponseDto> GetWeeklyActivityAsync(Guid userId, int? rollingDays, CancellationToken cancellationToken = default);
+
     Task<UserStreakDto> RecordXpActivityAsync(
         Guid userId,
         int xpDelta,

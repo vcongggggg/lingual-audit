@@ -366,7 +366,7 @@ public class AiQuotaService : IAiQuotaService
 
             _memoryCache.Set(cacheKey, nextUsed, new MemoryCacheEntryOptions
             {
-                AbsoluteExpiration = new DateTimeOffset(nextResetUtc, TimeSpan.Zero)
+                AbsoluteExpirationRelativeToNow = ttl
             });
 
             var remaining = Math.Max(0, GuestDailyLimit - nextUsed);
@@ -402,9 +402,14 @@ public class AiQuotaService : IAiQuotaService
         {
             var used = _memoryCache.TryGetValue<int>(cacheKey, out var val) ? Math.Max(0, val) : 0;
             var nextUsed = Math.Max(0, used - 1);
+            var ttl = nextResetUtc - nowUtc;
+            if (ttl < TimeSpan.FromSeconds(5))
+            {
+                ttl = TimeSpan.FromSeconds(5);
+            }
             _memoryCache.Set(cacheKey, nextUsed, new MemoryCacheEntryOptions
             {
-                AbsoluteExpiration = new DateTimeOffset(nextResetUtc, TimeSpan.Zero)
+                AbsoluteExpirationRelativeToNow = ttl
             });
 
             var remaining = Math.Max(0, GuestDailyLimit - nextUsed);

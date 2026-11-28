@@ -534,6 +534,7 @@ export default function TutorPage() {
         <div
           className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dfd9ca] bg-[#fffdf8] px-4 py-3 text-xs shadow-sm"
           data-testid="ai-quota-strip"
+          data-tour="tutor-quota"
         >
           <div className="flex flex-wrap items-center gap-2.5">
             <span
@@ -607,7 +608,7 @@ export default function TutorPage() {
         </div>
 
         {/* Tab Selector */}
-        <div className="tutor-tabs">
+        <div className="tutor-tabs" data-tour="tutor-modes">
           <button
             className={`tutor-tab-btn ${activeTab === "roleplay" ? "is-active" : ""}`}
             onClick={() => handleSelectTab("roleplay")}
@@ -625,7 +626,7 @@ export default function TutorPage() {
 
       {/* Roleplay Scenarios Selection */}
       {activeTab === "roleplay" && (
-        <section className="tutor-scenarios" aria-label={t("Danh mục kịch bản", "Scenario categories")}>
+        <section className="tutor-scenarios" data-tour="tutor-scenarios" aria-label={t("Danh mục kịch bản", "Scenario categories")}>
           {scenarios.map((sc) => {
             const ScIcon = SCENARIO_ICONS[sc.code] || MessageSquare;
             const isSelected = selectedScenario.code === sc.code;
@@ -854,7 +855,7 @@ export default function TutorPage() {
         )}
 
         {/* Input Bar */}
-        <div className="chat-input-bar">
+        <div className="chat-input-bar" data-tour="tutor-input">
           <input
             type="text"
             className="chat-input-field"

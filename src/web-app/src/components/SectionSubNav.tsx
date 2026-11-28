@@ -48,6 +48,7 @@ export default function SectionSubNav() {
     <div className="section-subnav-wrap">
       <nav
         className="section-subnav"
+        data-tour={isArenaGroup ? "games-subnav" : "vocab-subnav"}
         aria-label={
           isVocabGroup
             ? t("Chuyển nhanh mục Học từ", "Vocabulary section switcher")

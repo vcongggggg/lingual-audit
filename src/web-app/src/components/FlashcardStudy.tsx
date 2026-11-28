@@ -187,6 +187,7 @@ export default function FlashcardStudy({
   const [isLoadingVocabulary, setIsLoadingVocabulary] = useState(!vocabularyList);
   const [vocabularyLoadError, setVocabularyLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [srsDeckState, setSrsDeckState] = useState<Record<string, SrsCardState>>({});
 
   useEffect(() => {
     if (vocabularyList) return;
@@ -201,15 +202,38 @@ export default function FlashcardStudy({
       setXpGainedSession(0);
       setStartTime(Date.now());
       try {
-        const params = new URLSearchParams({ limit: String(deckLimit) });
+        const params = new URLSearchParams({ limit: String(deckLimit), mode: "study" });
         if (levelFilter && levelFilter !== "ALL") {
           params.set("level", levelFilter);
         }
-        const data = await clientApi.get<{ words?: VocabularyItem[] }>(`/api/vocabulary?${params.toString()}`, {
+        const data = await clientApi.get<{
+          words?: (VocabularyItem & {
+            repetitions?: number;
+            interval_days?: number;
+            ease_factor?: number;
+            lapses?: number;
+            next_due_at?: string;
+          })[];
+        }>(`/api/vocabulary?${params.toString()}`, {
           signal: controller.signal,
         });
         if (Array.isArray(data?.words) && data.words.length > 0) {
           setDatabaseVocabulary(data.words);
+          const hydratedSrs: Record<string, SrsCardState> = {};
+          for (const w of data.words) {
+            if (typeof w.repetitions === "number" && w.repetitions > 0) {
+              hydratedSrs[w.id] = {
+                user_id: "user-current",
+                vocabulary_id: w.id,
+                repetitions: w.repetitions,
+                interval_days: typeof w.interval_days === "number" ? w.interval_days : 1,
+                ease_factor: typeof w.ease_factor === "number" ? w.ease_factor : 2.5,
+                next_due_at: w.next_due_at ?? "",
+                lapses: typeof w.lapses === "number" ? w.lapses : 0,
+              };
+            }
+          }
+          setSrsDeckState(hydratedSrs);
           setVocabularyLoadError(null);
         } else {
           setDatabaseVocabulary([]);
@@ -233,8 +257,6 @@ export default function FlashcardStudy({
   }, [vocabularyList, levelFilter, deckLimit, reloadNonce, t]);
 
   const cards = vocabularyList ?? databaseVocabulary;
-
-  const [srsDeckState, setSrsDeckState] = useState<Record<string, SrsCardState>>({});
 
   const currentVocab = cards[currentIndex] || cards[0] || {
     id: "",
@@ -359,8 +381,15 @@ export default function FlashcardStudy({
           delete reviewIdempotencyKeys.current[`${currentVocab.id}:${rating}`];
         } catch (err) {
           console.error("Lỗi khi gửi kết quả SRS lên server:", err);
+          const status = typeof err === "object" && err !== null && "status" in err ? Number((err as { status?: unknown }).status) : null;
+          const rawMsg = err instanceof Error ? err.message : "";
+          const isAuthError = status === 401 || /401|unauthoriz|sign in|đăng nhập/i.test(rawMsg);
           setReviewError(
-            t("Chưa lưu được kết quả (hãy đăng nhập Mezon để lưu tiến độ).", "Could not save review (sign in with Mezon to save progress).")
+            isAuthError
+              ? t("Chưa lưu được kết quả (hãy đăng nhập Mezon để lưu tiến độ).", "Could not save review (sign in with Mezon to save progress).")
+              : rawMsg
+                ? t(`Chưa lưu được kết quả: ${rawMsg}`, `Could not save review: ${rawMsg}`)
+                : t("Chưa lưu được kết quả do lỗi máy chủ. Vui lòng thử lại.", "Could not save review due to a server error. Please try again.")
           );
           playWrong();
           setIsSubmitting(false);
@@ -589,7 +618,7 @@ export default function FlashcardStudy({
 
       <div className="study-split-grid">
         {/* LEFT COLUMN (62%): 3D Flashcard */}
-        <div className="study-card-col">
+        <div className="study-card-col" data-tour="learn-card">
           <div
             className={`study-card-stage ${isFlipped ? "is-flipped" : ""}`}
             onClick={(event) => {
@@ -686,7 +715,7 @@ export default function FlashcardStudy({
 
         {/* RIGHT COLUMN (38%): Controls, SM-2 2x2 Grid & Shortcuts (Zero-Scroll Desktop) */}
         <aside className="study-controls-panel" aria-label={t("Bảng điều khiển ôn thẻ", "Flashcard controls")}>
-          <div className="study-panel-actions">
+          <div className="study-panel-actions" data-tour="learn-controls">
             <button
               type="button"
               onClick={handleToggleFlip}
@@ -722,7 +751,7 @@ export default function FlashcardStudy({
             </div>
           </div>
 
-          <div className={`study-review study-review-panel ${isFlipped ? "is-ready" : ""}`} aria-label={t("Đánh giá mức độ ghi nhớ", "Rate your memory")}>
+          <div className={`study-review study-review-panel ${isFlipped ? "is-ready" : ""}`} data-tour="learn-ratings" aria-label={t("Đánh giá mức độ ghi nhớ", "Rate your memory")}>
             {reviewError && (
               <p className="study-audio-note" role="alert">
                 {reviewError}

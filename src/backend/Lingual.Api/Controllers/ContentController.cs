@@ -377,6 +377,55 @@ public class ContentController : ControllerBase
                     await conn.OpenAsync(cancellationToken);
                 }
 
+                var effectiveVocabId = vocabId;
+                var vocabExists = await _learningDbContext.VocabularyItems
+                    .AsNoTracking()
+                    .AnyAsync(v => v.Id == vocabId, cancellationToken);
+
+                if (!vocabExists)
+                {
+                    var seedWord = VocabularySeed.Words.FirstOrDefault(w => w.Id == vocabId);
+                    if (seedWord != null)
+                    {
+                        var existingByTerm = await _learningDbContext.VocabularyItems
+                            .AsNoTracking()
+                            .Where(v => v.NormalizedTerm == seedWord.NormalizedTerm
+                                     && v.SourceLanguage == seedWord.SourceLanguage
+                                     && v.TargetLanguage == seedWord.TargetLanguage)
+                            .Select(v => (Guid?)v.Id)
+                            .FirstOrDefaultAsync(cancellationToken);
+
+                        if (existingByTerm.HasValue)
+                        {
+                            effectiveVocabId = existingByTerm.Value;
+                        }
+                        else
+                        {
+                            using var seedCmd = conn.CreateCommand();
+                            seedCmd.CommandText = @"
+                                INSERT INTO vocabulary_items (id, term, normalized_term, source_language, target_language, ipa, cefr_level, part_of_speech, meaning, pronunciation_audio_url, examples, status, created_at, updated_at)
+                                VALUES (@id, @term, @norm, @src, @tgt, @ipa, @cefr, @pos, @meaning, @audio, @examples::jsonb, 'published', now(), now())
+                                ON CONFLICT DO NOTHING;";
+                            AddParam(seedCmd, "@id", seedWord.Id);
+                            AddParam(seedCmd, "@term", seedWord.Term);
+                            AddParam(seedCmd, "@norm", seedWord.NormalizedTerm);
+                            AddParam(seedCmd, "@src", seedWord.SourceLanguage);
+                            AddParam(seedCmd, "@tgt", seedWord.TargetLanguage);
+                            AddParam(seedCmd, "@ipa", seedWord.Ipa ?? string.Empty);
+                            AddParam(seedCmd, "@cefr", seedWord.CefrLevel);
+                            AddParam(seedCmd, "@pos", seedWord.PartOfSpeech ?? "noun");
+                            AddParam(seedCmd, "@meaning", seedWord.Meaning);
+                            AddParam(seedCmd, "@audio", seedWord.PronunciationAudioUrl ?? string.Empty);
+                            AddParam(seedCmd, "@examples", string.IsNullOrWhiteSpace(seedWord.Examples) ? "[]" : seedWord.Examples);
+                            await seedCmd.ExecuteNonQueryAsync(cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        return NotFound(new { error = "Không tìm thấy từ vựng trong cơ sở dữ liệu.", success = false });
+                    }
+                }
+
                 var reviewItem = JsonSerializer.Serialize(new
                 {
                     rating = request.Rating,
@@ -401,7 +450,7 @@ public class ContentController : ControllerBase
                         updated_at = now();";
 
                 AddParam(cmd, "@userId", userId);
-                AddParam(cmd, "@vocabId", vocabId);
+                AddParam(cmd, "@vocabId", effectiveVocabId);
                 AddParam(cmd, "@repetitions", request.Repetitions);
                 AddParam(cmd, "@intervalDays", (decimal)request.IntervalDays);
                 AddParam(cmd, "@easeFactor", (decimal)request.EaseFactor);
@@ -683,16 +732,127 @@ public class ContentController : ControllerBase
     }
 
     [HttpGet("vocabulary")]
-    public async Task<IActionResult> GetVocabulary([FromQuery] int limit = 50, [FromQuery] string? level = null, [FromQuery] string? q = null, [FromQuery] string? topic = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetVocabulary(
+        [FromQuery] int limit = 50,
+        [FromQuery] string? level = null,
+        [FromQuery] string? q = null,
+        [FromQuery] string? topic = null,
+        [FromQuery] string? mode = null,
+        CancellationToken cancellationToken = default)
     {
         limit = Math.Clamp(limit, 1, 6000);
         var search = q?.Trim();
+        var isStudyMode = string.Equals(mode?.Trim(), "study", StringComparison.OrdinalIgnoreCase);
+
         try
         {
             if (_learningDbContext.Database.IsRelational())
             {
                 var query = _learningDbContext.VocabularyItems.Where(v => v.Status == "published");
                 if (!string.IsNullOrWhiteSpace(level)) query = query.Where(v => v.CefrLevel == level.ToUpperInvariant());
+
+                if (isStudyMode && string.IsNullOrWhiteSpace(search) && string.IsNullOrWhiteSpace(topic))
+                {
+                    var now = DateTime.UtcNow;
+                    var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+                    var hasUser = Guid.TryParse(userIdStr, out var currentUserId);
+
+                    var resultWords = new List<object>(limit);
+                    var excludedIds = new HashSet<Guid>();
+
+                    if (hasUser)
+                    {
+                        var userCards = await _learningDbContext.SrsCards
+                            .AsNoTracking()
+                            .Where(c => c.UserId == currentUserId && c.SuspendedAt == null)
+                            .Select(c => new { c.VocabularyId, c.NextDueAt, c.Repetitions, c.IntervalDays, c.EaseFactor, c.Lapses })
+                            .ToListAsync(cancellationToken);
+
+                        foreach (var c in userCards)
+                        {
+                            excludedIds.Add(c.VocabularyId);
+                        }
+
+                        // Ưu tiên 1: Thẻ đến hạn ôn tập SM-2 (next_due_at <= now), quá hạn lâu nhất lên trước
+                        var dueCardMap = userCards
+                            .Where(c => c.NextDueAt <= now)
+                            .OrderBy(c => c.NextDueAt)
+                            .ToList();
+
+                        if (dueCardMap.Count > 0)
+                        {
+                            var dueIds = dueCardMap.Select(c => c.VocabularyId).ToList();
+                            var dueVocabs = await query
+                                .AsNoTracking()
+                                .Where(v => dueIds.Contains(v.Id))
+                                .ToDictionaryAsync(v => v.Id, cancellationToken);
+
+                            foreach (var card in dueCardMap)
+                            {
+                                if (resultWords.Count >= limit) break;
+                                if (!dueVocabs.TryGetValue(card.VocabularyId, out var vocab)) continue;
+                                resultWords.Add(ToVocabularyStudyDto(vocab, card.Repetitions, (double)card.IntervalDays, (double)card.EaseFactor, card.Lapses, card.NextDueAt));
+                            }
+                        }
+                    }
+
+                    // Ưu tiên 2: Từ mới chưa học (loại toàn bộ từ đã nằm trong srs_cards), chọn ngẫu nhiên
+                    var remainingNeeded = limit - resultWords.Count;
+                    if (remainingNeeded > 0)
+                    {
+                        var candidateIds = await query
+                            .AsNoTracking()
+                            .Select(v => v.Id)
+                            .ToListAsync(cancellationToken);
+
+                        var unseenIds = candidateIds
+                            .Where(id => !excludedIds.Contains(id))
+                            .OrderBy(_ => Random.Shared.Next())
+                            .Take(remainingNeeded)
+                            .ToList();
+
+                        if (unseenIds.Count > 0)
+                        {
+                            var unseenMap = await _learningDbContext.VocabularyItems
+                                .AsNoTracking()
+                                .Where(v => unseenIds.Contains(v.Id))
+                                .ToDictionaryAsync(v => v.Id, cancellationToken);
+
+                            foreach (var id in unseenIds)
+                            {
+                                if (unseenMap.TryGetValue(id, out var vocab))
+                                {
+                                    resultWords.Add(ToVocabularyDto(vocab));
+                                }
+                            }
+                        }
+                    }
+
+                    // Ưu tiên 3: Nếu người dùng đã học hết toàn bộ từ trong cấp độ này, lấy các thẻ sắp đến hạn gần nhất
+                    if (resultWords.Count == 0 && hasUser)
+                    {
+                        var soonestCards = await _learningDbContext.SrsCards
+                            .AsNoTracking()
+                            .Where(c => c.UserId == currentUserId && c.SuspendedAt == null)
+                            .Include(c => c.VocabularyItem)
+                            .Where(c => c.VocabularyItem != null && c.VocabularyItem.Status == "published"
+                                     && (string.IsNullOrWhiteSpace(level) || c.VocabularyItem.CefrLevel == level.ToUpperInvariant()))
+                            .OrderBy(c => c.NextDueAt)
+                            .Take(limit)
+                            .ToListAsync(cancellationToken);
+
+                        foreach (var c in soonestCards)
+                        {
+                            resultWords.Add(ToVocabularyStudyDto(c.VocabularyItem!, c.Repetitions, (double)c.IntervalDays, (double)c.EaseFactor, c.Lapses, c.NextDueAt));
+                        }
+                    }
+
+                    if (resultWords.Count > 0)
+                    {
+                        return Ok(new { total = resultWords.Count, words = resultWords, data = resultWords });
+                    }
+                }
+
                 if (!string.IsNullOrWhiteSpace(search))
                 {
                     var normalizedSearch = search.ToLowerInvariant();
@@ -727,6 +887,33 @@ public class ContentController : ControllerBase
             .Take(limit).Select(ToVocabularyDto).ToList();
         return Ok(new { total = seedWords.Count, words = seedWords, data = seedWords });
     }
+
+    private static object ToVocabularyStudyDto(
+        Lingual.Modules.Learning.Domain.VocabularyItem v,
+        int repetitions,
+        double intervalDays,
+        double easeFactor,
+        int lapses,
+        DateTime nextDueAt) => new
+    {
+        id = v.Id.ToString(),
+        term = v.Term,
+        normalized_term = v.NormalizedTerm,
+        source_language = v.SourceLanguage,
+        target_language = v.TargetLanguage,
+        ipa = v.Ipa,
+        cefr_level = v.CefrLevel,
+        meaning = v.Meaning,
+        part_of_speech = v.PartOfSpeech ?? "noun",
+        image_url = v.ImageUrl,
+        pronunciation_audio_url = v.PronunciationAudioUrl,
+        examples = ParseExamples(v.Examples),
+        repetitions,
+        interval_days = intervalDays,
+        ease_factor = easeFactor,
+        lapses,
+        next_due_at = nextDueAt
+    };
 
     private static object ToVocabularyDto(Lingual.Modules.Learning.Domain.VocabularyItem v)
     {
@@ -792,16 +979,58 @@ public class ContentController : ControllerBase
         if (string.IsNullOrWhiteSpace(json)) return new();
         try
         {
-            var options = JsonSerializer.Deserialize<List<OptionDto>>(json, new JsonSerializerOptions
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return new();
+
+            var result = new List<OptionDto>();
+            foreach (var elem in doc.RootElement.EnumerateArray())
             {
-                PropertyNameCaseInsensitive = true
-            });
-            return options ?? new();
+                if (elem.ValueKind != JsonValueKind.Object) continue;
+
+                var key = TryReadString(elem, "key", "Key") ?? string.Empty;
+                var text = TryReadString(elem, "text", "Text") ?? string.Empty;
+                var isCorrect = TryReadBool(elem, "is_correct", "isCorrect", "IsCorrect");
+                var imageUrl = TryReadString(elem, "image_url", "imageUrl", "ImageUrl");
+
+                result.Add(new OptionDto
+                {
+                    Key = key,
+                    Text = text,
+                    IsCorrect = isCorrect,
+                    ImageUrl = imageUrl
+                });
+            }
+            return result;
         }
         catch
         {
             return new();
         }
+    }
+
+    private static string? TryReadString(JsonElement obj, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (obj.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
+            {
+                return prop.GetString();
+            }
+        }
+        return null;
+    }
+
+    private static bool TryReadBool(JsonElement obj, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (obj.TryGetProperty(name, out var prop))
+            {
+                if (prop.ValueKind == JsonValueKind.True) return true;
+                if (prop.ValueKind == JsonValueKind.False) return false;
+            }
+        }
+        return false;
     }
 
     private static List<object> GetSanitizedFallbackQuestions(int count)

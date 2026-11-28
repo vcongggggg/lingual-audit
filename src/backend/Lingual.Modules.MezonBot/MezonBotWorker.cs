@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -465,7 +466,7 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             .AddField("🔥 Duy trì Streak & Thi đua", "• /daily: Điểm danh nhận +20 XP và duy trì ngọn lửa Streak mỗi ngày\n• /streak: Tra cứu chuỗi ngày học và kỷ lục của bạn\n• /top: Bảng xếp hạng tuần Top 10 cao thủ LINGUAL", false)
             .AddField("📚 Học tập & Luyện ngữ pháp", "• /ask <câu>: Trợ lý LingLing phân tích & sửa lỗi ngữ pháp\n• /roleplay: Đóng vai luyện giao tiếp tiếng Anh theo tình huống thực tế\n• /learn: Ôn tập từ vựng qua thẻ ghi nhớ 3D thông minh", false)
             .AddField("🏆 Đấu trường Clan", "• /quiz: Tham gia đố vui từ vựng 30 giây tranh tài cùng Clan (hoặc luyện tập cá nhân trong DM)", false)
-            .AddField("🌐 Webview Miniapp Học tập", $"• AI Tutor LingLing: {_options.WebAppUrl}/tutor\n• Luyện tập Quiz: {_options.WebAppUrl}/quiz\n• Bảng xếp hạng: {_options.WebAppUrl}/leaderboard\n• Thẻ ghi nhớ 3D: {_options.WebAppUrl}/learn", false)
+            .AddField("🌐 Webview Miniapp Học tập", $"• Trang chủ: {_options.GetEffectiveWebAppUrl()}\n• AI Tutor LingLing: {_options.GetEffectiveWebAppUrl()}/tutor\n• Luyện tập Quiz: {_options.GetEffectiveWebAppUrl()}/quiz\n• Game Center: {_options.GetEffectiveWebAppUrl()}/games\n• Thẻ ghi nhớ 3D: {_options.GetEffectiveWebAppUrl()}/learn", false)
             .AddField("⚡ Tiện ích & Trạng thái", "• /ping: Kiểm tra kết nối của Bot\n• /help: Xem danh sách lệnh trợ giúp", false)
             .SetFooter("Powered by LINGUAL • Mezon Campus Studio 2026", "")
             .Build();
@@ -1131,7 +1132,8 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
             {
                 if (long.TryParse(mezonUserId, out var uid))
                 {
-                    await SendEphemeralMessageAsync(channelId, uid, $"🚀 LingLing: Mời bạn mở Webview học tập tại: {_options.WebAppUrl}/quiz (Luyện tập Quiz) hoặc {_options.WebAppUrl}/tutor (Luyện giao tiếp AI)!");
+                    var miniAppContent = BuildMiniAppRedirectContent(_options.GetEffectiveWebAppUrl());
+                    await SendEphemeralContentAsync(channelId, uid, miniAppContent);
                 }
             }
             else if (buttonId == "btn_guide_ask")
@@ -1840,8 +1842,77 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
         }
     }
 
+    private static readonly Regex UrlTokenRegex = new(@"https?://[^\s<>""')]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Tạo nội dung Mini-App có đầy đủ 3 cơ chế click chuyển thẳng sang Web của Mezon.Net.Sdk 1.11.0:
+    /// (1) Link markdown/lk bấm trực tiếp trong văn bản, (2) Embed Title có Url, và (3) ActionRow nút MessageButtonStyle.Link (style = 5).
+    /// </summary>
+    public static MessageContent BuildMiniAppRedirectContent(string baseUrl)
+    {
+        var cleanBase = string.IsNullOrWhiteSpace(baseUrl)
+            ? "https://lingual-web.onrender.com"
+            : baseUrl.Trim().TrimEnd('/');
+
+        var homeUrl = cleanBase;
+        var learnUrl = $"{cleanBase}/learn";
+        var quizUrl = $"{cleanBase}/quiz";
+        var gamesUrl = $"{cleanBase}/games";
+        var tutorUrl = $"{cleanBase}/tutor";
+
+        var text =
+            $"🚀 LinguaMezon Web App — nhấn trực tiếp vào link hoặc nút bên dưới để mở ngay:\n" +
+            $"• Trang chủ: {homeUrl}\n" +
+            $"• Flashcard 3D: {learnUrl}\n" +
+            $"• Luyện tập Quiz: {quizUrl}\n" +
+            $"• Game Center: {gamesUrl}\n" +
+            $"• Gia sư LingLing AI: {tutorUrl}";
+
+        var builder = new MessageContentBuilder().SetText(text);
+        AppendClickableUrlMarkers(builder, text);
+
+        var embed = new MessageEmbedBuilder()
+            .SetColor("#69734f")
+            .SetTitle("🚀 Mở LinguaMezon Web App")
+            .SetUrl(homeUrl)
+            .SetDescription("Nhấn tiêu đề, đường dẫn phía trên hoặc chọn nút chức năng bên dưới để chuyển thẳng sang Web mà không cần copy link.")
+            .AddField("🌐 Đường dẫn chính thức", homeUrl, false)
+            .SetFooter("LINGUAL Web • Mezon Campus Studio 2026", "")
+            .Build();
+
+        var linkButtons = new ButtonBuilder()
+            .AddButton("link_miniapp_home", "🌐 Trang chủ", (int)MessageButtonStyle.Link, false, homeUrl, null)
+            .AddButton("link_miniapp_learn", "📚 Flashcard 3D", (int)MessageButtonStyle.Link, false, learnUrl, null)
+            .AddButton("link_miniapp_quiz", "📝 Quiz nhanh", (int)MessageButtonStyle.Link, false, quizUrl, null)
+            .AddButton("link_miniapp_games", "🎮 Game Center", (int)MessageButtonStyle.Link, false, gamesUrl, null)
+            .AddButton("link_miniapp_tutor", "🤖 LingLing AI", (int)MessageButtonStyle.Link, false, tutorUrl, null)
+            .BuildComponents();
+
+        builder
+            .AddEmbed(embed)
+            .AddActionRow(linkButtons);
+
+        return builder.Build();
+    }
+
+    private static void AppendClickableUrlMarkers(MessageContentBuilder builder, string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        foreach (Match match in UrlTokenRegex.Matches(text))
+        {
+            if (!match.Success || match.Length == 0) continue;
+            var start = match.Index;
+            var end = match.Index + match.Length;
+            var url = match.Value;
+            builder.AddLink(start, end);
+            builder.AddMarkdown(MarkdownMarkerType.Link, start, end, url, null, null);
+        }
+    }
+
     /// <summary>
     /// Gửi tin nhắn Ephemeral (chỉ duy nhất người dùng nhận được chỉ định nhìn thấy).
+    /// Tự động gắn token link bấm được (lk / mk) nếu văn bản có chứa URL.
     /// </summary>
     public async Task SendEphemeralMessageAsync(long channelId, long userId, string text)
     {
@@ -1849,6 +1920,14 @@ public class MezonBotWorker : BackgroundService, IMezonBotNotifier
 
         try
         {
+            if (UrlTokenRegex.IsMatch(text))
+            {
+                var richBuilder = new MessageContentBuilder().SetText(text);
+                AppendClickableUrlMarkers(richBuilder, text);
+                await SendEphemeralContentAsync(channelId, userId, richBuilder.Build());
+                return;
+            }
+
             var channel = await _client.GetChannelAsync(channelId);
             if (channel != null)
             {
