@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.Gamification.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Learning.Contracts;
@@ -13,7 +14,8 @@ namespace Lingual.Modules.Learning.Services;
 public class SrsService(
     LearningDbContext dbContext,
     IGamificationService gamificationService,
-    ILogger<SrsService> logger) : ISrsService
+    ILogger<SrsService> logger,
+    IAiQuotaService? aiQuotaService = null) : ISrsService
 {
     private static readonly Guid DemoUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private const int StandardReviewXp = 20;
@@ -104,7 +106,50 @@ public class SrsService(
             Metadata: null), cancellationToken);
 
         var awardedXp = awardResult.AlreadyAwarded ? 0 : StandardReviewXp;
+
+        // 3. Thưởng +1 lượt AI khi mốc ôn tập >= 5 thẻ trong ngày (GMT+7), tính 100% từ bảng srs_cards trên server
+        if (aiQuotaService != null)
+        {
+            try
+            {
+                var (todayVn, todayStartUtc) = GetVietnamTodayBoundsUtc();
+                var reviewedTodayCount = await dbContext.SrsCards
+                    .AsNoTracking()
+                    .CountAsync(s => s.UserId == effectiveUserId && s.LastReviewedAt != null && s.LastReviewedAt >= todayStartUtc, cancellationToken);
+
+                if (reviewedTodayCount >= 5)
+                {
+                    var milestone = reviewedTodayCount / 5;
+                    await aiQuotaService.GrantBonusCreditsAsync(
+                        userId: effectiveUserId,
+                        amount: 1,
+                        reason: "reward_flashcard",
+                        idempotencyKey: $"reward_flashcard_{effectiveUserId:N}_{todayVn:yyyyMMdd}_m{milestone}",
+                        cancellationToken: cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Không thể cộng lượt AI thưởng sau ôn tập SRS cho user {UserId}", effectiveUserId);
+            }
+        }
+
         return new ReviewSubmissionResultDto(Saved: true, Xp: awardedXp, NextDueAt: request.NextDueAt);
+    }
+
+    private static (DateOnly TodayVn, DateTime TodayStartUtc) GetVietnamTodayBoundsUtc()
+    {
+        TimeZoneInfo tz;
+        try { tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
+        catch (TimeZoneNotFoundException)
+        {
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh"); }
+            catch (TimeZoneNotFoundException) { tz = TimeZoneInfo.CreateCustomTimeZone("Asia/Ho_Chi_Minh", TimeSpan.FromHours(7), "ICT", "ICT"); }
+        }
+        var vnNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var todayVn = DateOnly.FromDateTime(vnNow);
+        var vnStart = todayVn.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return (todayVn, TimeZoneInfo.ConvertTimeToUtc(vnStart, tz));
     }
 
     public async Task<SrsDueCardsResponseDto> GetDueCardsAsync(

@@ -4,6 +4,8 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Lingual.Api.Controllers;
+using Lingual.Modules.AITutor.Contracts;
+using Lingual.Modules.AITutor.Contracts.DTOs;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Infrastructure.Data;
 using Lingual.Modules.Gamification.Services;
@@ -460,5 +462,62 @@ public class ContentControllerTests
         var json = System.Text.Json.JsonSerializer.Serialize(okResult!.Value);
         json.Should().Contain("\"isCorrect\":false");
         json.Should().Contain("\"correctAnswer\":\"\"");
+    }
+
+    [Fact]
+    public async Task SaveQuizAttempt_ServerGradedAtLeast60Percent_Grants1AiCredit_SpoofedIsCorrectIgnored()
+    {
+        var (botDb, learnDb, gameDb) = CreateInMemoryDbs();
+        var userId = Guid.NewGuid();
+        var quotaMock = new Mock<IAiQuotaService>();
+        quotaMock
+            .Setup(q => q.GrantBonusCreditsAsync(userId, 1, "reward_quiz", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiQuotaGrantResult(
+                true, 1, false, false,
+                new AiQuotaStatusDto(5, 0, 5, 1, 6, 1, 5, DateTime.UtcNow.AddHours(10))));
+
+        var xpMock = new Mock<IXpService>();
+        xpMock.Setup(x => x.AwardXpAsync(It.IsAny<AwardXpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AwardXpRequest req, CancellationToken _) => new AwardXpResult(true, req.XpDelta, req.XpDelta, 1, true, false));
+        var lbMock = new Mock<ILeaderboardService>();
+        var controller = new ContentController(
+            botDb, learnDb, gameDb,
+            new Mock<IUserStreakService>().Object,
+            xpMock.Object,
+            lbMock.Object,
+            new Mock<ILogger<ContentController>>().Object,
+            quotaMock.Object);
+        AttachUser(controller, userId);
+
+        // 1/3 correct (< 60%) even though client lies IsCorrect = true on all 3 -> MUST NOT grant AI credit
+        var failReq = new QuizAttemptRequest(
+            IdempotencyKey: "quiz_low_score",
+            UserId: null,
+            Mode: "sprint10",
+            Answers: new List<QuizSubmittedAnswer>
+            {
+                new("fb-01", "A", IsCorrect: true),
+                new("fb-02", "B", IsCorrect: true),
+                new("fb-03", "C", IsCorrect: true),
+            });
+        var failRes = await controller.SaveQuizAttempt(failReq);
+        failRes.Should().BeOfType<OkObjectResult>();
+        quotaMock.Verify(q => q.GrantBonusCreditsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // 2/3 correct (66.7% >= 60%) -> MUST grant +1 AI credit
+        var passReq = new QuizAttemptRequest(
+            IdempotencyKey: "quiz_pass_score",
+            UserId: null,
+            Mode: "sprint10",
+            Answers: new List<QuizSubmittedAnswer>
+            {
+                new("fb-01", "A", IsCorrect: false),
+                new("fb-02", "A", IsCorrect: false),
+                new("fb-03", "D", IsCorrect: false),
+            });
+        var passRes = await controller.SaveQuizAttempt(passReq);
+        var ok = passRes.Should().BeOfType<OkObjectResult>().Subject;
+        System.Text.Json.JsonSerializer.Serialize(ok.Value).Should().Contain("\"aiCreditsEarned\":1");
+        quotaMock.Verify(q => q.GrantBonusCreditsAsync(userId, 1, "reward_quiz", It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

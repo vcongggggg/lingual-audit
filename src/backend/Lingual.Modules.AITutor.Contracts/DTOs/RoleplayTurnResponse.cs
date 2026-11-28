@@ -8,6 +8,8 @@ public record RoleplayTurnResponse(
     string Reply,
     bool HasFeedback,
     string? FeedbackCorrection,
-    string? Explanation
+    string? Explanation,
+    bool ProviderFailed = false,
+    AiQuotaStatusDto? Quota = null
 );
 

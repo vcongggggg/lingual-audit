@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Lingual.Api;
+using Lingual.Modules.AITutor.Contracts;
 using Lingual.Modules.Gamification.Contracts.DTOs;
 using Lingual.Modules.Gamification.Domain;
 using Lingual.Modules.Gamification.Infrastructure.Data;
@@ -36,6 +37,7 @@ public class ContentController : ControllerBase
     private readonly IXpService _xpService;
     private readonly ILeaderboardService _leaderboardService;
     private readonly ILogger<ContentController> _logger;
+    private readonly IAiQuotaService? _aiQuotaService;
 
     // Cache fallback questions for server-side evaluation when questions originate from the fallback bank
     private static readonly ConcurrentDictionary<string, FallbackQuestionMeta> FallbackBank = new();
@@ -52,7 +54,8 @@ public class ContentController : ControllerBase
         IUserStreakService streakService,
         IXpService xpService,
         ILeaderboardService leaderboardService,
-        ILogger<ContentController> logger)
+        ILogger<ContentController> logger,
+        IAiQuotaService? aiQuotaService = null)
     {
         _botDbContext = botDbContext;
         _learningDbContext = learningDbContext;
@@ -61,6 +64,7 @@ public class ContentController : ControllerBase
         _xpService = xpService;
         _leaderboardService = leaderboardService;
         _logger = logger;
+        _aiQuotaService = aiQuotaService;
     }
 
     /// <summary>
@@ -301,6 +305,26 @@ public class ContentController : ControllerBase
             });
         }
 
+        // 5. Thưởng +1 lượt AI nếu tỷ lệ trả lời đúng do server chấm đạt >= 60%
+        int aiCreditsEarned = 0;
+        if (_aiQuotaService != null && totalCount > 0 && (double)serverCorrectCount / totalCount >= 0.60)
+        {
+            try
+            {
+                var grant = await _aiQuotaService.GrantBonusCreditsAsync(
+                    userId: userId,
+                    amount: 1,
+                    reason: "reward_quiz",
+                    idempotencyKey: $"reward_quiz_{userId:N}_{scopedIdempotencyKey}",
+                    cancellationToken: cancellationToken);
+                aiCreditsEarned = grant.CreditsAdded;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [ContentApi] Không thể cộng lượt AI thưởng sau Quiz cho User {UserId}", userId);
+            }
+        }
+
         return Ok(new
         {
             success = true,
@@ -308,6 +332,7 @@ public class ContentController : ControllerBase
             xp = xpAwarded,
             correctCount = serverCorrectCount,
             totalQuestions = totalCount,
+            aiCreditsEarned,
             message = serverCorrectCount > 0
                 ? $"Tuyệt vời! Bạn trả lời đúng {serverCorrectCount}/{totalCount} câu và nhận được +{xpAwarded} XP!"
                 : $"Bạn chưa trả lời đúng câu nào (0/{totalCount}). Hãy ôn tập thêm và thử lại nhé!"
@@ -430,14 +455,77 @@ public class ContentController : ControllerBase
             _logger.LogWarning(ex, "⚠️ [ContentApi] Lưu thẻ SRS thành công nhưng không thể cộng XP cho User {UserId}", userId);
         }
 
+        // Thưởng +1 lượt AI khi mốc ôn tập >= 5 thẻ trong ngày (GMT+7), đếm trực tiếp từ bảng srs_cards trên server
+        int aiCreditsEarned = 0;
+        if (_aiQuotaService != null)
+        {
+            try
+            {
+                var (todayVn, todayStartUtc) = GetVietnamTodayBoundsUtc();
+                int reviewedTodayCount = 0;
+                if (_learningDbContext.Database.IsRelational())
+                {
+                    var conn = _learningDbContext.Database.GetDbConnection();
+                    if (conn.State != ConnectionState.Open)
+                    {
+                        await conn.OpenAsync(cancellationToken);
+                    }
+                    using var countCmd = conn.CreateCommand();
+                    countCmd.CommandText = "SELECT COUNT(*) FROM srs_cards WHERE user_id = @userId AND last_reviewed_at >= @todayStartUtc;";
+                    AddParam(countCmd, "@userId", userId);
+                    AddParam(countCmd, "@todayStartUtc", todayStartUtc);
+                    var scalar = await countCmd.ExecuteScalarAsync(cancellationToken);
+                    reviewedTodayCount = Convert.ToInt32(scalar ?? 0);
+                }
+                else
+                {
+                    reviewedTodayCount = await _learningDbContext.SrsCards
+                        .AsNoTracking()
+                        .CountAsync(c => c.UserId == userId && c.LastReviewedAt != null && c.LastReviewedAt >= todayStartUtc, cancellationToken);
+                }
+
+                if (reviewedTodayCount >= 5)
+                {
+                    var milestone = reviewedTodayCount / 5;
+                    var grant = await _aiQuotaService.GrantBonusCreditsAsync(
+                        userId: userId,
+                        amount: 1,
+                        reason: "reward_flashcard",
+                        idempotencyKey: $"reward_flashcard_{userId:N}_{todayVn:yyyyMMdd}_m{milestone}",
+                        cancellationToken: cancellationToken);
+                    aiCreditsEarned = grant.CreditsAdded;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ [ContentApi] Không thể cộng lượt AI thưởng sau ôn Flashcard cho User {UserId}", userId);
+            }
+        }
+
         return Ok(new
         {
             success = true,
             vocabularyId = vocabId,
             repetitions = request.Repetitions,
             xpAwarded,
+            aiCreditsEarned,
             message = "Đã lưu tiến độ ôn tập thẻ từ vựng vào cơ sở dữ liệu."
         });
+    }
+
+    private static (DateOnly TodayVn, DateTime TodayStartUtc) GetVietnamTodayBoundsUtc()
+    {
+        TimeZoneInfo tz;
+        try { tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); }
+        catch (TimeZoneNotFoundException)
+        {
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Ho_Chi_Minh"); }
+            catch (TimeZoneNotFoundException) { tz = TimeZoneInfo.CreateCustomTimeZone("Asia/Ho_Chi_Minh", TimeSpan.FromHours(7), "ICT", "ICT"); }
+        }
+        var vnNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var todayVn = DateOnly.FromDateTime(vnNow);
+        var vnStart = todayVn.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        return (todayVn, TimeZoneInfo.ConvertTimeToUtc(vnStart, tz));
     }
 
     /// <summary>Returns the signed-in learner's studied words and cards due for review.</summary>
